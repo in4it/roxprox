@@ -1,0 +1,13 @@
+api: proxy.in4it.io/v1
+kind: rule
+metadata:
+  name: mocky
+spec:
+  certificate: "letsencrypt"
+  conditions:
+    - hostname: mocky-1.in4it.io
+    - hostname: mocky-2.in4it.io
+  actions:
+    - proxy:
+        hostname: www.mocky.io
+        port: 443
