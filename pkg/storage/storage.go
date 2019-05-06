@@ -5,6 +5,7 @@ import (
 
 	"github.com/in4it/envoy-autocert/pkg/api"
 	"github.com/in4it/envoy-autocert/pkg/storage/local"
+	"github.com/in4it/envoy-autocert/pkg/storage/s3"
 )
 
 type Config struct {
@@ -33,6 +34,8 @@ func NewStorage(t string, config interface{}) Storage {
 	var storage Storage
 	if t == "local" {
 		storage = local.NewLocalStorage(config.(local.Config))
+	} else if t == "s3" {
+		storage = s3.NewS3Storage(config.(s3.Config))
 	}
 	return storage
 }

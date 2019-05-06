@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"os"
 
 	envoy "github.com/in4it/envoy-autocert/pkg/envoy"
 	storage "github.com/in4it/envoy-autocert/pkg/storage"
@@ -26,8 +27,12 @@ func main() {
 
 	loggo.ConfigureLoggers(`<root>=DEBUG`)
 
-	if storageType == "local" {
+	if storageType == "local" || storageType == "s3" {
 		s = storage.NewStorage(storageType, localStorage.Config{Path: storagePath})
+		if s == nil {
+			logger.Errorf("Couldn't inialize storage")
+			os.Exit(1)
+		}
 	} else {
 		panic("unknown storage")
 	}
