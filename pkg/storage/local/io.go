@@ -1,7 +1,6 @@
 package local
 
 import (
-	"crypto/rand"
 	"crypto/rsa"
 	"errors"
 	"io/ioutil"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/in4it/envoy-autocert/pkg/api"
+	"github.com/in4it/envoy-autocert/pkg/crypto"
 	"github.com/juju/loggo"
 )
 
@@ -133,66 +133,6 @@ func (l *LocalStorage) GetCertBundle(name string) (string, error) {
 	return string(contents), err
 }
 
-func (l *LocalStorage) GetPrivateAccountkey() (*rsa.PrivateKey, error) {
-	filename := l.dir + "/pki/accountkeys/private.pem"
-	if _, err := os.Stat(filename); os.IsNotExist(err) {
-		return nil, errNotExist
-	}
-	privateKey, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-	return getPrivateKey(privateKey)
-}
-func (l *LocalStorage) GetPublicAccountkey() (*rsa.PublicKey, error) {
-	filename := l.dir + "/pki/accountkeys/public.pem"
-	if _, err := os.Stat(filename); os.IsNotExist(err) {
-		return nil, errNotExist
-	}
-	publicKey, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-	return getPublicKey(publicKey)
-}
-func (l *LocalStorage) CreateAccountKey() error {
-	reader := rand.Reader
-	bitSize := 2048
-
-	key, err := rsa.GenerateKey(reader, bitSize)
-	if err != nil {
-		return err
-	}
-
-	if _, err := os.Stat(l.dir + "/pki/accountkeys"); os.IsNotExist(err) {
-		err = os.MkdirAll(l.dir+"/pki/accountkeys", 0755)
-		if err != nil {
-			return err
-		}
-	}
-
-	err = savePEMKey(l.dir+"/pki/accountkeys/private.pem", key)
-	if err != nil {
-		return err
-	}
-
-	err = savePublicPEMKey(l.dir+"/pki/accountkeys/public.pem", key.PublicKey)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (l *LocalStorage) WriteChallenge(name string, data []byte) error {
-	if _, err := os.Stat(l.dir + "/challenges"); os.IsNotExist(err) {
-		err = os.MkdirAll(l.dir+"/challenges", 0755)
-		if err != nil {
-			return err
-		}
-	}
-	return ioutil.WriteFile(l.dir+"/challenges/"+name+".json", data, 0644)
-}
 func (l *LocalStorage) WriteCert(name string, cert []byte) error {
 	filename := l.dir + "/pki/certs/" + name + ".crt"
 	if _, err := os.Stat(l.dir + "/pki/certs"); os.IsNotExist(err) {
@@ -217,11 +157,65 @@ func (l *LocalStorage) WriteCertBundle(name string, certs []byte) error {
 	logger.Debugf("writing cert bundle: %s", filename)
 	return ioutil.WriteFile(filename, certs, 0644)
 }
-func (l *LocalStorage) CreateKey(name string) error {
-	reader := rand.Reader
-	bitSize := 2048
+func (l *LocalStorage) GetPrivateAccountkey() (*rsa.PrivateKey, error) {
+	filename := l.dir + "/pki/accountkeys/private.pem"
+	if _, err := os.Stat(filename); os.IsNotExist(err) {
+		return nil, errNotExist
+	}
+	privateKey, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	return crypto.GetPrivateKey(privateKey)
+}
+func (l *LocalStorage) GetPublicAccountkey() (*rsa.PublicKey, error) {
+	filename := l.dir + "/pki/accountkeys/public.pem"
+	if _, err := os.Stat(filename); os.IsNotExist(err) {
+		return nil, errNotExist
+	}
+	publicKey, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	return crypto.GetPublicKey(publicKey)
+}
+func (l *LocalStorage) CreateAccountKey() error {
+	key, err := crypto.GenerateKey()
+	if err != nil {
+		return err
+	}
 
-	key, err := rsa.GenerateKey(reader, bitSize)
+	if _, err := os.Stat(l.dir + "/pki/accountkeys"); os.IsNotExist(err) {
+		err = os.MkdirAll(l.dir+"/pki/accountkeys", 0755)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = crypto.SavePEMKey(l.dir+"/pki/accountkeys/private.pem", key)
+	if err != nil {
+		return err
+	}
+
+	err = crypto.SavePublicPEMKey(l.dir+"/pki/accountkeys/public.pem", key.PublicKey)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (l *LocalStorage) WriteChallenge(name string, data []byte) error {
+	if _, err := os.Stat(l.dir + "/challenges"); os.IsNotExist(err) {
+		err = os.MkdirAll(l.dir+"/challenges", 0755)
+		if err != nil {
+			return err
+		}
+	}
+	return ioutil.WriteFile(l.dir+"/challenges/"+name+".json", data, 0644)
+}
+func (l *LocalStorage) CreateKey(name string) error {
+	key, err := crypto.GenerateKey()
 	if err != nil {
 		return err
 	}
@@ -233,12 +227,12 @@ func (l *LocalStorage) CreateKey(name string) error {
 		}
 	}
 
-	err = savePEMKey(l.dir+"/pki/keys/"+name+".pem", key)
+	err = crypto.SavePEMKey(l.dir+"/pki/keys/"+name+".pem", key)
 	if err != nil {
 		return err
 	}
 
-	err = savePublicPEMKey(l.dir+"/pki/keys/"+name+"-public.pem", key.PublicKey)
+	err = crypto.SavePublicPEMKey(l.dir+"/pki/keys/"+name+"-public.pem", key.PublicKey)
 	if err != nil {
 		return err
 	}
@@ -254,7 +248,7 @@ func (l *LocalStorage) GetPrivateKey(name string) (*rsa.PrivateKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	return getPrivateKey(privateKey)
+	return crypto.GetPrivateKey(privateKey)
 }
 func (l *LocalStorage) GetPrivateKeyPem(name string) (string, error) {
 	filename := l.dir + "/pki/keys/" + name + ".pem"

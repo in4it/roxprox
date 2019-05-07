@@ -3,10 +3,12 @@ package main
 import (
 	"flag"
 	"os"
+	"strings"
 
 	envoy "github.com/in4it/envoy-autocert/pkg/envoy"
 	storage "github.com/in4it/envoy-autocert/pkg/storage"
 	localStorage "github.com/in4it/envoy-autocert/pkg/storage/local"
+	"github.com/in4it/envoy-autocert/pkg/storage/s3"
 	"github.com/juju/loggo"
 )
 
@@ -14,21 +16,36 @@ var logger = loggo.GetLogger("envoy-control-plane")
 
 func main() {
 	var (
-		storageType string
-		storagePath string
-		acmeContact string
-		s           storage.Storage
+		storageType   string
+		storagePath   string
+		storageBucket string
+		acmeContact   string
+		s             storage.Storage
 	)
 	flag.StringVar(&storageType, "storage-type", "local", "storage type")
 	flag.StringVar(&storagePath, "storage-path", "", "storage path")
+	flag.StringVar(&storageBucket, "storage-bucket", "", "s3 storage bucket")
 	flag.StringVar(&acmeContact, "acme-contact", "", "acme contact for TLS certs")
 
 	flag.Parse()
 
 	loggo.ConfigureLoggers(`<root>=DEBUG`)
 
-	if storageType == "local" || storageType == "s3" {
+	if storageType == "local" {
 		s = storage.NewStorage(storageType, localStorage.Config{Path: storagePath})
+		if s == nil {
+			logger.Errorf("Couldn't inialize storage")
+			os.Exit(1)
+		}
+	} else if storageType == "s3" {
+		if storageBucket == "" {
+			logger.Errorf("No bucket specified")
+			os.Exit(1)
+		}
+		if strings.HasSuffix(storagePath, "/") {
+			storagePath = storagePath[:len(storagePath)-1]
+		}
+		s = storage.NewStorage(storageType, s3.Config{Prefix: storagePath, Bucket: storageBucket})
 		if s == nil {
 			logger.Errorf("Couldn't inialize storage")
 			os.Exit(1)

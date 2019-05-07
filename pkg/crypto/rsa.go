@@ -1,6 +1,7 @@
-package local
+package crypto
 
 import (
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
@@ -8,7 +9,7 @@ import (
 	"os"
 )
 
-func savePEMKey(fileName string, key *rsa.PrivateKey) error {
+func SavePEMKey(fileName string, key *rsa.PrivateKey) error {
 	outFile, err := os.Create(fileName)
 	if err != nil {
 		return err
@@ -29,7 +30,27 @@ func savePEMKey(fileName string, key *rsa.PrivateKey) error {
 	}
 	return nil
 }
-func savePublicPEMKey(fileName string, pubkey rsa.PublicKey) error {
+func ConvertToPEMKey(key *rsa.PrivateKey) []byte {
+	var privateKey = &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(key),
+	}
+	return pem.EncodeToMemory(privateKey)
+}
+func ConvertToPublicPEMKey(pubkey rsa.PublicKey) ([]byte, error) {
+	asn1Bytes, err := x509.MarshalPKIXPublicKey(&pubkey)
+	if err != nil {
+		return []byte{}, err
+	}
+
+	var pemkey = &pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: asn1Bytes,
+	}
+
+	return pem.EncodeToMemory(pemkey), nil
+}
+func SavePublicPEMKey(fileName string, pubkey rsa.PublicKey) error {
 	asn1Bytes, err := x509.MarshalPKIXPublicKey(&pubkey)
 	if err != nil {
 		return err
@@ -52,7 +73,7 @@ func savePublicPEMKey(fileName string, pubkey rsa.PublicKey) error {
 	}
 	return nil
 }
-func getPublicKey(input []byte) (*rsa.PublicKey, error) {
+func GetPublicKey(input []byte) (*rsa.PublicKey, error) {
 	var (
 		err        error
 		pemDecoded *pem.Block
@@ -80,7 +101,7 @@ func getPublicKey(input []byte) (*rsa.PublicKey, error) {
 
 	return publicKey, nil
 }
-func getPrivateKey(input []byte) (*rsa.PrivateKey, error) {
+func GetPrivateKey(input []byte) (*rsa.PrivateKey, error) {
 	var (
 		err        error
 		pemDecoded *pem.Block
@@ -104,4 +125,10 @@ func getPrivateKey(input []byte) (*rsa.PrivateKey, error) {
 	}
 
 	return privateKey, nil
+}
+func GenerateKey() (*rsa.PrivateKey, error) {
+	reader := rand.Reader
+	bitSize := 2048
+
+	return rsa.GenerateKey(reader, bitSize)
 }
