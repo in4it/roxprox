@@ -34,6 +34,8 @@ func main() {
 
 	flag.Parse()
 
+	loglevel = strings.ToUpper(loglevel)
+
 	if loglevel == "DEBUG" || loglevel == "INFO" || loglevel == "TRACE" || loglevel == "ERROR" || loglevel == "DEBUG" {
 		loggo.ConfigureLoggers(`<root>=` + loglevel)
 	} else {
