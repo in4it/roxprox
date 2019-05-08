@@ -2,6 +2,7 @@ package storage
 
 import (
 	"crypto/rsa"
+	"fmt"
 
 	"github.com/in4it/envoy-autocert/pkg/api"
 	"github.com/in4it/envoy-autocert/pkg/storage/local"
@@ -30,12 +31,12 @@ type Storage interface {
 	WriteChallenge(name string, data []byte) error
 }
 
-func NewStorage(t string, config interface{}) Storage {
-	var storage Storage
+func NewStorage(t string, config interface{}) (Storage, error) {
 	if t == "local" {
-		storage = local.NewLocalStorage(config.(local.Config))
+		return local.NewLocalStorage(config.(local.Config))
 	} else if t == "s3" {
-		storage = s3.NewS3Storage(config.(s3.Config))
+		return s3.NewS3Storage(config.(s3.Config))
+	} else {
+		return nil, fmt.Errorf("Unknown storage type supplied")
 	}
-	return storage
 }

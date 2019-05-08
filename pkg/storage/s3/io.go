@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
@@ -29,17 +30,38 @@ type S3Storage struct {
 type Config struct {
 	Prefix string
 	Bucket string
+	Region string
 }
 
-func NewS3Storage(config Config) *S3Storage {
-	sess, err := session.NewSession()
+func NewS3Storage(config Config) (*S3Storage, error) {
+	sess, err := session.NewSession(&aws.Config{Region: aws.String(config.Region)})
 	if err != nil {
 		logger.Errorf("Couldn't initialize S3: %s", err)
-		return nil
+		return nil, nil
 	}
 	svc := s3.New(sess)
 
-	return &S3Storage{config: config, svc: svc, sess: sess}
+	// test connection
+	input := &s3.GetObjectInput{
+		Bucket: aws.String(config.Bucket),
+		Key:    aws.String(config.Prefix + "/test-perms"),
+	}
+	_, err = svc.GetObject(input)
+
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			case s3.ErrCodeNoSuchKey:
+				// we have s3 permissions
+			default:
+				return nil, aerr
+			}
+		} else {
+			return nil, err
+		}
+	}
+
+	return &S3Storage{config: config, svc: svc, sess: sess}, nil
 }
 
 func (s *S3Storage) GetError(name string) error {

@@ -26,7 +26,7 @@ type Config struct {
 	Path string
 }
 
-func NewLocalStorage(config Config) *LocalStorage {
+func NewLocalStorage(config Config) (*LocalStorage, error) {
 	var dir string
 
 	wd, err := os.Getwd()
@@ -35,7 +35,7 @@ func NewLocalStorage(config Config) *LocalStorage {
 	} else {
 		dir = config.Path
 	}
-	return &LocalStorage{config: config, dir: dir}
+	return &LocalStorage{config: config, dir: dir}, nil
 }
 
 func (l *LocalStorage) GetError(name string) error {
