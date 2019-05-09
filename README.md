@@ -10,7 +10,13 @@ The first version works, but the project is still WIP.
 ## Run envoy-autocert
 You can find configuration examples in resources/example-config
 ```
-./envoy-control-plane-darwin-amd64 -storage-path data/ -acme-contact <your-email-address>
+./envoy-control-plane-linux-amd64 -storage-path data/ -acme-contact <your-email-address>
+```
+
+You can use local storage (default) or s3 storage. To use s3 storage, use:
+
+```
+./envoy-control-plane-linux-amd64 -acme-contact <your-email-address> -storage-type s3 -storage-bucket your-bucket-name -aws-region your-aws-region
 ```
 
 ## Run envoy
@@ -39,3 +45,21 @@ spec:
 ```
 
 This will run the ACME validation on both hostnames (mocky-1.in4it.io and mocky-2.in4it.io). If successful, it'll create an https listener that redirects to www.mocky.io, a mocking service.
+
+## Run on AWS with terraform
+
+There is a terraform module available in this repository. It'll configure an S3 bucket, a Network Loadbalancer, and 3 fargate containers. The container setup consist of 2 envoy proxies (one for http and one for https), and the envoy-autocert server. To start using it, add the following code to your terraform project:
+
+```
+module "envoy-autocert" {
+  source              = "github.com/in4it/envoy-autocert//terraform"
+  release             = "latest"                                     # use a tag or use latest for master
+  acme_contact        = "your-email"                                 # email contact used by Let's encrypt
+  control_plane_count = 1                                            # desired controle plane instances
+  envoy_proxy_count   = 1                                            # envoy proxy count (there will be still one for http and one for https, due to the AWS Fargate/NLB limitations)
+  subnets             = ["subnet-1234abcd"]                          # AWS subnet to use
+  s3_bucket           = "envoy-autocert"                             # s3 bucket to use
+}
+```
+
+You'll still need to upload the configuration to the s3 bucket
