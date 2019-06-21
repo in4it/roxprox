@@ -27,11 +27,6 @@ type S3Storage struct {
 	svc    *s3.S3
 	sess   *session.Session
 }
-type Config struct {
-	Prefix string
-	Bucket string
-	Region string
-}
 
 func NewS3Storage(config Config) (*S3Storage, error) {
 	sess, err := session.NewSession(&aws.Config{Region: aws.String(config.Region)})
