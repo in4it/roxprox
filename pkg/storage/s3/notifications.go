@@ -92,7 +92,6 @@ func (n *Notifications) RunSQSQueue(queueURL string) {
 					notificationLogger.Errorf("Body unmarshal error: %s", err)
 				}
 
-				fmt.Printf("%+v\n", body)
 				_, err = n.sqsSvc.DeleteMessage(&sqs.DeleteMessageInput{
 					QueueUrl:      aws.String(queueURL),
 					ReceiptHandle: v.ReceiptHandle,
@@ -104,7 +103,7 @@ func (n *Notifications) RunSQSQueue(queueURL string) {
 				// using second grpc interface (possible with service to service communication + service discovery)
 				if len(body.Records) > 0 {
 					req.NotificationItem = append(req.NotificationItem, &pbN.NotificationRequest_NotificationItem{
-						Filename: body.Records[0].S3.Object.Key,
+						Filename:  body.Records[0].S3.Object.Key,
 						EventName: body.Records[0].EventName,
 					})
 				}
@@ -114,7 +113,6 @@ func (n *Notifications) RunSQSQueue(queueURL string) {
 			if err != nil {
 				notificationLogger.Errorf("SendNotificationToPeers error: %s", err)
 			}
-			//fmt.Printf("%+v\n", result.Messages)
 		}
 	}
 }
