@@ -11,6 +11,7 @@ import (
 	xds "github.com/envoyproxy/go-control-plane/pkg/server"
 	pkgApi "github.com/in4it/envoy-autocert/pkg/api"
 	storage "github.com/in4it/envoy-autocert/pkg/storage"
+	n "github.com/in4it/envoy-autocert/proto/notification"
 	"github.com/juju/loggo"
 	"google.golang.org/grpc"
 )
@@ -95,6 +96,30 @@ func (x *XDS) ImportRules() error {
 	return nil
 }
 
+func (x *XDS) RemoveRule(ruleName string) ([]WorkQueueItem, error) {
+	workQueueItems := []WorkQueueItem{
+		{
+			Action: "deleteCluster",
+			ClusterParams: ClusterParams{
+				Name: ruleName,
+			},
+		},
+		{
+			Action: "deleteListener",
+			ListenerParams: ListenerParams{
+				Name: ruleName,
+			},
+		},
+		{
+			Action: "deleteTLSListener",
+			ListenerParams: ListenerParams{
+				Name: ruleName,
+			},
+		},
+	}
+	return workQueueItems, nil
+}
+
 func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 	var workQueueItems []WorkQueueItem
 	targetHostname := ""
@@ -128,31 +153,33 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 					},
 				}
 				workQueueItems = append(workQueueItems, workQueueItem)
-				// TLS listener
-				certBundle, err := x.s.GetCertBundle(rule.Metadata.Name)
-				if err != nil && err != x.s.GetError("errNotExist") {
-					return workQueueItems, err
-				}
-				if err != nil && err == x.s.GetError("errNotExist") {
-					// TODO: add to list for creation
-					logger.Debugf("Certificate not found, needs to be created")
-				}
-				if err == nil {
-					logger.Debugf("Certificate found, adding TLS")
-					privateKeyPem, err := x.s.GetPrivateKeyPem(rule.Metadata.Name)
-					if err != nil {
+
+				if rule.Spec.Certificate == "letsencrypt" {
+					// TLS listener
+					certBundle, err := x.s.GetCertBundle(rule.Metadata.Name)
+					if err != nil && err != x.s.GetError("errNotExist") {
 						return workQueueItems, err
 					}
-					workQueueItemTLS := workQueueItem
-					workQueueItemTLS.Action = "createTLSListener"
-					workQueueItemTLS.TLSParams = TLSParams{
-						Name:       rule.Metadata.Name,
-						CertBundle: certBundle,
-						PrivateKey: privateKeyPem,
+					if err != nil && err == x.s.GetError("errNotExist") {
+						// TODO: add to list for creation
+						logger.Debugf("Certificate not found, needs to be created")
 					}
-					workQueueItems = append(workQueueItems, workQueueItemTLS)
+					if err == nil {
+						logger.Debugf("Certificate found, adding TLS")
+						privateKeyPem, err := x.s.GetPrivateKeyPem(rule.Metadata.Name)
+						if err != nil {
+							return workQueueItems, err
+						}
+						workQueueItemTLS := workQueueItem
+						workQueueItemTLS.Action = "createTLSListener"
+						workQueueItemTLS.TLSParams = TLSParams{
+							Name:       rule.Metadata.Name,
+							CertBundle: certBundle,
+							PrivateKey: privateKeyPem,
+						}
+						workQueueItems = append(workQueueItems, workQueueItemTLS)
+					}
 				}
-
 			}
 		}
 	}
@@ -230,31 +257,62 @@ func (x *XDS) launchCreateCert(name string, domains []string) WorkQueueItem {
 	return workQueueItem
 }
 
-func (x *XDS) StartObservingNotifications(queue chan []string) {
+func (x *XDS) StartObservingNotifications(queue chan []*n.NotificationRequest_NotificationItem) {
 	go x.receiveFromQueue(queue)
 }
 
-func (x *XDS) receiveFromQueue(queue chan []string) {
+func (x *XDS) receiveFromQueue(queue chan []*n.NotificationRequest_NotificationItem) {
 	for {
 		var (
 			workQueueItems []WorkQueueItem
 		)
 
-		newFiles := <-queue
+		notifications := <-queue
 
-		for _, v := range newFiles {
-			rule, err := x.s.GetRule(v)
-			if err != nil {
-				logger.Errorf("Couldn't get new rule from storage: %s", err)
-			}
+		for _, v := range notifications {
+			if v.EventName == "ObjectCreated:Put" {
+				newItems, err := x.putRule(v.Filename)
+				if err != nil {
+					logger.Errorf("%s", err)
+				} else {
+					workQueueItems = append(workQueueItems, newItems...)
+				}
+			} else if v.EventName == "ObjectRemoved:Delete" {
+				newItems, err := x.deleteRule(v.Filename)
+				if err != nil {
+					logger.Errorf("%s", err)
+				} else {
+					workQueueItems = append(workQueueItems, newItems...)
+				}
 
-			newitems, err := x.ImportRule(rule)
-			if err != nil {
-				logger.Errorf("Couldn't import new rule: %s", err)
 			}
-			workQueueItems = append(workQueueItems, newitems...)
 		}
 
-		x.workQueue.Submit(workQueueItems)
+		if len(workQueueItems) > 0 {
+			x.workQueue.Submit(workQueueItems)
+		}
 	}
+}
+func (x *XDS) putRule(filename string) ([]WorkQueueItem, error) {
+	rule, err := x.s.GetRule(filename)
+	if err != nil {
+		return []WorkQueueItem{}, fmt.Errorf("Couldn't get new rule from storage: %s", err)
+	}
+
+	newItems, err := x.ImportRule(rule)
+	if err != nil {
+		return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
+	}
+	return newItems, nil
+}
+func (x *XDS) deleteRule(filename string) ([]WorkQueueItem, error) {
+	rule, err := x.s.GetCachedRuleName(filename)
+	if err != nil {
+		return []WorkQueueItem{}, fmt.Errorf("Couldn't get new rule from storage cache: %s", err)
+	}
+	newItems, err := x.RemoveRule(rule)
+	if err != nil {
+		return []WorkQueueItem{}, fmt.Errorf("Couldn't remove rule: %s", err)
+	}
+	return newItems, nil
 }

@@ -5,9 +5,12 @@ service Notification {
 }
 
 message NotificationRequest {
-   repeated string filename = 1;
+   message NotificationItem {
+      string filename = 1;
+      string eventName = 2;
+   }  
+   repeated NotificationItem notificationItem = 1;
 }
-
 
 message NotificationReply {
     bool result = 1;

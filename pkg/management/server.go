@@ -18,16 +18,16 @@ var logger = loggo.GetLogger("management")
 
 // server is used to implement notification.
 type server struct {
-	queue chan []string
+	queue chan []*n.NotificationRequest_NotificationItem
 }
 
 func (s *server) SendNotification(ctx context.Context, in *n.NotificationRequest) (*n.NotificationReply, error) {
-	logger.Debugf("Received: %+v", in.Filename)
-	s.queue <- in.Filename
+	logger.Debugf("Received %d events", len(in.GetNotificationItem()))
+	s.queue <- in.GetNotificationItem()
 	return &n.NotificationReply{Result: true}, nil
 }
 
-func (s *server) GetQueue() chan []string {
+func (s *server) GetQueue() chan []*n.NotificationRequest_NotificationItem {
 	return s.queue
 }
 
@@ -38,7 +38,7 @@ func NewServer() (*server, error) {
 	}
 	logger.Infof("Starting grpc management interface")
 	s := grpc.NewServer()
-	serverObj := &server{queue: make(chan []string)}
+	serverObj := &server{queue: make(chan []*n.NotificationRequest_NotificationItem)}
 	n.RegisterNotificationServer(s, serverObj)
 
 	go func() {

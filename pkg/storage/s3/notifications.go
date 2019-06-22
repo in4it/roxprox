@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -103,9 +102,14 @@ func (n *Notifications) RunSQSQueue(queueURL string) {
 				}
 				// relay message using body.s3.object.key
 				// using second grpc interface (possible with service to service communication + service discovery)
-				req.Filename = append(req.Filename, body.Records[0].S3.Object.Key)
+				if len(body.Records) > 0 {
+					req.NotificationItem = append(req.NotificationItem, &pbN.NotificationRequest_NotificationItem{
+						Filename: body.Records[0].S3.Object.Key,
+						EventName: body.Records[0].EventName,
+					})
+				}
 			}
-			logger.Debugf("SendNotificationToPeers: %s", strings.Join(req.Filename, ","))
+			logger.Debugf("SendNotificationToPeers: %+v", req.NotificationItem)
 			n.SendNotificationToPeers(req)
 			if err != nil {
 				notificationLogger.Errorf("SendNotificationToPeers error: %s", err)
