@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	envoy "github.com/in4it/envoy-autocert/pkg/envoy"
+	"github.com/in4it/envoy-autocert/pkg/management"
 	storage "github.com/in4it/envoy-autocert/pkg/storage"
 	localStorage "github.com/in4it/envoy-autocert/pkg/storage/local"
 	"github.com/in4it/envoy-autocert/pkg/storage/s3"
@@ -36,7 +37,7 @@ func main() {
 
 	loglevel = strings.ToUpper(loglevel)
 
-	if loglevel == "DEBUG" || loglevel == "INFO" || loglevel == "TRACE" || loglevel == "ERROR" || loglevel == "DEBUG" {
+	if loglevel == "DEBUG" || loglevel == "INFO" || loglevel == "TRACE" || loglevel == "ERROR" {
 		loggo.ConfigureLoggers(`<root>=` + loglevel)
 	} else {
 		loggo.ConfigureLoggers(`<root>=INFO`)
@@ -63,6 +64,13 @@ func main() {
 		}
 	} else {
 		panic("unknown storage")
+	}
+
+	// start management server
+	err = management.NewServer()
+	if err != nil {
+		logger.Errorf("Couldn't start management interface: %s", err)
+		os.Exit(1)
 	}
 
 	xds := envoy.NewXDS(s, acmeContact)
