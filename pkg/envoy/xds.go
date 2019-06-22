@@ -71,6 +71,7 @@ func (x *XDS) StartRenewalQueue() error {
 	}
 	return nil
 }
+
 func (x *XDS) ImportRules() error {
 	var (
 		workQueueItems []WorkQueueItem
@@ -82,71 +83,80 @@ func (x *XDS) ImportRules() error {
 	}
 
 	for _, rule := range x.rules {
-		targetHostname := ""
-		for _, action := range rule.Spec.Actions {
-			if action.Proxy.Hostname != "" {
-				targetHostname = action.Proxy.Hostname
-				workQueueItem := WorkQueueItem{
-					Action: "createCluster",
-					ClusterParams: ClusterParams{
-						Name:           rule.Metadata.Name,
-						TargetHostname: targetHostname,
-						Port:           action.Proxy.Port,
-					},
-				}
-				workQueueItems = append(workQueueItems, workQueueItem)
-			}
+		newitems, err := x.ImportRule(rule)
+		if err != nil {
+			return err
 		}
-		if targetHostname != "" {
-			// create listener that proxies to targetHostname
-			for _, condition := range rule.Spec.Conditions {
-				if condition.Hostname != "" || condition.Prefix != "" {
-					workQueueItem := WorkQueueItem{
-						Action: "createListener",
-						ListenerParams: ListenerParams{
-							Name:           rule.Metadata.Name,
-							TargetHostname: targetHostname,
-							Conditions: Conditions{
-								Hostname: condition.Hostname,
-								Prefix:   condition.Prefix,
-							},
-						},
-					}
-					workQueueItems = append(workQueueItems, workQueueItem)
-					// TLS listener
-					certBundle, err := x.s.GetCertBundle(rule.Metadata.Name)
-					if err != nil && err != x.s.GetError("errNotExist") {
-						return err
-					}
-					if err != nil && err == x.s.GetError("errNotExist") {
-						// TODO: add to list for creation
-						logger.Debugf("Certificate not found, needs to be created")
-					}
-					if err == nil {
-						logger.Debugf("Certificate found, adding TLS")
-						privateKeyPem, err := x.s.GetPrivateKeyPem(rule.Metadata.Name)
-						if err != nil {
-							return err
-						}
-						workQueueItemTLS := workQueueItem
-						workQueueItemTLS.Action = "createTLSListener"
-						workQueueItemTLS.TLSParams = TLSParams{
-							Name:       rule.Metadata.Name,
-							CertBundle: certBundle,
-							PrivateKey: privateKeyPem,
-						}
-						workQueueItems = append(workQueueItems, workQueueItemTLS)
-					}
-
-				}
-			}
-		}
-
+		workQueueItems = append(workQueueItems, newitems...)
 	}
 
 	x.workQueue.Submit(workQueueItems)
 
 	return nil
+}
+
+func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
+	var workQueueItems []WorkQueueItem
+	targetHostname := ""
+	for _, action := range rule.Spec.Actions {
+		if action.Proxy.Hostname != "" {
+			targetHostname = action.Proxy.Hostname
+			workQueueItem := WorkQueueItem{
+				Action: "createCluster",
+				ClusterParams: ClusterParams{
+					Name:           rule.Metadata.Name,
+					TargetHostname: targetHostname,
+					Port:           action.Proxy.Port,
+				},
+			}
+			workQueueItems = append(workQueueItems, workQueueItem)
+		}
+	}
+	if targetHostname != "" {
+		// create listener that proxies to targetHostname
+		for _, condition := range rule.Spec.Conditions {
+			if condition.Hostname != "" || condition.Prefix != "" {
+				workQueueItem := WorkQueueItem{
+					Action: "createListener",
+					ListenerParams: ListenerParams{
+						Name:           rule.Metadata.Name,
+						TargetHostname: targetHostname,
+						Conditions: Conditions{
+							Hostname: condition.Hostname,
+							Prefix:   condition.Prefix,
+						},
+					},
+				}
+				workQueueItems = append(workQueueItems, workQueueItem)
+				// TLS listener
+				certBundle, err := x.s.GetCertBundle(rule.Metadata.Name)
+				if err != nil && err != x.s.GetError("errNotExist") {
+					return workQueueItems, err
+				}
+				if err != nil && err == x.s.GetError("errNotExist") {
+					// TODO: add to list for creation
+					logger.Debugf("Certificate not found, needs to be created")
+				}
+				if err == nil {
+					logger.Debugf("Certificate found, adding TLS")
+					privateKeyPem, err := x.s.GetPrivateKeyPem(rule.Metadata.Name)
+					if err != nil {
+						return workQueueItems, err
+					}
+					workQueueItemTLS := workQueueItem
+					workQueueItemTLS.Action = "createTLSListener"
+					workQueueItemTLS.TLSParams = TLSParams{
+						Name:       rule.Metadata.Name,
+						CertBundle: certBundle,
+						PrivateKey: privateKeyPem,
+					}
+					workQueueItems = append(workQueueItems, workQueueItemTLS)
+				}
+
+			}
+		}
+	}
+	return workQueueItems, nil
 }
 
 func (x *XDS) CreateCertsForRules() error {
@@ -218,4 +228,33 @@ func (x *XDS) launchCreateCert(name string, domains []string) WorkQueueItem {
 		},
 	}
 	return workQueueItem
+}
+
+func (x *XDS) StartObservingNotifications(queue chan []string) {
+	go x.receiveFromQueue(queue)
+}
+
+func (x *XDS) receiveFromQueue(queue chan []string) {
+	for {
+		var (
+			workQueueItems []WorkQueueItem
+		)
+
+		newFiles := <-queue
+
+		for _, v := range newFiles {
+			rule, err := x.s.GetRule(v)
+			if err != nil {
+				logger.Errorf("Couldn't get new rule from storage: %s", err)
+			}
+
+			newitems, err := x.ImportRule(rule)
+			if err != nil {
+				logger.Errorf("Couldn't import new rule: %s", err)
+			}
+			workQueueItems = append(workQueueItems, newitems...)
+		}
+
+		x.workQueue.Submit(workQueueItems)
+	}
 }

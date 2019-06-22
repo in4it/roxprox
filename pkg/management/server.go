@@ -3,7 +3,6 @@ package management
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 
 	n "github.com/in4it/envoy-autocert/proto/notification"
@@ -18,21 +17,29 @@ const (
 var logger = loggo.GetLogger("management")
 
 // server is used to implement notification.
-type server struct{}
+type server struct {
+	queue chan []string
+}
 
 func (s *server) SendNotification(ctx context.Context, in *n.NotificationRequest) (*n.NotificationReply, error) {
-	log.Printf("Received: %+v", in.Filename)
+	logger.Debugf("Received: %+v", in.Filename)
+	s.queue <- in.Filename
 	return &n.NotificationReply{Result: true}, nil
 }
 
-func NewServer() error {
+func (s *server) GetQueue() chan []string {
+	return s.queue
+}
+
+func NewServer() (*server, error) {
 	lis, err := net.Listen("tcp", port)
 	if err != nil {
-		return fmt.Errorf("failed to listen: %v", err)
+		return nil, fmt.Errorf("failed to listen: %v", err)
 	}
 	logger.Infof("Starting grpc management interface")
 	s := grpc.NewServer()
-	n.RegisterNotificationServer(s, &server{})
+	serverObj := &server{queue: make(chan []string)}
+	n.RegisterNotificationServer(s, serverObj)
 
 	go func() {
 		if err := s.Serve(lis); err != nil {
@@ -40,5 +47,5 @@ func NewServer() error {
 		}
 	}()
 
-	return nil
+	return serverObj, nil
 }

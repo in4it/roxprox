@@ -67,7 +67,7 @@ func main() {
 	}
 
 	// start management server
-	err = management.NewServer()
+	notificationQueue, err := management.NewServer()
 	if err != nil {
 		logger.Errorf("Couldn't start management interface: %s", err)
 		os.Exit(1)
@@ -81,6 +81,8 @@ func main() {
 	if err != nil {
 		logger.Errorf("Couldn't import rules: %s", err)
 	}
+
+	xds.StartObservingNotifications(notificationQueue.GetQueue())
 
 	// Waiting for envoys to connect
 	logger.Infof("Waiting for envoys to connect...")

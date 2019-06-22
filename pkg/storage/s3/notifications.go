@@ -27,7 +27,6 @@ type Notifications struct {
 	config    Config
 	queueName string
 	sqsSvc    *sqs.SQS
-	queue     chan NotificationEntry
 	peers     map[Peer]pbN.NotificationClient
 }
 
@@ -41,7 +40,6 @@ func newNotifications(config Config) *Notifications {
 	return &Notifications{
 		config:    config,
 		queueName: config.Bucket + "-notifications",
-		queue:     make(chan NotificationEntry),
 		peers:     make(map[Peer]pbN.NotificationClient),
 	}
 }
@@ -115,9 +113,6 @@ func (n *Notifications) RunSQSQueue(queueURL string) {
 			//fmt.Printf("%+v\n", result.Messages)
 		}
 	}
-}
-func (n *Notifications) GetQueue() chan NotificationEntry {
-	return n.queue
 }
 
 func (n *Notifications) SendNotificationToPeers(req pbN.NotificationRequest) error {
