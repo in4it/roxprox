@@ -9,6 +9,7 @@ import (
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
+	"github.com/envoyproxy/go-control-plane/pkg/cache"
 	"github.com/envoyproxy/go-control-plane/pkg/util"
 	"github.com/gogo/protobuf/types"
 )
@@ -232,6 +233,22 @@ func (l *Listener) getListenerAttributes(params ListenerParams, paramsTLS TLSPar
 	}
 	return tls, targetPrefix, virtualHostName, routeConfigName, listenerName, listenerPort
 }
+func (l *Listener) findListener(listeners []cache.Resource, params ListenerParams) (int, error) {
+	for k, v := range listeners {
+		if v.(*api.Listener).Name == "l_"+params.Name {
+			return k, nil
+		}
+	}
+	return -1, fmt.Errorf("Cluster not found")
+}
+func (l *Listener) findTLSListener(listeners []cache.Resource, params ListenerParams) (int, error) {
+	for k, v := range listeners {
+		if v.(*api.Listener).Name == "l_"+params.Name+"_tls" {
+			return k, nil
+		}
+	}
+	return -1, fmt.Errorf("Cluster not found")
+}
 func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *api.Listener {
 	var err error
 
@@ -304,4 +321,12 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 		}
 	}
 	return listener
+}
+
+func (c *Listener) GetListenerNames(listeners []cache.Resource) []string {
+	var listenerNames []string
+	for _, v := range listeners {
+		listenerNames = append(listenerNames, v.(*api.Listener).Name)
+	}
+	return listenerNames
 }

@@ -1,18 +1,29 @@
 package envoy
 
 import (
+	"fmt"
 	"time"
 
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/endpoint"
+	"github.com/envoyproxy/go-control-plane/pkg/cache"
 )
 
 type Cluster struct{}
 
 func newCluster() *Cluster {
 	return &Cluster{}
+}
+
+func (c *Cluster) findCluster(clusters []cache.Resource, params ClusterParams) (int, error) {
+	for k, v := range clusters {
+		if v.(*api.Cluster).Name == params.Name {
+			return k, nil
+		}
+	}
+	return -1, fmt.Errorf("Cluster not found")
 }
 
 func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
@@ -61,4 +72,12 @@ func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 		},
 	}
 
+}
+
+func (c *Cluster) GetClusterNames(clusters []cache.Resource) []string {
+	var clusterNames []string
+	for _, v := range clusters {
+		clusterNames = append(clusterNames, v.(*api.Cluster).Name)
+	}
+	return clusterNames
 }

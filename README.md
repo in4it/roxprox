@@ -25,7 +25,6 @@ There is an example envoy.yaml in the resources/ directory. Make sure to change 
 docker run --rm -it --network="host" -v "${PWD}/resources/envoy.yaml":/etc/envoy/envoy.yaml envoyproxy/envoy:v1.10.0
 ```
 ## Configuration
-
 You can configure endpoints using yaml definitions. Here's an example yaml definition that you can put in your data/ folder:
 
 ```
@@ -63,3 +62,12 @@ module "envoy-autocert" {
 ```
 
 You'll still need to upload the configuration to the s3 bucket
+
+
+# build 
+
+```
+protoc -I proto/ proto/notification.proto --go_out=plugins=grpc:proto/notification
+make build-linux  # linux
+make build-darwin # darwin
+```

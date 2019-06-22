@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+service Notification {
+   rpc SendNotification(NotificationRequest) returns (NotificationReply) {}
+}
+
+message NotificationRequest {
+   message NotificationItem {
+      string filename = 1;
+      string eventName = 2;
+   }  
+   repeated NotificationItem notificationItem = 1;
+}
+
+message NotificationReply {
+    bool result = 1;
+}

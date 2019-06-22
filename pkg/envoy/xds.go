@@ -11,6 +11,7 @@ import (
 	xds "github.com/envoyproxy/go-control-plane/pkg/server"
 	pkgApi "github.com/in4it/envoy-autocert/pkg/api"
 	storage "github.com/in4it/envoy-autocert/pkg/storage"
+	n "github.com/in4it/envoy-autocert/proto/notification"
 	"github.com/juju/loggo"
 	"google.golang.org/grpc"
 )
@@ -71,6 +72,7 @@ func (x *XDS) StartRenewalQueue() error {
 	}
 	return nil
 }
+
 func (x *XDS) ImportRules() error {
 	var (
 		workQueueItems []WorkQueueItem
@@ -82,41 +84,81 @@ func (x *XDS) ImportRules() error {
 	}
 
 	for _, rule := range x.rules {
-		targetHostname := ""
-		for _, action := range rule.Spec.Actions {
-			if action.Proxy.Hostname != "" {
-				targetHostname = action.Proxy.Hostname
+		newitems, err := x.ImportRule(rule)
+		if err != nil {
+			return err
+		}
+		workQueueItems = append(workQueueItems, newitems...)
+	}
+
+	x.workQueue.Submit(workQueueItems)
+
+	return nil
+}
+
+func (x *XDS) RemoveRule(ruleName string) ([]WorkQueueItem, error) {
+	workQueueItems := []WorkQueueItem{
+		{
+			Action: "deleteCluster",
+			ClusterParams: ClusterParams{
+				Name: ruleName,
+			},
+		},
+		{
+			Action: "deleteListener",
+			ListenerParams: ListenerParams{
+				Name: ruleName,
+			},
+		},
+		{
+			Action: "deleteTLSListener",
+			ListenerParams: ListenerParams{
+				Name: ruleName,
+			},
+		},
+	}
+	return workQueueItems, nil
+}
+
+func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
+	var workQueueItems []WorkQueueItem
+	targetHostname := ""
+	for _, action := range rule.Spec.Actions {
+		if action.Proxy.Hostname != "" {
+			targetHostname = action.Proxy.Hostname
+			workQueueItem := WorkQueueItem{
+				Action: "createCluster",
+				ClusterParams: ClusterParams{
+					Name:           rule.Metadata.Name,
+					TargetHostname: targetHostname,
+					Port:           action.Proxy.Port,
+				},
+			}
+			workQueueItems = append(workQueueItems, workQueueItem)
+		}
+	}
+	if targetHostname != "" {
+		// create listener that proxies to targetHostname
+		for _, condition := range rule.Spec.Conditions {
+			if condition.Hostname != "" || condition.Prefix != "" {
 				workQueueItem := WorkQueueItem{
-					Action: "createCluster",
-					ClusterParams: ClusterParams{
+					Action: "createListener",
+					ListenerParams: ListenerParams{
 						Name:           rule.Metadata.Name,
 						TargetHostname: targetHostname,
-						Port:           action.Proxy.Port,
+						Conditions: Conditions{
+							Hostname: condition.Hostname,
+							Prefix:   condition.Prefix,
+						},
 					},
 				}
 				workQueueItems = append(workQueueItems, workQueueItem)
-			}
-		}
-		if targetHostname != "" {
-			// create listener that proxies to targetHostname
-			for _, condition := range rule.Spec.Conditions {
-				if condition.Hostname != "" || condition.Prefix != "" {
-					workQueueItem := WorkQueueItem{
-						Action: "createListener",
-						ListenerParams: ListenerParams{
-							Name:           rule.Metadata.Name,
-							TargetHostname: targetHostname,
-							Conditions: Conditions{
-								Hostname: condition.Hostname,
-								Prefix:   condition.Prefix,
-							},
-						},
-					}
-					workQueueItems = append(workQueueItems, workQueueItem)
+
+				if rule.Spec.Certificate == "letsencrypt" {
 					// TLS listener
 					certBundle, err := x.s.GetCertBundle(rule.Metadata.Name)
 					if err != nil && err != x.s.GetError("errNotExist") {
-						return err
+						return workQueueItems, err
 					}
 					if err != nil && err == x.s.GetError("errNotExist") {
 						// TODO: add to list for creation
@@ -126,7 +168,7 @@ func (x *XDS) ImportRules() error {
 						logger.Debugf("Certificate found, adding TLS")
 						privateKeyPem, err := x.s.GetPrivateKeyPem(rule.Metadata.Name)
 						if err != nil {
-							return err
+							return workQueueItems, err
 						}
 						workQueueItemTLS := workQueueItem
 						workQueueItemTLS.Action = "createTLSListener"
@@ -137,16 +179,11 @@ func (x *XDS) ImportRules() error {
 						}
 						workQueueItems = append(workQueueItems, workQueueItemTLS)
 					}
-
 				}
 			}
 		}
-
 	}
-
-	x.workQueue.Submit(workQueueItems)
-
-	return nil
+	return workQueueItems, nil
 }
 
 func (x *XDS) CreateCertsForRules() error {
@@ -218,4 +255,64 @@ func (x *XDS) launchCreateCert(name string, domains []string) WorkQueueItem {
 		},
 	}
 	return workQueueItem
+}
+
+func (x *XDS) StartObservingNotifications(queue chan []*n.NotificationRequest_NotificationItem) {
+	go x.receiveFromQueue(queue)
+}
+
+func (x *XDS) receiveFromQueue(queue chan []*n.NotificationRequest_NotificationItem) {
+	for {
+		var (
+			workQueueItems []WorkQueueItem
+		)
+
+		notifications := <-queue
+
+		for _, v := range notifications {
+			if v.EventName == "ObjectCreated:Put" {
+				newItems, err := x.putRule(v.Filename)
+				if err != nil {
+					logger.Errorf("%s", err)
+				} else {
+					workQueueItems = append(workQueueItems, newItems...)
+				}
+			} else if v.EventName == "ObjectRemoved:Delete" {
+				newItems, err := x.deleteRule(v.Filename)
+				if err != nil {
+					logger.Errorf("%s", err)
+				} else {
+					workQueueItems = append(workQueueItems, newItems...)
+				}
+
+			}
+		}
+
+		if len(workQueueItems) > 0 {
+			x.workQueue.Submit(workQueueItems)
+		}
+	}
+}
+func (x *XDS) putRule(filename string) ([]WorkQueueItem, error) {
+	rule, err := x.s.GetRule(filename)
+	if err != nil {
+		return []WorkQueueItem{}, fmt.Errorf("Couldn't get new rule from storage: %s", err)
+	}
+
+	newItems, err := x.ImportRule(rule)
+	if err != nil {
+		return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
+	}
+	return newItems, nil
+}
+func (x *XDS) deleteRule(filename string) ([]WorkQueueItem, error) {
+	rule, err := x.s.GetCachedRuleName(filename)
+	if err != nil {
+		return []WorkQueueItem{}, fmt.Errorf("Couldn't get new rule from storage cache: %s", err)
+	}
+	newItems, err := x.RemoveRule(rule)
+	if err != nil {
+		return []WorkQueueItem{}, fmt.Errorf("Couldn't remove rule: %s", err)
+	}
+	return newItems, nil
 }

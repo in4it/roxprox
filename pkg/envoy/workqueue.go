@@ -2,6 +2,7 @@ package envoy
 
 import (
 	"fmt"
+	"strings"
 	"sync/atomic"
 
 	"github.com/envoyproxy/go-control-plane/pkg/cache"
@@ -49,6 +50,10 @@ func (w *WorkQueue) WaitForFirstEnvoy() {
 	<-w.callback.waitForEnvoy
 }
 
+func removeResource(slice []cache.Resource, s int) []cache.Resource {
+	return append(slice[:s], slice[s+1:]...)
+}
+
 func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 	id := uuid.New().String()
 	var updateXds bool
@@ -61,8 +66,18 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 			w.cache.clusters = append(w.cache.clusters, w.cluster.createCluster(item.ClusterParams))
 			item.state = "finished"
 			updateXds = true
+		case "deleteCluster":
+			element, err := w.cluster.findCluster(w.cache.clusters, item.ClusterParams)
+			if err != nil {
+				logger.Errorf("deleteCluster error: %s", err)
+				item.state = "error"
+			} else {
+				w.cache.clusters = removeResource(w.cache.clusters, element)
+				item.state = "finished"
+			}
+			updateXds = true
 		case "createListener":
-			if len(w.cache.listeners) == 0 {
+			if element, _ := w.listener.findListener(w.cache.listeners, item.ListenerParams); element == -1 {
 				w.cache.listeners = append(w.cache.listeners, w.listener.createListener(item.ListenerParams, TLSParams{}))
 				item.state = "finished"
 			} else {
@@ -75,8 +90,18 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 				}
 			}
 			updateXds = true
+		case "deleteListener":
+			element, err := w.listener.findListener(w.cache.listeners, item.ListenerParams)
+			if err != nil {
+				logger.Errorf("deleteListener error: %s", err)
+				item.state = "error"
+			} else {
+				w.cache.listeners = removeResource(w.cache.listeners, element)
+				item.state = "finished"
+			}
+			updateXds = true
 		case "createTLSListener":
-			if len(w.cache.listeners) == 1 {
+			if element, _ := w.listener.findTLSListener(w.cache.listeners, item.ListenerParams); element == -1 {
 				w.cache.listeners = append(w.cache.listeners, w.listener.createListener(item.ListenerParams, item.TLSParams))
 				item.state = "finished"
 			} else {
@@ -87,6 +112,16 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 				} else {
 					item.state = "finished"
 				}
+			}
+			updateXds = true
+		case "deleteTLSListener":
+			element, err := w.listener.findTLSListener(w.cache.listeners, item.ListenerParams)
+			if err != nil {
+				logger.Errorf("deleteTLSListener error: %s", err)
+				item.state = "error"
+			} else {
+				w.cache.listeners = removeResource(w.cache.listeners, element)
+				item.state = "finished"
 			}
 			updateXds = true
 		case "updateListenerWithChallenge":
@@ -177,6 +212,12 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 	}
 
 	if updateXds {
+		logger.Debugf("UpdateXds with %d clusters and %d listeners", len(w.cache.clusters), len(w.cache.listeners))
+		clusterNames := w.cluster.GetClusterNames(w.cache.clusters)
+		listenerNames := w.listener.GetListenerNames(w.cache.listeners)
+		logger.Debugf("ClusterNames: %s", strings.Join(clusterNames, ","))
+		logger.Debugf("ListenerNames: %s", strings.Join(listenerNames, ","))
+
 		w.updateXds()
 	}
 

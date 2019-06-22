@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rsa"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -26,11 +27,7 @@ type S3Storage struct {
 	config Config
 	svc    *s3.S3
 	sess   *session.Session
-}
-type Config struct {
-	Prefix string
-	Bucket string
-	Region string
+	cache  map[string]string
 }
 
 func NewS3Storage(config Config) (*S3Storage, error) {
@@ -61,7 +58,10 @@ func NewS3Storage(config Config) (*S3Storage, error) {
 		}
 	}
 
-	return &S3Storage{config: config, svc: svc, sess: sess}, nil
+	notifications := newNotifications(config)
+	notifications.StartQueue()
+
+	return &S3Storage{config: config, svc: svc, sess: sess, cache: make(map[string]string)}, nil
 }
 
 func (s *S3Storage) GetError(name string) error {
@@ -124,8 +124,13 @@ func (s *S3Storage) GetRule(name string) (api.Rule, error) {
 		if err != nil {
 			return rule, err
 		}
+
+		// keep a cache of filename -> rule name matching
+		s.cache[filename] = rule.Metadata.Name
+
 		return rule, nil
 	}
+
 	return rule, errors.New("Rule in wrong format")
 }
 func (s *S3Storage) ListCerts() (map[string]string, error) {
@@ -351,4 +356,15 @@ func (s *S3Storage) createKey(privateKeyPath, publicKeyPath string) error {
 	}
 
 	return nil
+}
+
+func (s *S3Storage) GetCachedRuleName(filename string) (string, error) {
+	if s.config.Prefix == "" {
+		filename = "/" + filename
+	}
+	if val, ok := s.cache[filename]; ok {
+		return val, nil
+	}
+
+	return "", fmt.Errorf("Filename %s not found in cache", filename)
 }
