@@ -77,18 +77,23 @@ func (x *XDS) ImportRules() error {
 	var (
 		workQueueItems []WorkQueueItem
 		err            error
+		objects        []pkgApi.Object
 	)
-	x.rules, err = x.s.ListRules()
+	objects, err = x.s.ListObjects()
 	if err != nil {
 		return err
 	}
 
-	for _, rule := range x.rules {
-		newitems, err := x.ImportRule(rule)
-		if err != nil {
-			return err
+	for _, object := range objects {
+		if object.Kind == "rule" {
+			rule := object.Data.(pkgApi.Rule)
+			x.rules = append(x.rules, rule)
+			newitems, err := x.ImportRule(rule)
+			if err != nil {
+				return err
+			}
+			workQueueItems = append(workQueueItems, newitems...)
 		}
-		workQueueItems = append(workQueueItems, newitems...)
 	}
 
 	x.workQueue.Submit(workQueueItems)
@@ -294,16 +299,19 @@ func (x *XDS) receiveFromQueue(queue chan []*n.NotificationRequest_NotificationI
 	}
 }
 func (x *XDS) putRule(filename string) ([]WorkQueueItem, error) {
-	rule, err := x.s.GetRule(filename)
+	object, err := x.s.GetObject(filename)
 	if err != nil {
 		return []WorkQueueItem{}, fmt.Errorf("Couldn't get new rule from storage: %s", err)
 	}
-
-	newItems, err := x.ImportRule(rule)
-	if err != nil {
-		return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
+	if object.Kind == "rule" {
+		rule := object.Data.(pkgApi.Rule)
+		newItems, err := x.ImportRule(rule)
+		if err != nil {
+			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
+		}
+		return newItems, nil
 	}
-	return newItems, nil
+	return []WorkQueueItem{}, nil
 }
 func (x *XDS) deleteRule(filename string) ([]WorkQueueItem, error) {
 	rule, err := x.s.GetCachedRuleName(filename)
