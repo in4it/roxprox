@@ -77,7 +77,7 @@ func main() {
 
 	logger.Infof("Importing Rules")
 
-	err = xds.ImportRules()
+	err = xds.ImportObjects()
 	if err != nil {
 		logger.Errorf("Couldn't import rules: %s", err)
 	}

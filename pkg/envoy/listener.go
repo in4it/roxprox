@@ -8,6 +8,7 @@ import (
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
+	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
 	"github.com/envoyproxy/go-control-plane/pkg/cache"
 	"github.com/envoyproxy/go-control-plane/pkg/util"
@@ -258,6 +259,36 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 
 	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostName)
 
+	httpFilters := []*hcm.HttpFilter{}
+
+	jwtAuthConfig := &jwtAuth.JwtProvider{
+		Issuer:  params.Auth.Issuer,
+		Forward: params.Auth.Forward,
+		JwksSourceSpecifier: &jwtAuth.JwtProvider_RemoteJwks{
+			RemoteJwks: &jwtAuth.RemoteJwks{
+				HttpUri: &core.HttpUri{
+					Uri: params.Auth.RemoteJwks,
+				},
+			},
+		},
+	}
+	jwtAuth, err := types.MarshalAny(jwtAuthConfig)
+	if err != nil {
+		panic(err)
+	}
+
+	if params.Auth.JwtProvider != "" {
+		httpFilters = append(httpFilters, &hcm.HttpFilter{
+			Name: "envoy.filters.http.jwt_authn",
+			ConfigType: &hcm.HttpFilter_TypedConfig{
+				TypedConfig: jwtAuth,
+			},
+		})
+		httpFilters = append(httpFilters, &hcm.HttpFilter{Name: util.Router})
+	} else {
+		httpFilters = append(httpFilters, &hcm.HttpFilter{Name: util.Router})
+	}
+
 	manager := &hcm.HttpConnectionManager{
 		CodecType:  hcm.AUTO,
 		StatPrefix: "ingress_http",
@@ -267,9 +298,7 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 				VirtualHosts: []route.VirtualHost{v},
 			},
 		},
-		HttpFilters: []*hcm.HttpFilter{{
-			Name: util.Router,
-		}},
+		HttpFilters: httpFilters,
 	}
 
 	pbst, err := types.MarshalAny(manager)
