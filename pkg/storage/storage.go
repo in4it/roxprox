@@ -15,8 +15,8 @@ type Config struct {
 
 type Storage interface {
 	GetError(name string) error
-	ListRules() ([]api.Rule, error)
-	GetRule(name string) (api.Rule, error)
+	ListObjects() ([]api.Object, error)
+	GetObject(name string) (api.Object, error)
 	ListCerts() (map[string]string, error)
 	GetCert(name string) (string, error)
 	GetCertBundle(name string) (string, error)

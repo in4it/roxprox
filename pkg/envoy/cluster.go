@@ -27,9 +27,11 @@ func (c *Cluster) findCluster(clusters []cache.Resource, params ClusterParams) (
 }
 
 func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
-	tlsContext := &auth.UpstreamTlsContext{}
+	var tlsContext *auth.UpstreamTlsContext
 	if params.Port == 443 {
-		tlsContext.Sni = params.TargetHostname
+		tlsContext = &auth.UpstreamTlsContext{
+			Sni: params.TargetHostname,
+		}
 	}
 
 	logger.Infof("Creating cluster " + params.Name)

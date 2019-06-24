@@ -43,6 +43,7 @@ type ListenerParams struct {
 	Protocol       string
 	TargetHostname string
 	Conditions     Conditions
+	Auth           Auth
 }
 
 type ChallengeParams struct {
@@ -61,4 +62,10 @@ type CreateCertParams struct {
 type Conditions struct {
 	Hostname string
 	Prefix   string
+}
+type Auth struct {
+	JwtProvider string
+	Issuer      string
+	Forward     bool
+	RemoteJwks  string
 }

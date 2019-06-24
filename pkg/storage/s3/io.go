@@ -70,10 +70,10 @@ func (s *S3Storage) GetError(name string) error {
 	}
 	return nil
 }
-func (s *S3Storage) ListRules() ([]api.Rule, error) {
+func (s *S3Storage) ListObjects() ([]api.Object, error) {
 	var (
-		rules []api.Rule
-		err   error
+		objects []api.Object
+		err     error
 	)
 
 	input := &s3.ListObjectsV2Input{
@@ -85,11 +85,11 @@ func (s *S3Storage) ListRules() ([]api.Rule, error) {
 			pageNum++
 			for _, item := range page.Contents {
 				if strings.HasSuffix(aws.StringValue(item.Key), ".yaml") || strings.HasSuffix(aws.StringValue(item.Key), ".yml") {
-					rule, err := s.GetRule(aws.StringValue(item.Key))
+					object, err := s.GetObject(aws.StringValue(item.Key))
 					if err != nil {
 						logger.Errorf("error while getting rule: %s", err)
 					}
-					rules = append(rules, rule)
+					objects = append(objects, object)
 				}
 
 			}
@@ -97,13 +97,12 @@ func (s *S3Storage) ListRules() ([]api.Rule, error) {
 		})
 
 	if err != nil {
-		return rules, err
+		return objects, err
 	}
-	return rules, nil
+	return objects, nil
 }
-func (s *S3Storage) GetRule(name string) (api.Rule, error) {
+func (s *S3Storage) GetObject(name string) (api.Object, error) {
 	var object api.Object
-	var rule api.Rule
 	contents := aws.NewWriteAtBuffer([]byte{})
 	filename := s.config.Prefix + "/" + name
 	downloader := s3manager.NewDownloader(s.sess)
@@ -113,25 +112,34 @@ func (s *S3Storage) GetRule(name string) (api.Rule, error) {
 			Key:    aws.String(filename),
 		})
 	if err != nil {
-		return rule, nil
+		return object, err
 	}
 	err = yaml.Unmarshal(contents.Bytes(), &object)
 	if err != nil {
-		return rule, err
+		return object, err
 	}
-	if object.Kind == "rule" {
+	switch object.Kind {
+	case "rule":
+		var rule api.Rule
 		err = yaml.Unmarshal(contents.Bytes(), &rule)
 		if err != nil {
-			return rule, err
+			return object, err
 		}
-
-		// keep a cache of filename -> rule name matching
-		s.cache[filename] = rule.Metadata.Name
-
-		return rule, nil
+		object.Data = rule
+	case "jwtProvider":
+		var jwtProvider api.JwtProvider
+		err = yaml.Unmarshal(contents.Bytes(), &jwtProvider)
+		if err != nil {
+			return object, err
+		}
+		object.Data = jwtProvider
+	default:
+		return object, errors.New("Object in wrong format")
 	}
+	// keep a cache of filename -> rule name matching
+	s.cache[filename] = object.Metadata.Name
+	return object, nil
 
-	return rule, errors.New("Rule in wrong format")
 }
 func (s *S3Storage) ListCerts() (map[string]string, error) {
 	var err error

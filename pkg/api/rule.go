@@ -10,9 +10,13 @@ type Rule struct {
 	Spec     RuleSpec `json:"spec"`
 }
 type RuleSpec struct {
+	Auth        RuleAuth         `json:"auth"`
 	Certificate string           `json:"certificate"`
 	Conditions  []RuleConditions `json:"conditions"`
 	Actions     []RuleActions    `json:"actions"`
+}
+type RuleAuth struct {
+	JwtProvider string `json:"jwtProvider" yaml:"jwtProvider"`
 }
 type RuleConditions struct {
 	Hostname string `json:"hostname"`

@@ -5,6 +5,8 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net"
+	"net/url"
+	"strconv"
 
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
@@ -20,7 +22,7 @@ var logger = loggo.GetLogger("xds")
 
 type XDS struct {
 	s           storage.Storage
-	rules       []pkgApi.Rule
+	objects     []pkgApi.Object
 	workQueue   *WorkQueue
 	acmeContact string
 }
@@ -73,22 +75,39 @@ func (x *XDS) StartRenewalQueue() error {
 	return nil
 }
 
-func (x *XDS) ImportRules() error {
+func (x *XDS) ImportObjects() error {
 	var (
 		workQueueItems []WorkQueueItem
 		err            error
+		objects        []pkgApi.Object
 	)
-	x.rules, err = x.s.ListRules()
+	objects, err = x.s.ListObjects()
 	if err != nil {
 		return err
 	}
-
-	for _, rule := range x.rules {
-		newitems, err := x.ImportRule(rule)
-		if err != nil {
-			return err
+	// first read config objects
+	for _, object := range objects {
+		if object.Kind != "rule" {
+			x.objects = append(x.objects, object)
+			newitems, err := x.ImportObject(object)
+			if err != nil {
+				return err
+			}
+			workQueueItems = append(workQueueItems, newitems...)
 		}
-		workQueueItems = append(workQueueItems, newitems...)
+	}
+
+	// read rules
+	for _, object := range objects {
+		if object.Kind == "rule" {
+			rule := object.Data.(pkgApi.Rule)
+			x.objects = append(x.objects, object)
+			newitems, err := x.ImportRule(rule)
+			if err != nil {
+				return err
+			}
+			workQueueItems = append(workQueueItems, newitems...)
+		}
 	}
 
 	x.workQueue.Submit(workQueueItems)
@@ -118,6 +137,52 @@ func (x *XDS) RemoveRule(ruleName string) ([]WorkQueueItem, error) {
 		},
 	}
 	return workQueueItems, nil
+}
+func (x *XDS) ImportObject(object pkgApi.Object) ([]WorkQueueItem, error) {
+	var workQueueItems []WorkQueueItem
+	switch object.Kind {
+	case "jwtProvider":
+		jwtProvider := object.Data.(pkgApi.JwtProvider)
+		logger.Debugf("Found jwtProvider with name %s and jwksUrl %s", jwtProvider.Metadata.Name, jwtProvider.Spec.RemoteJwks)
+		u, err := url.Parse(jwtProvider.Spec.RemoteJwks)
+		if err != nil {
+			return workQueueItems, err
+		}
+
+		var port int64
+		if u.Port() != "" {
+			port, err = strconv.ParseInt(u.Port(), 10, 64)
+			if err != nil {
+				return workQueueItems, err
+			}
+		} else {
+			if u.Scheme == "https" {
+				port = 443
+			} else {
+				port = 80
+			}
+		}
+
+		workQueueItem := WorkQueueItem{
+			Action: "createCluster",
+			ClusterParams: ClusterParams{
+				Name:           "jwtProvider_" + jwtProvider.Metadata.Name,
+				TargetHostname: u.Hostname(),
+				Port:           port,
+			},
+		}
+		workQueueItems = append(workQueueItems, workQueueItem)
+	}
+	return workQueueItems, nil
+}
+
+func (x *XDS) getObject(kind, name string) (pkgApi.Object, error) {
+	for _, v := range x.objects {
+		if v.Kind == kind && v.Metadata.Name == name {
+			return v, nil
+		}
+	}
+	return pkgApi.Object{}, fmt.Errorf("object %s/%s not found", kind, name)
 }
 
 func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
@@ -151,6 +216,21 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 							Prefix:   condition.Prefix,
 						},
 					},
+				}
+				// add auth info to parameter
+				logger.Debugf("Got auth? %s", rule.Spec.Auth.JwtProvider)
+				if rule.Spec.Auth.JwtProvider != "" {
+					object, err := x.getObject("jwtProvider", rule.Spec.Auth.JwtProvider)
+					workQueueItem.ListenerParams.Auth = Auth{
+						JwtProvider: rule.Spec.Auth.JwtProvider,
+						Issuer:      object.Data.(pkgApi.JwtProvider).Spec.Issuer,
+						Forward:     object.Data.(pkgApi.JwtProvider).Spec.Forward,
+						RemoteJwks:  object.Data.(pkgApi.JwtProvider).Spec.RemoteJwks,
+					}
+					if err != nil {
+						logger.Errorf("Could not set Auth parameters: %s", err)
+						return []WorkQueueItem{}, err
+					}
 				}
 				workQueueItems = append(workQueueItems, workQueueItem)
 
@@ -190,24 +270,27 @@ func (x *XDS) CreateCertsForRules() error {
 	var workQueueItems []WorkQueueItem
 	// tls certs
 
-	for _, rule := range x.rules {
-		logger.Debugf("Looking for cert for %s (cert=%s)", rule.Metadata.Name, rule.Spec.Certificate)
-		if rule.Spec.Certificate != "" {
-			ruleConditionDomains := x.getRuleConditionDomains(rule.Spec.Conditions)
-			cert, err := x.s.GetCertBundle(rule.Metadata.Name)
+	for _, object := range x.objects {
+		if object.Kind == "rule" {
+			rule := object.Data.(pkgApi.Rule)
+			logger.Debugf("Looking for cert for %s (cert=%s)", rule.Metadata.Name, rule.Spec.Certificate)
+			if rule.Spec.Certificate != "" {
+				ruleConditionDomains := x.getRuleConditionDomains(rule.Spec.Conditions)
+				cert, err := x.s.GetCertBundle(rule.Metadata.Name)
 
-			if err != nil && err != x.s.GetError("errNotExist") {
-				return err
-			}
-			if err != nil && err == x.s.GetError("errNotExist") {
-				workQueueItems = append(workQueueItems, x.launchCreateCert(rule.Metadata.Name, ruleConditionDomains))
-			} else {
-				err := x.verifyCert(rule.Metadata.Name, cert, ruleConditionDomains)
-				if err != nil {
-					logger.Infof("Certificate not valid: %s", err)
+				if err != nil && err != x.s.GetError("errNotExist") {
+					return err
+				}
+				if err != nil && err == x.s.GetError("errNotExist") {
 					workQueueItems = append(workQueueItems, x.launchCreateCert(rule.Metadata.Name, ruleConditionDomains))
 				} else {
-					logger.Debugf("Verified domain for %s (cert=%s)", rule.Metadata.Name, rule.Spec.Certificate)
+					err := x.verifyCert(rule.Metadata.Name, cert, ruleConditionDomains)
+					if err != nil {
+						logger.Infof("Certificate not valid: %s", err)
+						workQueueItems = append(workQueueItems, x.launchCreateCert(rule.Metadata.Name, ruleConditionDomains))
+					} else {
+						logger.Debugf("Verified domain for %s (cert=%s)", rule.Metadata.Name, rule.Spec.Certificate)
+					}
 				}
 			}
 		}
@@ -294,16 +377,19 @@ func (x *XDS) receiveFromQueue(queue chan []*n.NotificationRequest_NotificationI
 	}
 }
 func (x *XDS) putRule(filename string) ([]WorkQueueItem, error) {
-	rule, err := x.s.GetRule(filename)
+	object, err := x.s.GetObject(filename)
 	if err != nil {
 		return []WorkQueueItem{}, fmt.Errorf("Couldn't get new rule from storage: %s", err)
 	}
-
-	newItems, err := x.ImportRule(rule)
-	if err != nil {
-		return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
+	if object.Kind == "rule" {
+		rule := object.Data.(pkgApi.Rule)
+		newItems, err := x.ImportRule(rule)
+		if err != nil {
+			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
+		}
+		return newItems, nil
 	}
-	return newItems, nil
+	return []WorkQueueItem{}, nil
 }
 func (x *XDS) deleteRule(filename string) ([]WorkQueueItem, error) {
 	rule, err := x.s.GetCachedRuleName(filename)

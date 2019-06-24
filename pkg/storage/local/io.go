@@ -46,54 +46,64 @@ func (l *LocalStorage) GetError(name string) error {
 }
 
 /*
- * ListRules read directory contents and converts contents into rules
+ * ListObjects read directory contents and converts contents into rules
  */
-func (l *LocalStorage) ListRules() ([]api.Rule, error) {
-	var rules []api.Rule
+func (l *LocalStorage) ListObjects() ([]api.Object, error) {
+	var objects []api.Object
 	var err error
 
 	logger.Debugf("Reading dir: %s", l.dir)
 
 	files, err := ioutil.ReadDir(l.dir)
 	if err != nil {
-		return rules, err
+		return objects, err
 	}
 
 	for _, f := range files {
 		if strings.HasSuffix(f.Name(), ".yaml") || strings.HasSuffix(f.Name(), ".yml") {
-			rule, err := l.GetRule(f.Name())
+			object, err := l.GetObject(f.Name())
 			if err != nil {
 				return nil, err
 			}
-			rules = append(rules, rule)
+			objects = append(objects, object)
 		}
 	}
-	return rules, nil
+	return objects, nil
 }
 
 /*
- * GetRule gets a single rule from storage and converts contents into rules
+ * GetObject gets a single rule from storage and converts contents into rules
  */
-func (l *LocalStorage) GetRule(name string) (api.Rule, error) {
+func (l *LocalStorage) GetObject(name string) (api.Object, error) {
 	var object api.Object
-	var rule api.Rule
 	logger.Debugf("Parsing file: %s", l.dir+"/"+name)
 	contents, err := ioutil.ReadFile(l.dir + "/" + name)
 	if err != nil {
-		return rule, err
+		return object, err
 	}
 	err = yaml.Unmarshal(contents, &object)
 	if err != nil {
-		return rule, err
+		return object, err
 	}
-	if object.Kind == "rule" {
+	switch object.Kind {
+	case "rule":
+		var rule api.Rule
 		err = yaml.Unmarshal(contents, &rule)
 		if err != nil {
-			return rule, err
+			return object, err
 		}
-		return rule, nil
+		object.Data = rule
+	case "jwtProvider":
+		var jwtProvider api.JwtProvider
+		err = yaml.Unmarshal(contents, &jwtProvider)
+		if err != nil {
+			return object, err
+		}
+		object.Data = jwtProvider
+	default:
+		return object, errors.New("Rule in wrong format")
 	}
-	return rule, errors.New("Rule in wrong format")
+	return object, errors.New("Rule in wrong format")
 }
 func (l *LocalStorage) ListCerts() (map[string]string, error) {
 	dirname := l.dir + "/pki/certs/"
