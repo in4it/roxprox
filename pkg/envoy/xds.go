@@ -146,12 +146,21 @@ func (x *XDS) ImportObject(object pkgApi.Object) ([]WorkQueueItem, error) {
 		logger.Debugf("Found jwtProvider with name %s and jwksUrl %s", jwtProvider.Metadata.Name, jwtProvider.Spec.RemoteJwks)
 		u, err := url.Parse(jwtProvider.Spec.RemoteJwks)
 		if err != nil {
-			return workQueueItems, nil
+			return workQueueItems, err
 		}
 
-		port, err := strconv.ParseInt(u.Port(), 10, 64)
-		if err != nil {
-			return workQueueItems, nil
+		var port int64
+		if u.Port() != "" {
+			port, err = strconv.ParseInt(u.Port(), 10, 64)
+			if err != nil {
+				return workQueueItems, err
+			}
+		} else {
+			if u.Scheme == "https" {
+				port = 443
+			} else {
+				port = 80
+			}
 		}
 
 		workQueueItem := WorkQueueItem{
@@ -209,6 +218,7 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 					},
 				}
 				// add auth info to parameter
+				logger.Debugf("Got auth? %s", rule.Spec.Auth.JwtProvider)
 				if rule.Spec.Auth.JwtProvider != "" {
 					object, err := x.getObject("jwtProvider", rule.Spec.Auth.JwtProvider)
 					workQueueItem.ListenerParams.Auth = Auth{

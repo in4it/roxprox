@@ -2,6 +2,7 @@ package envoy
 
 import (
 	"fmt"
+	"strings"
 
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
@@ -135,6 +136,8 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 		Name:    virtualHostName,
 		Domains: []string{hostname},
 
+		//TypedPerFilterConfig: filterConfig,
+
 		Routes: []route.Route{{
 			Match: route.RouteMatch{
 				PathSpecifier: &route.RouteMatch_Prefix{
@@ -153,6 +156,86 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 			},
 		}}}
 }
+func (l *Listener) getJwtConfig(auth Auth) *jwtAuth.JwtAuthentication {
+	if auth.JwtProvider == "" {
+		return &jwtAuth.JwtAuthentication{
+			Providers: map[string]*jwtAuth.JwtProvider{},
+		}
+	}
+	return &jwtAuth.JwtAuthentication{
+		Providers: map[string]*jwtAuth.JwtProvider{
+			auth.JwtProvider: &jwtAuth.JwtProvider{
+				Issuer:  auth.Issuer,
+				Forward: auth.Forward,
+				JwksSourceSpecifier: &jwtAuth.JwtProvider_RemoteJwks{
+					RemoteJwks: &jwtAuth.RemoteJwks{
+						HttpUri: &core.HttpUri{
+							Uri: auth.RemoteJwks,
+							HttpUpstreamType: &core.HttpUri_Cluster{
+								Cluster: "jwtProvider_" + auth.JwtProvider,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+func (l *Listener) getJwtRules(virtualHosts []route.VirtualHost) []*jwtAuth.RequirementRule {
+	jwtAuthRules := []*jwtAuth.RequirementRule{}
+	for _, v := range virtualHosts {
+		if strings.Contains(v.Name, "jwt:") {
+			var (
+				jwtProvider string
+				match       *route.RouteMatch
+			)
+			nameAttrs := strings.Split(v.Name, "_")
+
+			if len(nameAttrs) > 3 {
+
+				for _, vv := range v.Routes {
+
+					for _, attr := range nameAttrs {
+						if strings.HasPrefix(attr, "jwt:") {
+							jwtProvider = attr[4:]
+						}
+					}
+
+					if nameAttrs[2] == "wildcard" {
+						match = &route.RouteMatch{
+							PathSpecifier: vv.Match.PathSpecifier,
+						}
+					} else {
+						match = &route.RouteMatch{
+							PathSpecifier: vv.Match.PathSpecifier,
+							Headers: []*route.HeaderMatcher{
+								{
+									Name: ":authority",
+									HeaderMatchSpecifier: &route.HeaderMatcher_ExactMatch{
+										ExactMatch: nameAttrs[2],
+									},
+								},
+							},
+						}
+					}
+					rule := &jwtAuth.RequirementRule{
+
+						Match: match,
+						Requires: &jwtAuth.JwtRequirement{
+							RequiresType: &jwtAuth.JwtRequirement_ProviderName{
+								ProviderName: jwtProvider,
+							},
+						},
+					}
+					jwtAuthRules = append(jwtAuthRules, rule)
+				}
+			}
+		}
+	}
+
+	return jwtAuthRules
+}
+
 func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, paramsTLS TLSParams) error {
 	var listenerKey = -1
 
@@ -182,8 +265,77 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	// create new virtualhost
 	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname)
 
-	// append new virtualhost
-	routeSpecifier.RouteConfig.VirtualHosts = append(routeSpecifier.RouteConfig.VirtualHosts, v)
+	// check if we need to overwrite the virtualhost
+	virtualHostKey := -1
+	for k, curVirtualHost := range routeSpecifier.RouteConfig.VirtualHosts {
+		if v.Name == curVirtualHost.Name {
+			virtualHostKey = k
+			logger.Debugf("Found existing virtualhost with name %s", v.Name)
+		}
+	}
+
+	if virtualHostKey >= 0 {
+		routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey] = v
+	} else {
+		// append new virtualhost
+		routeSpecifier.RouteConfig.VirtualHosts = append(routeSpecifier.RouteConfig.VirtualHosts, v)
+	}
+
+	// add routes to jwtProvider
+	var jwtConfig jwtAuth.JwtAuthentication
+	httpFilterPos := -1
+	for k, v := range manager.HttpFilters {
+		if v.Name == "envoy.filters.http.jwt_authn" {
+			httpFilterPos = k
+		}
+	}
+	if httpFilterPos == -1 {
+		return fmt.Errorf("HttpFilter for jwt missing")
+	}
+	err = types.UnmarshalAny(manager.HttpFilters[httpFilterPos].GetTypedConfig(), &jwtConfig)
+	if err != nil {
+		return err
+	}
+
+	// find provider
+	if params.Auth.JwtProvider != "" {
+		providerFound := false
+		if jwtConfig.Providers == nil {
+			jwtConfig.Providers = make(map[string]*jwtAuth.JwtProvider)
+		} else {
+			for k := range jwtConfig.Providers {
+				logger.Debugf("comparing %s with %s", k, params.Auth.JwtProvider)
+				if k == params.Auth.JwtProvider {
+					providerFound = true
+				}
+			}
+		}
+
+		if !providerFound {
+			jwtNewConfig := l.getJwtConfig(params.Auth)
+			jwtConfig.Providers[params.Auth.JwtProvider] = jwtNewConfig.Providers[params.Auth.JwtProvider]
+			logger.Debugf("adding provider %s to jwt config", params.Auth.JwtProvider)
+		}
+
+		// update rules
+		jwtConfig.Rules = l.getJwtRules(routeSpecifier.RouteConfig.VirtualHosts)
+		jwtConfigEncoded, err := types.MarshalAny(&jwtConfig)
+		if err != nil {
+			panic(err)
+		}
+
+		manager.HttpFilters = []*hcm.HttpFilter{
+			{
+				Name: "envoy.filters.http.jwt_authn",
+				ConfigType: &hcm.HttpFilter_TypedConfig{
+					TypedConfig: jwtConfigEncoded,
+				},
+			},
+			{
+				Name: util.Router,
+			},
+		}
+	}
 
 	manager.RouteSpecifier = routeSpecifier
 	pbst, err := types.MarshalAny(&manager)
@@ -223,17 +375,22 @@ func (l *Listener) getListenerAttributes(params ListenerParams, paramsTLS TLSPar
 		routeConfigName = params.Name + "_route" + "_" + params.Conditions.Hostname
 	}
 
+	if params.Auth.JwtProvider != "" {
+		virtualHostName += "_jwt:" + params.Auth.JwtProvider
+	}
+
 	if tls {
 		listenerPort = 10001
-		listenerName = "l_" + params.Name + "_tls"
+		listenerName = "l_tls"
 		virtualHostName = virtualHostName + "_tls"
 		routeConfigName = routeConfigName + "_tls"
 	} else {
 		listenerPort = 10000
-		listenerName = "l_" + params.Name
+		listenerName = "l_http"
 	}
 	return tls, targetPrefix, virtualHostName, routeConfigName, listenerName, listenerPort
 }
+
 func (l *Listener) findListener(listeners []cache.Resource, params ListenerParams) (int, error) {
 	for k, v := range listeners {
 		if v.(*api.Listener).Name == "l_"+params.Name {
@@ -259,34 +416,23 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 
 	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostName)
 
-	httpFilters := []*hcm.HttpFilter{}
-
-	jwtAuthConfig := &jwtAuth.JwtProvider{
-		Issuer:  params.Auth.Issuer,
-		Forward: params.Auth.Forward,
-		JwksSourceSpecifier: &jwtAuth.JwtProvider_RemoteJwks{
-			RemoteJwks: &jwtAuth.RemoteJwks{
-				HttpUri: &core.HttpUri{
-					Uri: params.Auth.RemoteJwks,
-				},
-			},
-		},
-	}
-	jwtAuth, err := types.MarshalAny(jwtAuthConfig)
+	jwtConfig := l.getJwtConfig(params.Auth)
+	jwtConfig.Rules = l.getJwtRules([]route.VirtualHost{v})
+	jwtAuth, err := types.MarshalAny(jwtConfig)
 	if err != nil {
 		panic(err)
 	}
 
-	if params.Auth.JwtProvider != "" {
-		httpFilters = append(httpFilters, &hcm.HttpFilter{
+	httpFilters := []*hcm.HttpFilter{
+		{
 			Name: "envoy.filters.http.jwt_authn",
 			ConfigType: &hcm.HttpFilter_TypedConfig{
 				TypedConfig: jwtAuth,
 			},
-		})
-		httpFilters = append(httpFilters, &hcm.HttpFilter{Name: util.Router})
-	} else {
-		httpFilters = append(httpFilters, &hcm.HttpFilter{Name: util.Router})
+		},
+		{
+			Name: util.Router,
+		},
 	}
 
 	manager := &hcm.HttpConnectionManager{

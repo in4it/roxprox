@@ -77,7 +77,7 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 			}
 			updateXds = true
 		case "createListener":
-			if element, _ := w.listener.findListener(w.cache.listeners, item.ListenerParams); element == -1 {
+			if len(w.cache.listeners) == 0 {
 				w.cache.listeners = append(w.cache.listeners, w.listener.createListener(item.ListenerParams, TLSParams{}))
 				item.state = "finished"
 			} else {
@@ -101,7 +101,7 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 			}
 			updateXds = true
 		case "createTLSListener":
-			if element, _ := w.listener.findTLSListener(w.cache.listeners, item.ListenerParams); element == -1 {
+			if len(w.cache.listeners) == 1 {
 				w.cache.listeners = append(w.cache.listeners, w.listener.createListener(item.ListenerParams, item.TLSParams))
 				item.state = "finished"
 			} else {

@@ -134,7 +134,7 @@ func (s *S3Storage) GetObject(name string) (api.Object, error) {
 		}
 		object.Data = jwtProvider
 	default:
-		return object, errors.New("Rule in wrong format")
+		return object, errors.New("Object in wrong format")
 	}
 	// keep a cache of filename -> rule name matching
 	s.cache[filename] = object.Metadata.Name

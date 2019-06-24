@@ -16,7 +16,7 @@ type RuleSpec struct {
 	Actions     []RuleActions    `json:"actions"`
 }
 type RuleAuth struct {
-	JwtProvider string `json:"jwtProvider"`
+	JwtProvider string `json:"jwtProvider" yaml:"jwtProvider"`
 }
 type RuleConditions struct {
 	Hostname string `json:"hostname"`
