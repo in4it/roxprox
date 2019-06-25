@@ -1,6 +1,7 @@
-data "aws_region" "current" {}
+data "aws_region" "current" {
+}
 
 data "aws_subnet" "subnet" {
-  id = "${element(var.subnets, 0)}"
+  id = element(var.subnets, 0)
 }
 

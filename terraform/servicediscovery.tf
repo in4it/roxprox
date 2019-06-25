@@ -1,14 +1,14 @@
 resource "aws_service_discovery_private_dns_namespace" "roxprox" {
   name        = "roxprox.local"
   description = "roxprox.local"
-  vpc         = "${data.aws_subnet.subnet.vpc_id}"
+  vpc         = data.aws_subnet.subnet.vpc_id
 }
 
 resource "aws_service_discovery_service" "roxprox" {
   name = "roxprox"
 
   dns_config {
-    namespace_id = "${aws_service_discovery_private_dns_namespace.roxprox.id}"
+    namespace_id = aws_service_discovery_private_dns_namespace.roxprox.id
 
     dns_records {
       ttl  = 30
@@ -22,3 +22,4 @@ resource "aws_service_discovery_service" "roxprox" {
     failure_threshold = 1
   }
 }
+

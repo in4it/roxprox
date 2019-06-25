@@ -3,10 +3,10 @@
 #
 
 data "template_file" "envoy-config-http" {
-  template = "${file("${path.module}/envoy.yml")}"
+  template = file("${path.module}/envoy.yml")
   vars = {
-    CLUSTER = "ingress-gateway" 
-    ID = "ingress-gateway-http" 
+    CLUSTER = "roxprox"
+    ID      = "roxprox-http"
     ADDRESS = "roxprox.roxprox.local"
   }
 }
@@ -14,12 +14,12 @@ data "template_file" "envoy-config-http" {
 resource "aws_ssm_parameter" "envoy-config-http" {
   name  = "/roxprox/envoy.yaml"
   type  = "String"
-  value = "${base64encode(trimspace(data.template_file.envoy-config-http.rendered))}"
+  value = base64encode(trimspace(data.template_file.envoy-config-http.rendered))
 }
 
 resource "aws_ecs_task_definition" "envoy-proxy" {
   family                   = "envoy-proxy"
-  execution_role_arn       = "${aws_iam_role.ecs-task-execution-role.arn}"
+  execution_role_arn       = aws_iam_role.roxprox-ecs-task-execution-role.arn
   cpu                      = 256
   memory                   = 512
   network_mode             = "awsvpc"
@@ -62,29 +62,30 @@ resource "aws_ecs_task_definition" "envoy-proxy" {
   }
 ]
 DEFINITION
+
 }
 
 resource "aws_ecs_service" "envoy-proxy" {
-  name            = "envoy-proxy"
-  cluster         = "${aws_ecs_cluster.roxprox.id}"
-  desired_count   = "${var.envoy_proxy_count}"
-  task_definition = "${aws_ecs_task_definition.envoy-proxy.arn}"
-  launch_type     = "FARGATE"
+  name = "envoy-proxy"
+  cluster = aws_ecs_cluster.roxprox.id
+  desired_count = var.envoy_proxy_count
+  task_definition = aws_ecs_task_definition.envoy-proxy.arn
+  launch_type = "FARGATE"
 
   network_configuration {
-    subnets          = ["${var.subnets}"]
-    security_groups  = ["${aws_security_group.envoy-proxy.id}"]
+    subnets = var.subnets
+    security_groups = [aws_security_group.envoy-proxy.id]
     assign_public_ip = true
   }
 
   service_registries {
-    registry_arn = "${aws_service_discovery_service.roxprox.arn}"
+    registry_arn = aws_service_discovery_service.roxprox.arn
   }
 
   load_balancer {
-    target_group_arn = "${aws_lb_target_group.envoy-proxy-http.id}"
-    container_name   = "envoy-proxy"
-    container_port   = "10000"
+    target_group_arn = aws_lb_target_group.envoy-proxy-http.id
+    container_name = "envoy-proxy"
+    container_port = "10000"
   }
 }
 
@@ -93,26 +94,29 @@ resource "aws_ecs_service" "envoy-proxy" {
 #
 
 data "template_file" "envoy-config-https" {
-  template = "${file("${path.module}/envoy.yml")}"
+  count = var.tls_listener ? 1 : 0
+  template = file("${path.module}/envoy.yml")
   vars = {
-    CLUSTER = "ingress-gateway" 
-    ID = "ingress-gateway-https" 
+    CLUSTER = "roxprox"
+    ID = "roxprox-https"
     ADDRESS = "roxprox.roxprox.local"
   }
 }
 
 resource "aws_ssm_parameter" "envoy-config-https" {
-  name  = "/roxprox/envoy-https.yaml"
-  type  = "String"
-  value = "${base64encode(trimspace(data.template_file.envoy-config-https.rendered))}"
+  count = var.tls_listener ? 1 : 0
+  name = "/roxprox/envoy-https.yaml"
+  type = "String"
+  value = base64encode(trimspace(data.template_file.envoy-config-https[0].rendered))
 }
 
 resource "aws_ecs_task_definition" "envoy-proxy-https" {
-  family                   = "envoy-proxy-https"
-  execution_role_arn       = "${aws_iam_role.ecs-task-execution-role.arn}"
-  cpu                      = 256
-  memory                   = 512
-  network_mode             = "awsvpc"
+  count = var.tls_listener ? 1 : 0
+  family = "envoy-proxy-https"
+  execution_role_arn = aws_iam_role.roxprox-ecs-task-execution-role.arn
+  cpu = 256
+  memory = 512
+  network_mode = "awsvpc"
   requires_compatibilities = ["FARGATE"]
 
   container_definitions = <<DEFINITION
@@ -134,7 +138,7 @@ resource "aws_ecs_task_definition" "envoy-proxy-https" {
 		 "secrets": [
        { 
          "name": "ENVOY_CONFIG", 
-         "valueFrom": "${aws_ssm_parameter.envoy-config-https.arn}"
+         "valueFrom": "${aws_ssm_parameter.envoy-config-https[0].arn}"
        }
      ],
      "portMappings": [ 
@@ -152,28 +156,31 @@ resource "aws_ecs_task_definition" "envoy-proxy-https" {
   }
 ]
 DEFINITION
+
 }
 
 resource "aws_ecs_service" "envoy-proxy-https" {
+  count           = var.tls_listener ? 1 : 0
   name            = "envoy-proxy-https"
-  cluster         = "${aws_ecs_cluster.roxprox.id}"
-  desired_count   = "${var.envoy_proxy_count}"
-  task_definition = "${aws_ecs_task_definition.envoy-proxy-https.arn}"
+  cluster         = aws_ecs_cluster.roxprox.id
+  desired_count   = var.envoy_proxy_count
+  task_definition = aws_ecs_task_definition.envoy-proxy-https[0].arn
   launch_type     = "FARGATE"
-
+  
   network_configuration {
-    subnets          = ["${var.subnets}"]
-    security_groups  = ["${aws_security_group.envoy-proxy.id}"]
+    subnets          = var.subnets
+    security_groups  = [aws_security_group.envoy-proxy.id]
     assign_public_ip = true
   }
-
+  
   service_registries {
-    registry_arn = "${aws_service_discovery_service.roxprox.arn}"
+    registry_arn = aws_service_discovery_service.roxprox.arn
   }
-
+  
   load_balancer {
-    target_group_arn = "${aws_lb_target_group.envoy-proxy-https.id}"
+    target_group_arn = aws_lb_target_group.envoy-proxy-https[0].id
     container_name   = "envoy-proxy-https"
     container_port   = "10001"
   }
 }
+
