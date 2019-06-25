@@ -1,5 +1,5 @@
-resource "aws_iam_role" "ecs-task-execution-role" {
-  name = "ecs-task-execution-role"
+resource "aws_iam_role" "roxprox-ecs-task-execution-role" {
+  name = "roxprox-ecs-task-execution-role"
 
   assume_role_policy = <<EOF
 {
@@ -16,11 +16,12 @@ resource "aws_iam_role" "ecs-task-execution-role" {
   ]
 }
 EOF
+
 }
 
-resource "aws_iam_role_policy" "ecs-task-execution-role" {
-  name = "ecs-task-execution-role"
-  role = "${aws_iam_role.ecs-task-execution-role.id}"
+resource "aws_iam_role_policy" "roxprox-ecs-task-execution-role" {
+  name = "roxprox-ecs-task-execution-role"
+  role = aws_iam_role.roxprox-ecs-task-execution-role.id
 
   policy = <<EOF
 {
@@ -39,11 +40,13 @@ resource "aws_iam_role_policy" "ecs-task-execution-role" {
   ]
 }
 EOF
-}
-resource "aws_iam_role" "roxprox-task-role" {
-  name = "roxprox-task-role"
 
-  assume_role_policy = <<EOF
+}
+
+resource "aws_iam_role" "roxprox-task-role" {
+name = "roxprox-task-role"
+
+assume_role_policy = <<EOF
 {
   "Version": "2012-10-17",
   "Statement": [
@@ -58,13 +61,14 @@ resource "aws_iam_role" "roxprox-task-role" {
   ]
 }
 EOF
+
 }
 
 resource "aws_iam_role_policy" "roxprox-task-role" {
-  name = "roxprox-task-role"
-  role = "${aws_iam_role.roxprox-task-role.id}"
+name = "roxprox-task-role"
+role = aws_iam_role.roxprox-task-role.id
 
-  policy = <<EOF
+policy = <<EOF
 {
   "Version": "2012-10-17",
   "Statement": [
@@ -86,4 +90,6 @@ resource "aws_iam_role_policy" "roxprox-task-role" {
   ]
 }
 EOF
+
 }
+
