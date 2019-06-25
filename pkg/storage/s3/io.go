@@ -101,11 +101,11 @@ func (s *S3Storage) ListObjects() ([]api.Object, error) {
 	}
 	return objects, nil
 }
-func (s *S3Storage) GetObject(name string) (api.Object, error) {
+func (s *S3Storage) GetObject(filename string) (api.Object, error) {
 	var object api.Object
 	contents := aws.NewWriteAtBuffer([]byte{})
-	filename := s.config.Prefix + "/" + name
 	downloader := s3manager.NewDownloader(s.sess)
+	logger.Debugf("GetObject: %s", filename)
 	_, err := downloader.Download(contents,
 		&s3.GetObjectInput{
 			Bucket: aws.String(s.config.Bucket),
