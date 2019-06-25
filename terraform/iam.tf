@@ -86,6 +86,14 @@ policy = <<EOF
         "s3:ListBucket"
       ],
       "Resource": "${aws_s3_bucket.roxprox.arn}"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "sqs:Get*",
+        "sqs:ReceiveMessage"
+      ],
+      "Resource": "${aws_sqs_queue.roxprox-notifications.arn}"
     }
   ]
 }
