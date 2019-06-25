@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/ghodss/yaml"
-	"github.com/in4it/envoy-autocert/pkg/api"
-	"github.com/in4it/envoy-autocert/pkg/crypto"
+	"github.com/in4it/roxprox/pkg/api"
+	"github.com/in4it/roxprox/pkg/crypto"
 	"github.com/juju/loggo"
 )
 

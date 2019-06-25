@@ -12,8 +12,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	"github.com/in4it/envoy-autocert/pkg/api"
-	"github.com/in4it/envoy-autocert/pkg/crypto"
+	"github.com/in4it/roxprox/pkg/api"
+	"github.com/in4it/roxprox/pkg/crypto"
 	"github.com/juju/loggo"
 	"gopkg.in/yaml.v2"
 )

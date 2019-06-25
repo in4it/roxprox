@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/in4it/envoy-autocert/pkg/storage"
+	"github.com/in4it/roxprox/pkg/storage"
 )
 
 type RenewalQueue struct {

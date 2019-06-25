@@ -1,10 +1,10 @@
 #
 # security groups
 #
-resource "aws_security_group" "envoy-autocert" {
-  name        = "envoy-autocert"
+resource "aws_security_group" "roxprox" {
+  name        = "roxprox"
   vpc_id      = "${data.aws_subnet.subnet.vpc_id}"
-  description = "envoy-autocert"
+  description = "roxprox"
 
   ingress {
     from_port       = 8080

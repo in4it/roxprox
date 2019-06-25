@@ -7,12 +7,12 @@ data "template_file" "envoy-config-http" {
   vars = {
     CLUSTER = "ingress-gateway" 
     ID = "ingress-gateway-http" 
-    ADDRESS = "envoy-autocert.envoy-autocert.local"
+    ADDRESS = "roxprox.roxprox.local"
   }
 }
 
 resource "aws_ssm_parameter" "envoy-config-http" {
-  name  = "/envoy-autocert/envoy.yaml"
+  name  = "/roxprox/envoy.yaml"
   type  = "String"
   value = "${base64encode(trimspace(data.template_file.envoy-config-http.rendered))}"
 }
@@ -36,7 +36,7 @@ resource "aws_ecs_task_definition" "envoy-proxy" {
     "logConfiguration": { 
             "logDriver": "awslogs",
             "options": { 
-               "awslogs-group" : "envoy-autocert",
+               "awslogs-group" : "roxprox",
                "awslogs-region": "${data.aws_region.current.name}",
                "awslogs-stream-prefix": "envoy-proxy"
             }
@@ -66,7 +66,7 @@ DEFINITION
 
 resource "aws_ecs_service" "envoy-proxy" {
   name            = "envoy-proxy"
-  cluster         = "${aws_ecs_cluster.envoy-autocert.id}"
+  cluster         = "${aws_ecs_cluster.roxprox.id}"
   desired_count   = "${var.envoy_proxy_count}"
   task_definition = "${aws_ecs_task_definition.envoy-proxy.arn}"
   launch_type     = "FARGATE"
@@ -78,7 +78,7 @@ resource "aws_ecs_service" "envoy-proxy" {
   }
 
   service_registries {
-    registry_arn = "${aws_service_discovery_service.envoy-autocert.arn}"
+    registry_arn = "${aws_service_discovery_service.roxprox.arn}"
   }
 
   load_balancer {
@@ -97,12 +97,12 @@ data "template_file" "envoy-config-https" {
   vars = {
     CLUSTER = "ingress-gateway" 
     ID = "ingress-gateway-https" 
-    ADDRESS = "envoy-autocert.envoy-autocert.local"
+    ADDRESS = "roxprox.roxprox.local"
   }
 }
 
 resource "aws_ssm_parameter" "envoy-config-https" {
-  name  = "/envoy-autocert/envoy-https.yaml"
+  name  = "/roxprox/envoy-https.yaml"
   type  = "String"
   value = "${base64encode(trimspace(data.template_file.envoy-config-https.rendered))}"
 }
@@ -126,7 +126,7 @@ resource "aws_ecs_task_definition" "envoy-proxy-https" {
     "logConfiguration": { 
             "logDriver": "awslogs",
             "options": { 
-               "awslogs-group" : "envoy-autocert",
+               "awslogs-group" : "roxprox",
                "awslogs-region": "${data.aws_region.current.name}",
                "awslogs-stream-prefix": "envoy-proxy-https"
             }
@@ -156,7 +156,7 @@ DEFINITION
 
 resource "aws_ecs_service" "envoy-proxy-https" {
   name            = "envoy-proxy-https"
-  cluster         = "${aws_ecs_cluster.envoy-autocert.id}"
+  cluster         = "${aws_ecs_cluster.roxprox.id}"
   desired_count   = "${var.envoy_proxy_count}"
   task_definition = "${aws_ecs_task_definition.envoy-proxy-https.arn}"
   launch_type     = "FARGATE"
@@ -168,7 +168,7 @@ resource "aws_ecs_service" "envoy-proxy-https" {
   }
 
   service_registries {
-    registry_arn = "${aws_service_discovery_service.envoy-autocert.arn}"
+    registry_arn = "${aws_service_discovery_service.roxprox.arn}"
   }
 
   load_balancer {

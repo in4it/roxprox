@@ -4,9 +4,9 @@ import (
 	"crypto/rsa"
 	"fmt"
 
-	"github.com/in4it/envoy-autocert/pkg/api"
-	"github.com/in4it/envoy-autocert/pkg/storage/local"
-	"github.com/in4it/envoy-autocert/pkg/storage/s3"
+	"github.com/in4it/roxprox/pkg/api"
+	"github.com/in4it/roxprox/pkg/storage/local"
+	"github.com/in4it/roxprox/pkg/storage/s3"
 )
 
 type Config struct {

@@ -4,7 +4,7 @@ variable "envoy_release" {
 }
 
 variable "release" {
-  description = "envoy-autocert release"
+  description = "roxprox release"
 }
 
 variable "acme_contact" {

@@ -3,7 +3,7 @@
 #
 FROM golang:1.12-alpine as go-builder
 
-WORKDIR /go/src/github.com/in4it/envoy-autocert
+WORKDIR /go/src/github.com/in4it/roxprox
 
 COPY . .
 
@@ -24,6 +24,6 @@ WORKDIR /app
 
 RUN apk --no-cache add ca-certificates bash curl
 
-COPY --from=go-builder /go/src/github.com/in4it/envoy-autocert/envoy-control-plane .
+COPY --from=go-builder /go/src/github.com/in4it/roxprox/envoy-control-plane .
 
 ENTRYPOINT ["./envoy-control-plane"]

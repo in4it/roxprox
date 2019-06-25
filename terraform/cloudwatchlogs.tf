@@ -1,3 +1,3 @@
-resource "aws_cloudwatch_log_group" "envoy-autocert" {
-  name = "envoy-autocert"
+resource "aws_cloudwatch_log_group" "roxprox" {
+  name = "roxprox"
 }

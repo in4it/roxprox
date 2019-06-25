@@ -1,14 +1,14 @@
-resource "aws_service_discovery_private_dns_namespace" "envoy-autocert" {
-  name        = "envoy-autocert.local"
-  description = "envoy-autocert.local"
+resource "aws_service_discovery_private_dns_namespace" "roxprox" {
+  name        = "roxprox.local"
+  description = "roxprox.local"
   vpc         = "${data.aws_subnet.subnet.vpc_id}"
 }
 
-resource "aws_service_discovery_service" "envoy-autocert" {
-  name = "envoy-autocert"
+resource "aws_service_discovery_service" "roxprox" {
+  name = "roxprox"
 
   dns_config {
-    namespace_id = "${aws_service_discovery_private_dns_namespace.envoy-autocert.id}"
+    namespace_id = "${aws_service_discovery_private_dns_namespace.roxprox.id}"
 
     dns_records {
       ttl  = 30

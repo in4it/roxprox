@@ -1,4 +1,4 @@
-module github.com/in4it/envoy-autocert
+module github.com/in4it/roxprox
 
 go 1.12
 
