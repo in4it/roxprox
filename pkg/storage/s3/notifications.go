@@ -60,6 +60,8 @@ func (n *Notifications) StartQueue() error {
 	if err != nil {
 		return err
 	}
+
+	logger.Infof("Starting SQS queue (%s)", aws.StringValue(resultURL.QueueUrl))
 	go n.RunSQSQueue(aws.StringValue(resultURL.QueueUrl))
 
 	return nil
@@ -82,9 +84,9 @@ func (n *Notifications) RunSQSQueue(queueURL string) {
 			notificationLogger.Errorf("ReceiveMessage error: %s", err)
 		}
 
-		fmt.Printf("Received %d messages.\n", len(result.Messages))
 		if len(result.Messages) > 0 {
 			var req pbN.NotificationRequest
+			logger.Infof("Received %d messages from sqs.\n", len(result.Messages))
 			for _, v := range result.Messages {
 				var body S3NotificationBody
 				err := json.Unmarshal([]byte(aws.StringValue(v.Body)), &body)

@@ -59,7 +59,11 @@ func NewS3Storage(config Config) (*S3Storage, error) {
 	}
 
 	notifications := newNotifications(config)
-	notifications.StartQueue()
+	err = notifications.StartQueue()
+
+	if err != nil {
+		return nil, err
+	}
 
 	return &S3Storage{config: config, svc: svc, sess: sess, cache: make(map[string]string)}, nil
 }
