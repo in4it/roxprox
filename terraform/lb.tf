@@ -13,6 +13,7 @@ resource "aws_lb" "lb" {
   name               = "roxprox"
   subnets            = var.subnets
   load_balancer_type = var.loadbalancer == "alb" ? "application" : "network"
+  security_groups    = var.loadbalancer == "alb" ? [aws_security_group.roxprox-alb[0].id] : []
 
   enable_deletion_protection = true
 }
