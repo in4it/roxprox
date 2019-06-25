@@ -11,9 +11,9 @@ import (
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
 	xds "github.com/envoyproxy/go-control-plane/pkg/server"
-	pkgApi "github.com/in4it/envoy-autocert/pkg/api"
-	storage "github.com/in4it/envoy-autocert/pkg/storage"
-	n "github.com/in4it/envoy-autocert/proto/notification"
+	pkgApi "github.com/in4it/roxprox/pkg/api"
+	storage "github.com/in4it/roxprox/pkg/storage"
+	n "github.com/in4it/roxprox/proto/notification"
 	"github.com/juju/loggo"
 	"google.golang.org/grpc"
 )
@@ -218,7 +218,6 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 					},
 				}
 				// add auth info to parameter
-				logger.Debugf("Got auth? %s", rule.Spec.Auth.JwtProvider)
 				if rule.Spec.Auth.JwtProvider != "" {
 					object, err := x.getObject("jwtProvider", rule.Spec.Auth.JwtProvider)
 					workQueueItem.ListenerParams.Auth = Auth{

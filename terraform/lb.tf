@@ -1,8 +1,8 @@
 #
-# envoy-autocert NLB
+# roxprox NLB
 #
 resource "aws_lb" "lb" {
-  name            = "envoy-autocert"
+  name            = "roxprox"
   subnets         = ["${var.subnets}"]
   load_balancer_type = "network"
 

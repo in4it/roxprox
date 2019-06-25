@@ -1,10 +1,10 @@
-resource "aws_ecs_cluster" "envoy-autocert" {
-  name = "envoy-autocert"
+resource "aws_ecs_cluster" "roxprox" {
+  name = "roxprox"
 }
-resource "aws_ecs_task_definition" "envoy-autocert" {
-  family                   = "envoy-autocert"
+resource "aws_ecs_task_definition" "roxprox" {
+  family                   = "roxprox"
   execution_role_arn       = "${aws_iam_role.ecs-task-execution-role.arn}"
-  task_role_arn            = "${aws_iam_role.envoy-autocert-task-role.arn}"
+  task_role_arn            = "${aws_iam_role.roxprox-task-role.arn}"
   cpu                      = 256
   memory                   = 512
   network_mode             = "awsvpc"
@@ -14,15 +14,15 @@ resource "aws_ecs_task_definition" "envoy-autocert" {
 [
   {
     "essential": true,
-    "image": "in4it/envoy-autocert:${var.release}",
-    "name": "envoy-autocert",
+    "image": "in4it/roxprox:${var.release}",
+    "name": "roxprox",
     "command": ["-acme-contact", "${var.acme_contact}", "-storage-type", "s3", "-storage-bucket", "${var.s3_bucket}", "-aws-region", "${data.aws_region.current.name}", "-loglevel", "${var.envoy_autocert_loglevel}"],
     "logConfiguration": { 
             "logDriver": "awslogs",
             "options": { 
-               "awslogs-group" : "envoy-autocert",
+               "awslogs-group" : "roxprox",
                "awslogs-region": "${data.aws_region.current.name}",
-               "awslogs-stream-prefix": "envoy-autocert"
+               "awslogs-stream-prefix": "roxprox"
             }
      },
      "portMappings": [ 
@@ -37,20 +37,20 @@ resource "aws_ecs_task_definition" "envoy-autocert" {
 DEFINITION
 }
 
-resource "aws_ecs_service" "envoy-autocert" {
-  name            = "envoy-autocert"
-  cluster         = "${aws_ecs_cluster.envoy-autocert.id}"
+resource "aws_ecs_service" "roxprox" {
+  name            = "roxprox"
+  cluster         = "${aws_ecs_cluster.roxprox.id}"
   desired_count   = "${var.control_plane_count}"
-  task_definition = "${aws_ecs_task_definition.envoy-autocert.arn}"
+  task_definition = "${aws_ecs_task_definition.roxprox.arn}"
   launch_type     = "FARGATE"
 
   network_configuration {
     subnets          = ["${var.subnets}"]
-    security_groups  = ["${aws_security_group.envoy-autocert.id}"]
+    security_groups  = ["${aws_security_group.roxprox.id}"]
     assign_public_ip = true
   }
 
   service_registries {
-    registry_arn = "${aws_service_discovery_service.envoy-autocert.arn}"
+    registry_arn = "${aws_service_discovery_service.roxprox.arn}"
   }
 }

@@ -6,8 +6,8 @@ import (
 	"encoding/pem"
 	"strings"
 
-	acme "github.com/in4it/envoy-autocert/pkg/acme"
-	storage "github.com/in4it/envoy-autocert/pkg/storage"
+	acme "github.com/in4it/roxprox/pkg/acme"
+	storage "github.com/in4it/roxprox/pkg/storage"
 )
 
 type Cert struct {

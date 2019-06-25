@@ -1,4 +1,4 @@
-# envoy-autocert
+# roxprox
 
 Envoy autocert is an envoy control plane that lets you issue (and renew) certs automatically through Let's encrypt or any other ACME-compatible provider. It controls one or more envoy proxies that sit in front of your app or service mesh.
 
@@ -7,7 +7,7 @@ You can download the server binary from the releases, or use the docker image.
 ## Current status
 The first version works, but the project is still WIP.
 
-## Run envoy-autocert
+## Run roxprox
 You can find configuration examples in resources/example-config
 ```
 ./envoy-control-plane-linux-amd64 -storage-path data/ -acme-contact <your-email-address>
@@ -47,17 +47,17 @@ This will run the ACME validation on both hostnames (mocky-1.in4it.io and mocky-
 
 ## Run on AWS with terraform
 
-There is a terraform module available in this repository. It'll configure an S3 bucket, a Network Loadbalancer, and 3 fargate containers. The container setup consist of 2 envoy proxies (one for http and one for https), and the envoy-autocert server. To start using it, add the following code to your terraform project:
+There is a terraform module available in this repository. It'll configure an S3 bucket, a Network Loadbalancer, and 3 fargate containers. The container setup consist of 2 envoy proxies (one for http and one for https), and the roxprox server. To start using it, add the following code to your terraform project:
 
 ```
-module "envoy-autocert" {
-  source              = "github.com/in4it/envoy-autocert//terraform"
+module "roxprox" {
+  source              = "github.com/in4it/roxprox//terraform"
   release             = "latest"                                     # use a tag or use latest for master
   acme_contact        = "your-email"                                 # email contact used by Let's encrypt
   control_plane_count = 1                                            # desired controle plane instances
   envoy_proxy_count   = 1                                            # envoy proxy count (there will be still one for http and one for https, due to the AWS Fargate/NLB limitations)
   subnets             = ["subnet-1234abcd"]                          # AWS subnet to use
-  s3_bucket           = "envoy-autocert"                             # s3 bucket to use
+  s3_bucket           = "roxprox"                             # s3 bucket to use
 }
 ```
 

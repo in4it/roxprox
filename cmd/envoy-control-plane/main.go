@@ -5,11 +5,11 @@ import (
 	"os"
 	"strings"
 
-	envoy "github.com/in4it/envoy-autocert/pkg/envoy"
-	"github.com/in4it/envoy-autocert/pkg/management"
-	storage "github.com/in4it/envoy-autocert/pkg/storage"
-	localStorage "github.com/in4it/envoy-autocert/pkg/storage/local"
-	"github.com/in4it/envoy-autocert/pkg/storage/s3"
+	envoy "github.com/in4it/roxprox/pkg/envoy"
+	"github.com/in4it/roxprox/pkg/management"
+	storage "github.com/in4it/roxprox/pkg/storage"
+	localStorage "github.com/in4it/roxprox/pkg/storage/local"
+	"github.com/in4it/roxprox/pkg/storage/s3"
 	"github.com/juju/loggo"
 )
 

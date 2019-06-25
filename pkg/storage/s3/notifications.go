@@ -10,13 +10,13 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
-	pbN "github.com/in4it/envoy-autocert/proto/notification"
+	pbN "github.com/in4it/roxprox/proto/notification"
 	"github.com/juju/loggo"
 	"google.golang.org/grpc"
 )
 
 const (
-	serviceDiscovery = "envoy-autocert.envoy-autocert.local"
+	serviceDiscovery = "roxprox.roxprox.local"
 	managementPort   = "50051"
 )
 

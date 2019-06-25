@@ -7,7 +7,7 @@ import (
 
 	"github.com/envoyproxy/go-control-plane/pkg/cache"
 	"github.com/google/uuid"
-	storage "github.com/in4it/envoy-autocert/pkg/storage"
+	storage "github.com/in4it/roxprox/pkg/storage"
 )
 
 type WorkQueue struct {

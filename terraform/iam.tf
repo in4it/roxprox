@@ -40,8 +40,8 @@ resource "aws_iam_role_policy" "ecs-task-execution-role" {
 }
 EOF
 }
-resource "aws_iam_role" "envoy-autocert-task-role" {
-  name = "envoy-autocert-task-role"
+resource "aws_iam_role" "roxprox-task-role" {
+  name = "roxprox-task-role"
 
   assume_role_policy = <<EOF
 {
@@ -60,9 +60,9 @@ resource "aws_iam_role" "envoy-autocert-task-role" {
 EOF
 }
 
-resource "aws_iam_role_policy" "envoy-autocert-task-role" {
-  name = "envoy-autocert-task-role"
-  role = "${aws_iam_role.envoy-autocert-task-role.id}"
+resource "aws_iam_role_policy" "roxprox-task-role" {
+  name = "roxprox-task-role"
+  role = "${aws_iam_role.roxprox-task-role.id}"
 
   policy = <<EOF
 {
@@ -74,14 +74,14 @@ resource "aws_iam_role_policy" "envoy-autocert-task-role" {
         "s3:Get*",
         "s3:Put*"
       ],
-      "Resource": "${aws_s3_bucket.envoy-autocert.arn}/*"
+      "Resource": "${aws_s3_bucket.roxprox.arn}/*"
     },
     {
       "Effect": "Allow",
       "Action": [
         "s3:ListBucket"
       ],
-      "Resource": "${aws_s3_bucket.envoy-autocert.arn}"
+      "Resource": "${aws_s3_bucket.roxprox.arn}"
     }
   ]
 }
