@@ -91,7 +91,8 @@ policy = <<EOF
       "Effect": "Allow",
       "Action": [
         "sqs:Get*",
-        "sqs:ReceiveMessage"
+        "sqs:ReceiveMessage",
+        "sqs:DeleteMessage"
       ],
       "Resource": "${aws_sqs_queue.roxprox-notifications.arn}"
     }
