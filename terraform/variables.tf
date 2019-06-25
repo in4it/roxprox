@@ -27,6 +27,11 @@ variable "subnets" {
   description = "subnets to use"
 }
 
+variable "lb_subnets" {
+  type        = list(string)
+  description = "loadbalancer subnets to use"
+}
+
 variable "s3_bucket" {
   description = "name of s3 bucket to use"
 }
