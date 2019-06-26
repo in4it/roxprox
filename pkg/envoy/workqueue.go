@@ -63,7 +63,11 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 		items[k].id = itemID
 		switch item.Action {
 		case "createCluster":
-			w.cache.clusters = append(w.cache.clusters, w.cluster.createCluster(item.ClusterParams))
+			if element, err := w.cluster.findCluster(w.cache.clusters, item.ClusterParams); err == nil {
+				w.cache.clusters[element] = w.cluster.createCluster(item.ClusterParams)
+			} else {
+				w.cache.clusters = append(w.cache.clusters, w.cluster.createCluster(item.ClusterParams))
+			}
 			item.state = "finished"
 			updateXds = true
 		case "deleteCluster":
@@ -121,6 +125,15 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 				item.state = "error"
 			} else {
 				w.cache.listeners = removeResource(w.cache.listeners, element)
+				item.state = "finished"
+			}
+			updateXds = true
+		case "updateListenerWithJwtProvider":
+			err := w.listener.updateListenerWithJwtProvider(&w.cache, item.ListenerParams)
+			if err != nil {
+				item.state = "error"
+				logger.Errorf("updateListenerWithJwtProvider error: %s", err)
+			} else {
 				item.state = "finished"
 			}
 			updateXds = true

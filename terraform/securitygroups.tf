@@ -12,6 +12,13 @@ resource "aws_security_group" "roxprox" {
     protocol        = "tcp"
     security_groups = var.loadbalancer == "alb" ? [aws_security_group.roxprox-envoy-alb[0].id] : [aws_security_group.roxprox-envoy-nlb[0].id]
   }
+  ingress {
+    from_port       = 50051
+    to_port         = 50051
+    protocol        = "tcp"
+    self            = true
+  }
+
 
   egress {
     from_port   = 0
@@ -32,7 +39,13 @@ resource "aws_security_group" "roxprox-envoy-nlb" {
     to_port     = 10001
     protocol    = "tcp"
     cidr_blocks = [data.aws_subnet.subnet.cidr_block]
-    
+  }
+  
+  ingress {
+    from_port       = 9901
+    to_port         = 9901
+    protocol        = "tcp"
+    security_groups = var.management_access_sg
   }
 
   egress {

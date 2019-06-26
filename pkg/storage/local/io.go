@@ -272,6 +272,6 @@ func (l *LocalStorage) GetPrivateKeyPem(name string) (string, error) {
 	return string(privateKey), nil
 }
 
-func (l *LocalStorage) GetCachedRuleName(filename string) (string, error) {
-	return "", nil // not implemented
+func (l *LocalStorage) GetCachedObjectName(filename string) (*api.Object, error) {
+	return nil, nil // not implemented
 }

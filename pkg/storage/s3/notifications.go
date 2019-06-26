@@ -129,8 +129,9 @@ func (n *Notifications) SendNotificationToPeers(req pbN.NotificationRequest) err
 				return err
 			}
 			n.peers[v] = pbN.NewNotificationClient(conn)
+			logger.Debugf("set up new grpc management connection with %s", v.address)
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		r, err := n.peers[v].SendNotification(ctx, &req)
 		if err != nil {

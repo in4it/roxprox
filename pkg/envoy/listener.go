@@ -21,7 +21,51 @@ type Listener struct{}
 func newListener() *Listener {
 	return &Listener{}
 }
+func (l *Listener) updateListenerWithJwtProvider(cache *WorkQueueCache, params ListenerParams) error {
+	for listenerKey := range cache.listeners {
+		ll := cache.listeners[listenerKey].(*api.Listener)
+		manager, err := l.getListenerHTTPConnectionManager(ll)
+		if err != nil {
+			return err
+		}
+		// add routes to jwtProvider
+		jwtConfig, err := l.getListenerHTTPFilter(manager.HttpFilters)
+		if err != nil {
+			return err
+		}
+		if jwtConfig.Providers == nil {
+			jwtConfig.Providers = make(map[string]*jwtAuth.JwtProvider)
+		}
+		jwtNewConfig := l.getJwtConfig(params.Auth)
+		jwtConfig.Providers[params.Auth.JwtProvider] = jwtNewConfig.Providers[params.Auth.JwtProvider]
+		logger.Debugf("Adding/updating %s to jwt config", params.Auth.JwtProvider)
 
+		jwtConfigEncoded, err := types.MarshalAny(&jwtConfig)
+		if err != nil {
+			panic(err)
+		}
+
+		manager.HttpFilters = []*hcm.HttpFilter{
+			{
+				Name: "envoy.filters.http.jwt_authn",
+				ConfigType: &hcm.HttpFilter_TypedConfig{
+					TypedConfig: jwtConfigEncoded,
+				},
+			},
+			{
+				Name: util.Router,
+			},
+		}
+		pbst, err := types.MarshalAny(&manager)
+		if err != nil {
+			panic(err)
+		}
+		ll.FilterChains[0].Filters[0].ConfigType = &listener.Filter_TypedConfig{
+			TypedConfig: pbst,
+		}
+	}
+	return nil
+}
 func (l *Listener) updateListenerWithNewCert(cache *WorkQueueCache, params TLSParams) error {
 	var listenerFound bool
 	for listenerKey := range cache.listeners {
@@ -282,17 +326,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	}
 
 	// add routes to jwtProvider
-	var jwtConfig jwtAuth.JwtAuthentication
-	httpFilterPos := -1
-	for k, v := range manager.HttpFilters {
-		if v.Name == "envoy.filters.http.jwt_authn" {
-			httpFilterPos = k
-		}
-	}
-	if httpFilterPos == -1 {
-		return fmt.Errorf("HttpFilter for jwt missing")
-	}
-	err = types.UnmarshalAny(manager.HttpFilters[httpFilterPos].GetTypedConfig(), &jwtConfig)
+	jwtConfig, err := l.getListenerHTTPFilter(manager.HttpFilters)
 	if err != nil {
 		return err
 	}
@@ -349,6 +383,25 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 
 	return nil
 }
+
+func (l *Listener) getListenerHTTPFilter(httpFilter []*hcm.HttpFilter) (jwtAuth.JwtAuthentication, error) {
+	var jwtConfig jwtAuth.JwtAuthentication
+	httpFilterPos := -1
+	for k, v := range httpFilter {
+		if v.Name == "envoy.filters.http.jwt_authn" {
+			httpFilterPos = k
+		}
+	}
+	if httpFilterPos == -1 {
+		return jwtConfig, fmt.Errorf("HttpFilter for jwt missing")
+	}
+	err := types.UnmarshalAny(httpFilter[httpFilterPos].GetTypedConfig(), &jwtConfig)
+	if err != nil {
+		return jwtConfig, err
+	}
+	return jwtConfig, nil
+}
+
 func (l *Listener) getListenerAttributes(params ListenerParams, paramsTLS TLSParams) (bool, string, string, string, string, uint32) {
 	var (
 		tls             bool
