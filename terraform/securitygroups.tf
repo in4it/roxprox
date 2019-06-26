@@ -53,7 +53,7 @@ resource "aws_security_group" "roxprox-envoy-alb" {
     from_port   = 10000
     to_port     = 10001
     protocol    = "tcp"
-    security_groups = [aws_security_group.roxprox-envoy-alb.id]
+    security_groups = [aws_security_group.roxprox-envoy-alb[0].id]
   }
 
   egress {
