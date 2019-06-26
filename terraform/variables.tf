@@ -56,7 +56,7 @@ variable "tls_listener" {
   type        = bool
 }
 
-variabel "management_access_sg" {
+variable "management_access_sg" {
   description = "allow access to the management interface"
   type        = list
 }
