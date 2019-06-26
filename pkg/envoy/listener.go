@@ -321,6 +321,18 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	if virtualHostKey >= 0 {
 		routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey] = v
 	} else {
+		// check if there's not already a virtualhost with this domain
+		domainAlreadyExists := false
+		for _, curVirtualHosts := range routeSpecifier.RouteConfig.VirtualHosts {
+			for _, domain := range curVirtualHosts.Domains {
+				if domain == params.Conditions.Hostname {
+					domainAlreadyExists = true
+				}
+			}
+		}
+		if domainAlreadyExists {
+			return fmt.Errorf("Cannot add virtualhost, domain already exists")
+		}
 		// append new virtualhost
 		routeSpecifier.RouteConfig.VirtualHosts = append(routeSpecifier.RouteConfig.VirtualHosts, v)
 	}

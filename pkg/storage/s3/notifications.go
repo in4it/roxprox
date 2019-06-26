@@ -3,7 +3,6 @@ package s3
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net"
 	"time"
 
@@ -111,7 +110,7 @@ func (n *Notifications) RunSQSQueue(queueURL string) {
 				}
 			}
 			logger.Debugf("SendNotificationToPeers: %+v", req.NotificationItem)
-			n.SendNotificationToPeers(req)
+			err = n.SendNotificationToPeers(req, n.lookupPeers(), 5)
 			if err != nil {
 				notificationLogger.Errorf("SendNotificationToPeers error: %s", err)
 			}
@@ -119,8 +118,7 @@ func (n *Notifications) RunSQSQueue(queueURL string) {
 	}
 }
 
-func (n *Notifications) SendNotificationToPeers(req pbN.NotificationRequest) error {
-	peerAddresses := n.lookupPeers()
+func (n *Notifications) SendNotificationToPeers(req pbN.NotificationRequest, peerAddresses []Peer, timeout int) error {
 	for _, v := range peerAddresses {
 		if _, ok := n.peers[v]; !ok {
 			// Set up a connection to the server.
@@ -131,14 +129,14 @@ func (n *Notifications) SendNotificationToPeers(req pbN.NotificationRequest) err
 			n.peers[v] = pbN.NewNotificationClient(conn)
 			logger.Debugf("set up new grpc management connection with %s", v.address)
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 		defer cancel()
 		r, err := n.peers[v].SendNotification(ctx, &req)
 		if err != nil {
-			return err
+			logger.Errorf("SendNotification error: %s", err)
 		}
 		if !r.GetResult() {
-			return fmt.Errorf("Notification response false (an error occurred on the server side")
+			logger.Errorf("SendNotification error: %s", err)
 		}
 
 		logger.Debugf("Sent notification to %s", v.address)
