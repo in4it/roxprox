@@ -27,7 +27,7 @@ type S3Storage struct {
 	config Config
 	svc    *s3.S3
 	sess   *session.Session
-	cache  map[string]string
+	cache  map[string]*api.Object
 }
 
 func NewS3Storage(config Config) (*S3Storage, error) {
@@ -65,7 +65,7 @@ func NewS3Storage(config Config) (*S3Storage, error) {
 		return nil, err
 	}
 
-	return &S3Storage{config: config, svc: svc, sess: sess, cache: make(map[string]string)}, nil
+	return &S3Storage{config: config, svc: svc, sess: sess, cache: make(map[string]*api.Object)}, nil
 }
 
 func (s *S3Storage) GetError(name string) error {
@@ -141,7 +141,7 @@ func (s *S3Storage) GetObject(filename string) (api.Object, error) {
 		return object, errors.New("Object in wrong format")
 	}
 	// keep a cache of filename -> rule name matching
-	s.cache[filename] = object.Metadata.Name
+	s.cache[filename] = &object
 	return object, nil
 
 }
@@ -370,7 +370,7 @@ func (s *S3Storage) createKey(privateKeyPath, publicKeyPath string) error {
 	return nil
 }
 
-func (s *S3Storage) GetCachedRuleName(filename string) (string, error) {
+func (s *S3Storage) GetCachedObjectName(filename string) (*api.Object, error) {
 	if s.config.Prefix == "" {
 		filename = "/" + filename
 	}
@@ -378,5 +378,5 @@ func (s *S3Storage) GetCachedRuleName(filename string) (string, error) {
 		return val, nil
 	}
 
-	return "", fmt.Errorf("Filename %s not found in cache", filename)
+	return nil, fmt.Errorf("Filename %s not found in cache", filename)
 }

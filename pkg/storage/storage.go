@@ -29,7 +29,7 @@ type Storage interface {
 	GetPrivateKey(name string) (*rsa.PrivateKey, error)
 	GetPrivateKeyPem(name string) (string, error)
 	WriteChallenge(name string, data []byte) error
-	GetCachedRuleName(filename string) (string, error)
+	GetCachedObjectName(filename string) (*api.Object, error)
 }
 
 func NewStorage(t string, config interface{}) (Storage, error) {

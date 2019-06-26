@@ -115,24 +115,24 @@ func (x *XDS) ImportObjects() error {
 	return nil
 }
 
-func (x *XDS) RemoveRule(ruleName string) ([]WorkQueueItem, error) {
+func (x *XDS) RemoveRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 	workQueueItems := []WorkQueueItem{
 		{
 			Action: "deleteCluster",
 			ClusterParams: ClusterParams{
-				Name: ruleName,
+				Name: rule.Metadata.Name,
 			},
 		},
 		{
 			Action: "deleteListener",
 			ListenerParams: ListenerParams{
-				Name: ruleName,
+				Name: rule.Metadata.Name,
 			},
 		},
 		{
 			Action: "deleteTLSListener",
 			ListenerParams: ListenerParams{
-				Name: ruleName,
+				Name: rule.Metadata.Name,
 			},
 		},
 	}
@@ -162,16 +162,27 @@ func (x *XDS) ImportObject(object pkgApi.Object) ([]WorkQueueItem, error) {
 				port = 80
 			}
 		}
-
-		workQueueItem := WorkQueueItem{
-			Action: "createCluster",
-			ClusterParams: ClusterParams{
-				Name:           "jwtProvider_" + jwtProvider.Metadata.Name,
-				TargetHostname: u.Hostname(),
-				Port:           port,
+		workQueueItems = append(workQueueItems, []WorkQueueItem{
+			{
+				Action: "createCluster",
+				ClusterParams: ClusterParams{
+					Name:           "jwtProvider_" + jwtProvider.Metadata.Name,
+					TargetHostname: u.Hostname(),
+					Port:           port,
+				},
 			},
-		}
-		workQueueItems = append(workQueueItems, workQueueItem)
+			{
+				Action: "updateListenerWithJwtProvider",
+				ListenerParams: ListenerParams{
+					Auth: Auth{
+						JwtProvider: jwtProvider.Metadata.Name,
+						Issuer:      jwtProvider.Spec.Issuer,
+						Forward:     jwtProvider.Spec.Forward,
+						RemoteJwks:  jwtProvider.Spec.RemoteJwks,
+					},
+				},
+			},
+		}...)
 	}
 	return workQueueItems, nil
 }
@@ -227,8 +238,7 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 						RemoteJwks:  object.Data.(pkgApi.JwtProvider).Spec.RemoteJwks,
 					}
 					if err != nil {
-						logger.Errorf("Could not set Auth parameters: %s", err)
-						return []WorkQueueItem{}, err
+						logger.Infof("Could not set Auth parameters: %s - skipping for now", err)
 					}
 				}
 				workQueueItems = append(workQueueItems, workQueueItem)
@@ -353,14 +363,14 @@ func (x *XDS) receiveFromQueue(queue chan []*n.NotificationRequest_NotificationI
 
 		for _, v := range notifications {
 			if v.EventName == "ObjectCreated:Put" {
-				newItems, err := x.putRule(v.Filename)
+				newItems, err := x.putObject(v.Filename)
 				if err != nil {
 					logger.Errorf("%s", err)
 				} else {
 					workQueueItems = append(workQueueItems, newItems...)
 				}
 			} else if v.EventName == "ObjectRemoved:Delete" {
-				newItems, err := x.deleteRule(v.Filename)
+				newItems, err := x.deleteObject(v.Filename)
 				if err != nil {
 					logger.Errorf("%s", err)
 				} else {
@@ -375,7 +385,7 @@ func (x *XDS) receiveFromQueue(queue chan []*n.NotificationRequest_NotificationI
 		}
 	}
 }
-func (x *XDS) putRule(filename string) ([]WorkQueueItem, error) {
+func (x *XDS) putObject(filename string) ([]WorkQueueItem, error) {
 	object, err := x.s.GetObject(filename)
 	if err != nil {
 		return []WorkQueueItem{}, fmt.Errorf("Couldn't get new rule from storage: %s", err)
@@ -388,16 +398,28 @@ func (x *XDS) putRule(filename string) ([]WorkQueueItem, error) {
 		}
 		return newItems, nil
 	}
+	if object.Kind == "jwtProvider" {
+		newItems, err := x.ImportObject(object)
+		if err != nil {
+			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new object: %s", err)
+		}
+		return newItems, nil
+	}
 	return []WorkQueueItem{}, nil
 }
-func (x *XDS) deleteRule(filename string) ([]WorkQueueItem, error) {
-	rule, err := x.s.GetCachedRuleName(filename)
+func (x *XDS) deleteObject(filename string) ([]WorkQueueItem, error) {
+	object, err := x.s.GetCachedObjectName(filename)
 	if err != nil {
 		return []WorkQueueItem{}, fmt.Errorf("Couldn't get new rule from storage cache: %s", err)
 	}
-	newItems, err := x.RemoveRule(rule)
-	if err != nil {
-		return []WorkQueueItem{}, fmt.Errorf("Couldn't remove rule: %s", err)
+	if object.Kind == "rule" {
+		rule := object.Data.(pkgApi.Rule)
+		newItems, err := x.RemoveRule(rule)
+		if err != nil {
+			return []WorkQueueItem{}, fmt.Errorf("Couldn't remove rule: %s", err)
+		}
+		return newItems, nil
 	}
-	return newItems, nil
+	return []WorkQueueItem{}, nil
+
 }

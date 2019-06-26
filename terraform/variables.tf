@@ -55,3 +55,9 @@ variable "tls_listener" {
   description = "run a service for a tls (https) listener (true/false)"
   type        = bool
 }
+
+variable "management_access_sg" {
+  description = "allow access to the management interface"
+  type        = list
+  default     = []
+}
