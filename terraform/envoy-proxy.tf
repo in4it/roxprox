@@ -74,7 +74,7 @@ resource "aws_ecs_service" "envoy-proxy" {
 
   network_configuration {
     subnets = var.subnets
-    security_groups = [aws_security_group.envoy-proxy.id]
+    security_groups = var.loadbalancer == "alb" ? [aws_security_group.roxprox-envoy-alb[0].id] : [aws_security_group.roxprox-envoy-nlb[0].id]
     assign_public_ip = true
   }
 
@@ -169,7 +169,7 @@ resource "aws_ecs_service" "envoy-proxy-https" {
   
   network_configuration {
     subnets          = var.subnets
-    security_groups  = [aws_security_group.envoy-proxy.id]
+    security_groups  = var.loadbalancer == "alb" ? [aws_security_group.roxprox-envoy-alb[0].id] : [aws_security_group.roxprox-envoy-nlb[0].id]
     assign_public_ip = true
   }
   

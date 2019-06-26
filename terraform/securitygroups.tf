@@ -10,7 +10,7 @@ resource "aws_security_group" "roxprox" {
     from_port       = 8080
     to_port         = 8080
     protocol        = "tcp"
-    security_groups = [aws_security_group.envoy-proxy.id]
+    security_groups = var.loadbalancer == "alb" ? [aws_security_group.roxprox-envoy-alb[0].id] : [aws_security_group.roxprox-envoy-nlb[0].id]
   }
 
   egress {
@@ -21,16 +21,39 @@ resource "aws_security_group" "roxprox" {
   }
 }
 
-resource "aws_security_group" "envoy-proxy" {
-  name        = "envoy-proxy"
+resource "aws_security_group" "roxprox-envoy-nlb" {
+  count       = var.loadbalancer == "alb" ? 0 : 1
+  name        = "roxprox-envoy"
   vpc_id      = data.aws_subnet.subnet.vpc_id
-  description = "envoy-proxy"
+  description = "roxprox envoy proxy"
 
   ingress {
     from_port   = 10000
     to_port     = 10001
     protocol    = "tcp"
     cidr_blocks = [data.aws_subnet.subnet.cidr_block]
+    
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_security_group" "roxprox-envoy-alb" {
+  count       = var.loadbalancer == "alb" ? 1 : 0
+  name        = "roxprox-envoy"
+  vpc_id      = data.aws_subnet.subnet.vpc_id
+  description = "roxprox envoy proxy"
+
+  ingress {
+    from_port   = 10000
+    to_port     = 10001
+    protocol    = "tcp"
+    security_groups = [aws_security_group.roxprox-alb[0].id]
   }
 
   egress {
