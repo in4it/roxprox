@@ -59,4 +59,5 @@ variable "tls_listener" {
 variable "management_access_sg" {
   description = "allow access to the management interface"
   type        = list
+  default     = []
 }
