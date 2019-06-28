@@ -7,5 +7,5 @@ output "lb-zone-id" {
 }
 
 output "roxprox-envoy-sg" {
-   value = var.loadbalancer == "alb" ? [aws_security_group.roxprox-envoy-alb[0].id] : [aws_security_group.roxprox-envoy-nlb[0].id]
+   value = var.loadbalancer == "alb" ? aws_security_group.roxprox-envoy-alb[0].id : aws_security_group.roxprox-envoy-nlb[0].id
 }
