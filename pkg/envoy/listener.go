@@ -178,6 +178,10 @@ func (l *Listener) getListenerHTTPConnectionManager(ll *api.Listener) (hcm.HttpC
 func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, clusterName, virtualHostName string) route.VirtualHost {
 	var hostRewriteSpecifier *route.RouteAction_HostRewrite
 
+	if hostname == "" {
+		hostname = "*"
+	}
+
 	if targetHostname != "" {
 		hostRewriteSpecifier = &route.RouteAction_HostRewrite{
 			HostRewrite: targetHostname,
@@ -200,13 +204,6 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 		},
 	}}
 
-	if hostname == "" {
-		return route.VirtualHost{
-			Name:   virtualHostName,
-			Routes: routes,
-		}
-	}		
-	
 	return route.VirtualHost{
 			Name:    virtualHostName,
 			Domains: []string{hostname},
@@ -333,23 +330,10 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	}
 
 	if virtualHostKey >= 0 {
-		routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey] = v
+		// append new routes to existing virtualhost
+		logger.Debugf("Adding new routes to %s: %+v", v.Name, v.Routes)
+		routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes = append(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes, v.Routes...)	
 	} else {
-		if params.Conditions.Hostname != "" {
-			// check if there's not already a virtualhost with this domain
-			domainAlreadyExists := false
-			for _, curVirtualHosts := range routeSpecifier.RouteConfig.VirtualHosts {
-				for _, domain := range curVirtualHosts.Domains {
-					if domain == params.Conditions.Hostname {
-						domainAlreadyExists = true
-					}
-				}
-			}
-			if domainAlreadyExists {
-				return fmt.Errorf("Cannot add virtualhost, domain already exists")
-			}
-		}
-		// append new virtualhost
 		routeSpecifier.RouteConfig.VirtualHosts = append(routeSpecifier.RouteConfig.VirtualHosts, v)
 	}
 
@@ -449,15 +433,11 @@ func (l *Listener) getListenerAttributes(params ListenerParams, paramsTLS TLSPar
 	}
 
 	if params.Conditions.Hostname == "" {
-		virtualHostName = params.Name + "_service" + "_wildcard"
-		routeConfigName = params.Name + "_route" + "_wildcard"
+		virtualHostName = "v_nodomain"
+		routeConfigName = "r_nodomain"
 	} else {
-		virtualHostName = params.Name + "_service" + "_" + params.Conditions.Hostname
-		routeConfigName = params.Name + "_route" + "_" + params.Conditions.Hostname
-	}
-
-	if params.Auth.JwtProvider != "" {
-		virtualHostName += "_jwt:" + params.Auth.JwtProvider
+		virtualHostName = "v_" + params.Conditions.Hostname
+		routeConfigName = "r_" + params.Conditions.Hostname
 	}
 
 	if tls {
