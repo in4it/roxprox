@@ -176,29 +176,43 @@ func (l *Listener) getListenerHTTPConnectionManager(ll *api.Listener) (hcm.HttpC
 	return manager, nil
 }
 func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, clusterName, virtualHostName string) route.VirtualHost {
+	var hostRewriteSpecifier *route.RouteAction_HostRewrite
+
+	if targetHostname != "" {
+		hostRewriteSpecifier = &route.RouteAction_HostRewrite{
+			HostRewrite: targetHostname,
+		}
+	}
+	
+	routes := []route.Route{{
+		Match: route.RouteMatch{
+			PathSpecifier: &route.RouteMatch_Prefix{
+				Prefix: targetPrefix,
+			},
+		},
+		Action: &route.Route_Route{
+			Route: &route.RouteAction{
+				HostRewriteSpecifier: hostRewriteSpecifier,
+				ClusterSpecifier: &route.RouteAction_Cluster{
+					Cluster: clusterName,
+				},
+			},
+		},
+	}}
+
+	if hostname == "" {
+		return route.VirtualHost{
+			Name:   virtualHostName,
+			Routes: routes,
+		}
+	}		
+	
 	return route.VirtualHost{
-		Name:    virtualHostName,
-		Domains: []string{hostname},
+			Name:    virtualHostName,
+			Domains: []string{hostname},
 
-		//TypedPerFilterConfig: filterConfig,
-
-		Routes: []route.Route{{
-			Match: route.RouteMatch{
-				PathSpecifier: &route.RouteMatch_Prefix{
-					Prefix: targetPrefix,
-				},
-			},
-			Action: &route.Route_Route{
-				Route: &route.RouteAction{
-					HostRewriteSpecifier: &route.RouteAction_HostRewrite{
-						HostRewrite: targetHostname,
-					},
-					ClusterSpecifier: &route.RouteAction_Cluster{
-						Cluster: clusterName,
-					},
-				},
-			},
-		}}}
+			Routes: routes,
+	}
 }
 func (l *Listener) getJwtConfig(auth Auth) *jwtAuth.JwtAuthentication {
 	if auth.JwtProvider == "" {
@@ -321,17 +335,19 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	if virtualHostKey >= 0 {
 		routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey] = v
 	} else {
-		// check if there's not already a virtualhost with this domain
-		domainAlreadyExists := false
-		for _, curVirtualHosts := range routeSpecifier.RouteConfig.VirtualHosts {
-			for _, domain := range curVirtualHosts.Domains {
-				if domain == params.Conditions.Hostname {
-					domainAlreadyExists = true
+		if params.Conditions.Hostname != "" {
+			// check if there's not already a virtualhost with this domain
+			domainAlreadyExists := false
+			for _, curVirtualHosts := range routeSpecifier.RouteConfig.VirtualHosts {
+				for _, domain := range curVirtualHosts.Domains {
+					if domain == params.Conditions.Hostname {
+						domainAlreadyExists = true
+					}
 				}
 			}
-		}
-		if domainAlreadyExists {
-			return fmt.Errorf("Cannot add virtualhost, domain already exists")
+			if domainAlreadyExists {
+				return fmt.Errorf("Cannot add virtualhost, domain already exists")
+			}
 		}
 		// append new virtualhost
 		routeSpecifier.RouteConfig.VirtualHosts = append(routeSpecifier.RouteConfig.VirtualHosts, v)
