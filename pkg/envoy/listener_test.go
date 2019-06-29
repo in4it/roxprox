@@ -154,6 +154,12 @@ func TestUpdateListener(t *testing.T) {
 		PrivateKey: "privateKey2",
 		Domain:     "hostname5.example.com",
 	}
+	paramsTLS5New := TLSParams{
+		Name:       "test-tls2",
+		CertBundle: "certbundle3",
+		PrivateKey: "privateKey3",
+		Domain:     "hostname5.example.com",
+	}
 	listener := l.createListener(params1, paramsTLS1)
 	cache.listeners = append(cache.listeners, listener)
 
@@ -209,6 +215,18 @@ func TestUpdateListener(t *testing.T) {
 
 	// validate domain 5 (TLS)
 	if err := validateDomainTLS(cache.listeners, params5, paramsTLS5); err != nil {
+		t.Errorf("Validation failed: %s", err)
+		return
+	}
+
+	// update TLS cert of domain 5
+	if err := l.updateListenerWithNewCert(&cache, paramsTLS5New); err != nil {
+		t.Errorf("Updating tls cert failed: %s", err)
+		return
+	}
+
+	// validate domain 5 (TLSNew)
+	if err := validateDomainTLS(cache.listeners, params5, paramsTLS5New); err != nil {
 		t.Errorf("Validation failed: %s", err)
 		return
 	}

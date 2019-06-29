@@ -100,9 +100,15 @@ func (l *Listener) updateListenerWithNewCert(cache *WorkQueueCache, params TLSPa
 		ll := cache.listeners[listenerKey].(*api.Listener)
 		if ll.Name == "l_tls" {
 			listenerFound = true
-			logger.Debugf("Updating %s with new filter and certificate for domain %s", ll.Name, params.Domain)
-			// add cert and key to tls listener
-			ll.FilterChains = append(ll.FilterChains, l.newTLSFilterChain(params))
+			filterId := l.getFilterChainId(ll.FilterChains, params.Domain)
+			if filterId == -1 {
+				logger.Debugf("Updating %s with new filter and certificate for domain %s", ll.Name, params.Domain)
+				ll.FilterChains = append(ll.FilterChains, l.newTLSFilterChain(params))
+			} else {
+				logger.Debugf("Updating existing filterchain in %s with certificate for domain %s", ll.Name, params.Domain)
+				filterChain := l.newTLSFilterChain(params)
+				ll.FilterChains[filterId].TlsContext = filterChain.TlsContext
+			}
 		}
 	}
 	if !listenerFound {
