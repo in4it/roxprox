@@ -38,8 +38,35 @@ func TestDomainAlreadyExists(t *testing.T) {
 	listener := l.createListener(params1, paramsTLS1)
 	cache.listeners = append(cache.listeners, listener)
 	err := l.updateListener(&cache, params2, paramsTLS1)
-	if err == nil {
-		t.Errorf("Should have gotten cannot add virtualhost error (domain already exists)")
+
+	if len(cache.listeners) == 0 {
+		t.Errorf("Listener is empty (got %d)", len(cache.listeners))
+		return
+	}
+	cachedListener := cache.listeners[0].(*api.Listener)
+	if cachedListener.Name != "l_http" {
+		t.Errorf("Expected l_http (got %s)", cachedListener.Name)
+		return
+	}
+
+	manager, err := l.getListenerHTTPConnectionManager(cachedListener)
+	routeSpecifier, err := l.getListenerRouteSpecifier(manager)
+	if err != nil {
+		t.Errorf("Error: %s", err)
+		return
+	}
+
+	if len(routeSpecifier.RouteConfig.VirtualHosts) == 0 {
+		t.Errorf("Should have more than 0 virtualhosts")
+		return
+	}
+	if len(routeSpecifier.RouteConfig.VirtualHosts[0].Domains) != 1 {
+		t.Errorf("Should have 1 domain")
+		return
+	}
+	if routeSpecifier.RouteConfig.VirtualHosts[0].Domains[0] != "hostname1.example.com" {
+		t.Errorf("Only domain in virtualhost should be hostname1.example.com")
+		return
 	}
 }
 
@@ -68,7 +95,7 @@ func TestUpdateListener(t *testing.T) {
 		},
 	}
 	params3 := ListenerParams{
-		Name:           "test_2",
+		Name:           "test_3",
 		Protocol:       "http",
 		TargetHostname: "www.test.inv",
 		Conditions: Conditions{
@@ -82,7 +109,27 @@ func TestUpdateListener(t *testing.T) {
 			RemoteJwks:  "https://remotejwks.example.com",
 		},
 	}
+	params4 := ListenerParams{
+		Name:           "test_4",
+		Protocol:       "http",
+		TargetHostname: "www.test-tls.inv",
+		Conditions: Conditions{
+			Hostname: "hostname4.example.com",
+			Prefix:   "/test4",
+		},
+		Auth: Auth{
+			JwtProvider: "testJwt",
+			Issuer:      "http://issuer.example.com",
+			Forward:     true,
+			RemoteJwks:  "https://remotejwks.example.com",
+		},
+	}
 	paramsTLS1 := TLSParams{}
+	paramsTLS4 := TLSParams{
+		Name:       "www.test-tls.inv",
+		CertBundle: "certbundle",
+		PrivateKey: "privateKey",
+	}
 	listener := l.createListener(params1, paramsTLS1)
 	cache.listeners = append(cache.listeners, listener)
 
@@ -119,6 +166,28 @@ func TestUpdateListener(t *testing.T) {
 		t.Errorf("Validation failed: %s", err)
 		return
 	}
+
+	// add domain 4 (TLS)
+	TLSListener := l.createListener(params4, paramsTLS4)
+	cache.listeners = append(cache.listeners, TLSListener)
+
+	// validate domain 4 (TLS)
+	if err := validateDomainTLS(cache.listeners, params4, paramsTLS4); err != nil {
+		t.Errorf("Validation failed: %s", err)
+		return
+	}
+}
+func validateDomainTLS(listeners []cache.Resource, params ListenerParams, tlsParams TLSParams) error {
+	//l := newListener()
+	if len(listeners) == 0 {
+		return fmt.Errorf("Listener is empty (got %d)", len(listeners))
+	}
+	cachedListener := listeners[1].(*api.Listener)
+	if cachedListener.Name != "l_tls" {
+		return fmt.Errorf("Expected l_tls (got %s)", cachedListener.Name)
+	}
+
+	return nil
 }
 
 func validateDomain(listeners []cache.Resource, params ListenerParams) error {

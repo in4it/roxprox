@@ -16,6 +16,8 @@ import (
 	"github.com/gogo/protobuf/types"
 )
 
+const Error_NoFilterFound = "NoFilterFound"
+
 type Listener struct{}
 
 func newListener() *Listener {
@@ -74,24 +76,30 @@ func (l *Listener) updateListenerWithNewCert(cache *WorkQueueCache, params TLSPa
 			listenerFound = true
 			logger.Debugf("Matching listener found, updating: %s", ll.Name)
 			// add cert and key to tls listener
-			ll.FilterChains[0].TlsContext = &auth.DownstreamTlsContext{
-				CommonTlsContext: &auth.CommonTlsContext{
-					TlsCertificates: []*auth.TlsCertificate{
-						{
-							CertificateChain: &core.DataSource{
-								Specifier: &core.DataSource_InlineString{
-									InlineString: params.CertBundle,
+			ll.FilterChains = append(ll.FilterChains, listener.FilterChain{
+				FilterChainMatch: &listener.FilterChainMatch{
+					// TODO (params.Domainname)
+					ServerNames: []string{params.Name},
+				},
+				TlsContext: &auth.DownstreamTlsContext{
+					CommonTlsContext: &auth.CommonTlsContext{
+						TlsCertificates: []*auth.TlsCertificate{
+							{
+								CertificateChain: &core.DataSource{
+									Specifier: &core.DataSource_InlineString{
+										InlineString: params.CertBundle,
+									},
 								},
-							},
-							PrivateKey: &core.DataSource{
-								Specifier: &core.DataSource_InlineString{
-									InlineString: params.PrivateKey,
+								PrivateKey: &core.DataSource{
+									Specifier: &core.DataSource_InlineString{
+										InlineString: params.PrivateKey,
+									},
 								},
 							},
 						},
 					},
 				},
-			}
+			})
 		}
 	}
 	if !listenerFound {
@@ -174,6 +182,33 @@ func (l *Listener) getListenerHTTPConnectionManager(ll *api.Listener) (hcm.HttpC
 	if err != nil {
 		return manager, err
 	}
+	return manager, nil
+}
+func (l *Listener) getListenerHTTPConnectionManagerTLS(ll *api.Listener, hostname string) (hcm.HttpConnectionManager, error) {
+	var manager hcm.HttpConnectionManager
+
+	filterId := -1
+
+	for _, filter := range ll.FilterChains {
+		for k, serverName := range filter.FilterChainMatch.ServerNames {
+			if serverName == hostname {
+				filterId = k
+			}
+		}
+	}
+	if filterId == -1 {
+		return manager, fmt.Errorf(Error_NoFilterFound)
+	} else {
+		if len(ll.FilterChains[filterId].Filters) == 0 {
+			return manager, fmt.Errorf("No filters found in listener %s", ll.Name)
+		}
+		typedConfig := (ll.FilterChains[filterId].Filters[0].ConfigType).(*listener.Filter_TypedConfig)
+		err := types.UnmarshalAny(typedConfig.TypedConfig, &manager)
+		if err != nil {
+			return manager, err
+		}
+	}
+
 	return manager, nil
 }
 func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, clusterName, virtualHostName string, methods []string) route.VirtualHost {
@@ -304,7 +339,7 @@ func (l *Listener) getJwtRule(conditions Conditions, clusterName string, jwtProv
 func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, paramsTLS TLSParams) error {
 	var listenerKey = -1
 
-	_, targetPrefix, virtualHostname, listenerName, _ := l.getListenerAttributes(params, paramsTLS)
+	tls, targetPrefix, virtualHostname, listenerName, _ := l.getListenerAttributes(params, paramsTLS)
 
 	logger.Infof("Updating listener " + listenerName)
 
@@ -317,11 +352,22 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 		return fmt.Errorf("No matching listener found")
 	}
 	// update listener
+	var manager hcm.HttpConnectionManager
+	var err error
+
 	ll := cache.listeners[listenerKey].(*api.Listener)
-	manager, err := l.getListenerHTTPConnectionManager(ll)
-	if err != nil {
-		return err
+	if tls {
+		manager, err = l.getListenerHTTPConnectionManagerTLS(ll, params.Conditions.Hostname)
+		if err != nil {
+			return err
+		}
+	} else {
+		manager, err = l.getListenerHTTPConnectionManager(ll)
+		if err != nil {
+			return err
+		}
 	}
+
 	routeSpecifier, err := l.getListenerRouteSpecifier(manager)
 	if err != nil {
 		return err
@@ -555,10 +601,17 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 		}},
 	}
 	if tls {
+		// this should never happen:
+		if params.Conditions.Hostname == "" {
+			panic("This should never happen: tls enabled and no hostname set (earlier validation must have failed)")
+		}
 		newListener.ListenerFilters = []listener.ListenerFilter{
 			{
 				Name: "envoy.listener.tls_inspector",
 			},
+		}
+		newListener.FilterChains[0].FilterChainMatch = &listener.FilterChainMatch{
+			ServerNames: []string{params.Conditions.Hostname},
 		}
 		// add cert and key to tls listener
 		newListener.FilterChains[0].TlsContext = &auth.DownstreamTlsContext{

@@ -216,6 +216,11 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 	if targetHostname != "" {
 		// create listener that proxies to targetHostname
 		for _, condition := range rule.Spec.Conditions {
+			// validation
+			if rule.Spec.Certificate != "" && condition.Hostname == "" {
+				return []WorkQueueItem{}, fmt.Errorf("Validation error: rule with certificate, but without a hostname condition - ignoring rule")
+
+			}
 			if condition.Hostname != "" || condition.Prefix != "" {
 				workQueueItem := WorkQueueItem{
 					Action: "createListener",
