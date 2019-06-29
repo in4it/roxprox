@@ -16,6 +16,7 @@ import (
 	"github.com/gogo/protobuf/types"
 )
 
+const Error_NoFilterChainFound = "NoFilterChainFound"
 const Error_NoFilterFound = "NoFilterFound"
 
 type Listener struct{}
@@ -68,38 +69,40 @@ func (l *Listener) updateListenerWithJwtProvider(cache *WorkQueueCache, params L
 	}
 	return nil
 }
+func (l *Listener) newTLSFilterChain(params TLSParams) listener.FilterChain {
+	return listener.FilterChain{
+		FilterChainMatch: &listener.FilterChainMatch{
+			ServerNames: []string{params.Domain},
+		},
+		TlsContext: &auth.DownstreamTlsContext{
+			CommonTlsContext: &auth.CommonTlsContext{
+				TlsCertificates: []*auth.TlsCertificate{
+					{
+						CertificateChain: &core.DataSource{
+							Specifier: &core.DataSource_InlineString{
+								InlineString: params.CertBundle,
+							},
+						},
+						PrivateKey: &core.DataSource{
+							Specifier: &core.DataSource_InlineString{
+								InlineString: params.PrivateKey,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
 func (l *Listener) updateListenerWithNewCert(cache *WorkQueueCache, params TLSParams) error {
 	var listenerFound bool
 	for listenerKey := range cache.listeners {
 		ll := cache.listeners[listenerKey].(*api.Listener)
 		if ll.Name == "l_tls" {
 			listenerFound = true
-			logger.Debugf("Matching listener found, updating: %s", ll.Name)
+			logger.Debugf("Updating %s with new filter and certificate for domain %s", ll.Name, params.Domain)
 			// add cert and key to tls listener
-			ll.FilterChains = append(ll.FilterChains, listener.FilterChain{
-				FilterChainMatch: &listener.FilterChainMatch{
-					// TODO (params.Domainname)
-					ServerNames: []string{params.Name},
-				},
-				TlsContext: &auth.DownstreamTlsContext{
-					CommonTlsContext: &auth.CommonTlsContext{
-						TlsCertificates: []*auth.TlsCertificate{
-							{
-								CertificateChain: &core.DataSource{
-									Specifier: &core.DataSource_InlineString{
-										InlineString: params.CertBundle,
-									},
-								},
-								PrivateKey: &core.DataSource{
-									Specifier: &core.DataSource_InlineString{
-										InlineString: params.PrivateKey,
-									},
-								},
-							},
-						},
-					},
-				},
-			})
+			ll.FilterChains = append(ll.FilterChains, l.newTLSFilterChain(params))
 		}
 	}
 	if !listenerFound {
@@ -184,23 +187,28 @@ func (l *Listener) getListenerHTTPConnectionManager(ll *api.Listener) (hcm.HttpC
 	}
 	return manager, nil
 }
-func (l *Listener) getListenerHTTPConnectionManagerTLS(ll *api.Listener, hostname string) (hcm.HttpConnectionManager, error) {
-	var manager hcm.HttpConnectionManager
-
+func (l *Listener) getFilterChainId(filterChains []listener.FilterChain, hostname string) int {
 	filterId := -1
 
-	for _, filter := range ll.FilterChains {
-		for k, serverName := range filter.FilterChainMatch.ServerNames {
+	for k, filter := range filterChains {
+		for _, serverName := range filter.FilterChainMatch.ServerNames {
 			if serverName == hostname {
 				filterId = k
 			}
 		}
 	}
+	return filterId
+}
+func (l *Listener) getListenerHTTPConnectionManagerTLS(ll *api.Listener, hostname string) (hcm.HttpConnectionManager, error) {
+	var manager hcm.HttpConnectionManager
+
+	filterId := l.getFilterChainId(ll.FilterChains, hostname)
+
 	if filterId == -1 {
-		return manager, fmt.Errorf(Error_NoFilterFound)
+		return manager, fmt.Errorf(Error_NoFilterChainFound)
 	} else {
 		if len(ll.FilterChains[filterId].Filters) == 0 {
-			return manager, fmt.Errorf("No filters found in listener %s", ll.Name)
+			return manager, fmt.Errorf(Error_NoFilterFound)
 		}
 		typedConfig := (ll.FilterChains[filterId].Filters[0].ConfigType).(*listener.Filter_TypedConfig)
 		err := types.UnmarshalAny(typedConfig.TypedConfig, &manager)
@@ -336,6 +344,32 @@ func (l *Listener) getJwtRule(conditions Conditions, clusterName string, jwtProv
 	return rule
 }
 
+func (l *Listener) newTLSFilter(params ListenerParams, paramsTLS TLSParams, listenerName string) []listener.Filter {
+	// get empty jwt config
+	jwtConfig := l.getJwtConfig(params.Auth)
+	jwtConfigEncoded, err := types.MarshalAny(jwtConfig)
+	if err != nil {
+		panic(err)
+	}
+	httpFilters := l.newHttpFilter(jwtConfigEncoded)
+	newEmptyVirtualHost := route.VirtualHost{
+		Name:    "v_" + params.Conditions.Hostname,
+		Domains: []string{params.Conditions.Hostname},
+		Routes:  []route.Route{},
+	}
+	manager := l.newManager(strings.Replace(listenerName, "l_", "r_", 1), []route.VirtualHost{newEmptyVirtualHost}, httpFilters)
+	pbst, err := types.MarshalAny(manager)
+	if err != nil {
+		panic(err)
+	}
+	return []listener.Filter{{
+		Name: util.HTTPConnectionManager,
+		ConfigType: &listener.Filter_TypedConfig{
+			TypedConfig: pbst,
+		},
+	}}
+}
+
 func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, paramsTLS TLSParams) error {
 	var listenerKey = -1
 
@@ -351,6 +385,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	if listenerKey == -1 {
 		return fmt.Errorf("No matching listener found")
 	}
+
 	// update listener
 	var manager hcm.HttpConnectionManager
 	var err error
@@ -358,8 +393,23 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	ll := cache.listeners[listenerKey].(*api.Listener)
 	if tls {
 		manager, err = l.getListenerHTTPConnectionManagerTLS(ll, params.Conditions.Hostname)
-		if err != nil {
-			return err
+		if err.Error() == Error_NoFilterChainFound {
+			// create newFilterChain with new empty Filter
+			newFilterChain := l.newTLSFilterChain(paramsTLS)
+			newFilterChain.Filters = l.newTLSFilter(params, paramsTLS, listenerName)
+			logger.Debugf("(hostname: %s) => %+v", params.Conditions.Hostname, newFilterChain)
+			ll.FilterChains = append(ll.FilterChains, newFilterChain)
+			manager, err = l.getListenerHTTPConnectionManagerTLS(ll, params.Conditions.Hostname)
+			if err != nil {
+				return fmt.Errorf("Created new filter chain, but still error: %s", err)
+			}
+		} else if err.Error() == Error_NoFilterFound {
+			filterId := l.getFilterChainId(ll.FilterChains, params.Conditions.Hostname)
+			ll.FilterChains[filterId].Filters = l.newTLSFilter(params, paramsTLS, listenerName)
+			manager, err = l.getListenerHTTPConnectionManagerTLS(ll, params.Conditions.Hostname)
+			if err != nil {
+				return fmt.Errorf("Created new filter, but still error: %s", err)
+			}
 		}
 	} else {
 		manager, err = l.getListenerHTTPConnectionManager(ll)
@@ -426,17 +476,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 			panic(err)
 		}
 
-		manager.HttpFilters = []*hcm.HttpFilter{
-			{
-				Name: "envoy.filters.http.jwt_authn",
-				ConfigType: &hcm.HttpFilter_TypedConfig{
-					TypedConfig: jwtConfigEncoded,
-				},
-			},
-			{
-				Name: util.Router,
-			},
-		}
+		manager.HttpFilters = l.newHttpFilter(jwtConfigEncoded)
 	}
 
 	manager.RouteSpecifier = routeSpecifier
@@ -444,9 +484,21 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	if err != nil {
 		panic(err)
 	}
-	ll.FilterChains[0].Filters[0].ConfigType = &listener.Filter_TypedConfig{
+
+	filterId := 0
+	if tls {
+		// tls has multiple filterChains
+		filterId = l.getFilterChainId(ll.FilterChains, params.Conditions.Hostname)
+	}
+	if len(ll.FilterChains[filterId].Filters) == 0 {
+		return fmt.Errorf("Can't modify filterchain: filter does not exist")
+	}
+
+	// modify filter
+	ll.FilterChains[filterId].Filters[0].ConfigType = &listener.Filter_TypedConfig{
 		TypedConfig: pbst,
 	}
+
 	logger.Debugf("Updated listener with new Virtualhost")
 
 	return nil
@@ -520,6 +572,35 @@ func (l *Listener) findTLSListener(listeners []cache.Resource, params ListenerPa
 	}
 	return -1, fmt.Errorf("Cluster not found")
 }
+
+func (l *Listener) newHttpFilter(jwtAuth *types.Any) []*hcm.HttpFilter {
+	return []*hcm.HttpFilter{
+		{
+			Name: "envoy.filters.http.jwt_authn",
+			ConfigType: &hcm.HttpFilter_TypedConfig{
+				TypedConfig: jwtAuth,
+			},
+		},
+		{
+			Name: util.Router,
+		},
+	}
+
+}
+func (l *Listener) newManager(routeName string, virtualHosts []route.VirtualHost, httpFilters []*hcm.HttpFilter) *hcm.HttpConnectionManager {
+	return &hcm.HttpConnectionManager{
+		CodecType:  hcm.AUTO,
+		StatPrefix: "ingress_http",
+		RouteSpecifier: &hcm.HttpConnectionManager_RouteConfig{
+			RouteConfig: &api.RouteConfiguration{
+				Name:         routeName,
+				VirtualHosts: virtualHosts,
+			},
+		},
+		HttpFilters: httpFilters,
+	}
+}
+
 func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *api.Listener {
 	var err error
 
@@ -549,29 +630,8 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 		panic(err)
 	}
 
-	httpFilters := []*hcm.HttpFilter{
-		{
-			Name: "envoy.filters.http.jwt_authn",
-			ConfigType: &hcm.HttpFilter_TypedConfig{
-				TypedConfig: jwtAuth,
-			},
-		},
-		{
-			Name: util.Router,
-		},
-	}
-
-	manager := &hcm.HttpConnectionManager{
-		CodecType:  hcm.AUTO,
-		StatPrefix: "ingress_http",
-		RouteSpecifier: &hcm.HttpConnectionManager_RouteConfig{
-			RouteConfig: &api.RouteConfiguration{
-				Name:         strings.Replace(listenerName, "l_", "r_", 1),
-				VirtualHosts: virtualHosts,
-			},
-		},
-		HttpFilters: httpFilters,
-	}
+	httpFilters := l.newHttpFilter(jwtAuth)
+	manager := l.newManager(strings.Replace(listenerName, "l_", "r_", 1), virtualHosts, httpFilters)
 
 	pbst, err := types.MarshalAny(manager)
 	if err != nil {

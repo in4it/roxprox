@@ -207,16 +207,19 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 				logger.Errorf("error while creating cert: %s", err)
 				item.state = "error"
 			} else {
-				w.Submit([]WorkQueueItem{
-					{
+				var newItems []WorkQueueItem
+				for _, domain := range item.CreateCertParams.Domains {
+					newItems = append(newItems, WorkQueueItem{
 						Action: "updateListenerWithNewCert",
 						TLSParams: TLSParams{
 							Name:       item.CreateCertParams.Name,
 							CertBundle: certBundle,
 							PrivateKey: privateKeyPem,
+							Domain:     domain,
 						},
-					},
-				})
+					})
+				}
+				w.Submit(newItems)
 				item.state = "finished"
 			}
 		default:

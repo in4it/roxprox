@@ -271,6 +271,7 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 							Name:       rule.Metadata.Name,
 							CertBundle: certBundle,
 							PrivateKey: privateKeyPem,
+							Domain:     workQueueItem.ListenerParams.Conditions.Hostname,
 						}
 						workQueueItems = append(workQueueItems, workQueueItemTLS)
 					}

@@ -32,6 +32,7 @@ type TLSParams struct {
 	Name       string
 	CertBundle string
 	PrivateKey string
+	Domain     string
 }
 type ClusterParams struct {
 	Name           string

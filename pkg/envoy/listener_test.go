@@ -7,7 +7,9 @@ import (
 	"testing"
 
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
+	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
+	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
 	"github.com/envoyproxy/go-control-plane/pkg/cache"
 	"github.com/juju/loggo"
 )
@@ -111,7 +113,7 @@ func TestUpdateListener(t *testing.T) {
 	}
 	params4 := ListenerParams{
 		Name:           "test_4",
-		Protocol:       "http",
+		Protocol:       "tls",
 		TargetHostname: "www.test-tls.inv",
 		Conditions: Conditions{
 			Hostname: "hostname4.example.com",
@@ -124,11 +126,33 @@ func TestUpdateListener(t *testing.T) {
 			RemoteJwks:  "https://remotejwks.example.com",
 		},
 	}
+	params5 := ListenerParams{
+		Name:           "test_5",
+		Protocol:       "tls",
+		TargetHostname: "www.test-tls2.inv",
+		Conditions: Conditions{
+			Hostname: "hostname5.example.com",
+			Prefix:   "/test5",
+		},
+		Auth: Auth{
+			JwtProvider: "testJwt2",
+			Issuer:      "http://issuer2.example.com",
+			Forward:     true,
+			RemoteJwks:  "https://remotejwks2.example.com",
+		},
+	}
 	paramsTLS1 := TLSParams{}
 	paramsTLS4 := TLSParams{
-		Name:       "www.test-tls.inv",
+		Name:       "test-tls",
 		CertBundle: "certbundle",
 		PrivateKey: "privateKey",
+		Domain:     "hostname4.example.com",
+	}
+	paramsTLS5 := TLSParams{
+		Name:       "test-tls2",
+		CertBundle: "certbundle2",
+		PrivateKey: "privateKey2",
+		Domain:     "hostname5.example.com",
 	}
 	listener := l.createListener(params1, paramsTLS1)
 	cache.listeners = append(cache.listeners, listener)
@@ -176,9 +200,21 @@ func TestUpdateListener(t *testing.T) {
 		t.Errorf("Validation failed: %s", err)
 		return
 	}
+
+	// add domain 5 (TLS)
+	if err := l.updateListener(&cache, params5, paramsTLS5); err != nil {
+		t.Errorf("Error: %s", err)
+		return
+	}
+
+	// validate domain 5 (TLS)
+	if err := validateDomainTLS(cache.listeners, params5, paramsTLS5); err != nil {
+		t.Errorf("Validation failed: %s", err)
+		return
+	}
 }
 func validateDomainTLS(listeners []cache.Resource, params ListenerParams, tlsParams TLSParams) error {
-	//l := newListener()
+	l := newListener()
 	if len(listeners) == 0 {
 		return fmt.Errorf("Listener is empty (got %d)", len(listeners))
 	}
@@ -186,6 +222,35 @@ func validateDomainTLS(listeners []cache.Resource, params ListenerParams, tlsPar
 	if cachedListener.Name != "l_tls" {
 		return fmt.Errorf("Expected l_tls (got %s)", cachedListener.Name)
 	}
+
+	manager, err := l.getListenerHTTPConnectionManagerTLS(cachedListener, params.Conditions.Hostname)
+	if err != nil {
+		return err
+	}
+
+	if err := validateAttributes(manager, params); err != nil {
+		return err
+	}
+
+	filterId := l.getFilterChainId(cachedListener.FilterChains, params.Conditions.Hostname)
+
+	if filterId == -1 {
+		return fmt.Errorf("Filter not found for domain %s", params.Conditions.Hostname)
+	}
+
+	if len(cachedListener.FilterChains[filterId].TlsContext.CommonTlsContext.TlsCertificates) == 0 {
+		return fmt.Errorf("No certificates found in filter chain for domain %s", params.Conditions.Hostname)
+	}
+	tlsBundle := cachedListener.FilterChains[filterId].TlsContext.CommonTlsContext.TlsCertificates[0].CertificateChain.Specifier.(*core.DataSource_InlineString).InlineString
+	privateKey := cachedListener.FilterChains[filterId].TlsContext.CommonTlsContext.TlsCertificates[0].PrivateKey.Specifier.(*core.DataSource_InlineString).InlineString
+
+	if tlsBundle != tlsParams.CertBundle {
+		return fmt.Errorf("TLS bundle not found. Got: %s, Expected: %s", tlsBundle, tlsParams.CertBundle)
+	}
+	if privateKey != tlsParams.PrivateKey {
+		return fmt.Errorf("Private key not found. Got: %s", privateKey)
+	}
+	logger.Debugf("Key and cert found for domain %s", params.Conditions.Hostname)
 
 	return nil
 }
@@ -201,6 +266,14 @@ func validateDomain(listeners []cache.Resource, params ListenerParams) error {
 	}
 
 	manager, err := l.getListenerHTTPConnectionManager(cachedListener)
+	if err != nil {
+		return err
+	}
+	return validateAttributes(manager, params)
+}
+
+func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams) error {
+	l := newListener()
 	routeSpecifier, err := l.getListenerRouteSpecifier(manager)
 	if err != nil {
 		return fmt.Errorf("Error: %s", err)
@@ -264,6 +337,7 @@ func validateDomain(listeners []cache.Resource, params ListenerParams) error {
 
 	return nil
 }
+
 func testEqualityString(a, b []string) bool {
 
 	// If one is nil, the other must also be nil.
