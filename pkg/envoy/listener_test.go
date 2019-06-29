@@ -1,12 +1,19 @@
 package envoy
 
 import (
+	"fmt"
+	"sort"
+	"strings"
 	"testing"
 
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
+	"github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
+	"github.com/envoyproxy/go-control-plane/pkg/cache"
+	"github.com/juju/loggo"
 )
 
 func TestDomainAlreadyExists(t *testing.T) {
+
 	l := newListener()
 	var cache WorkQueueCache
 	params1 := ListenerParams{
@@ -37,6 +44,8 @@ func TestDomainAlreadyExists(t *testing.T) {
 }
 
 func TestUpdateListener(t *testing.T) {
+	// set debug loglevel
+	logger.SetLogLevel(loggo.DEBUG)
 	l := newListener()
 	var cache WorkQueueCache
 	params1 := ListenerParams{
@@ -55,42 +64,153 @@ func TestUpdateListener(t *testing.T) {
 		Conditions: Conditions{
 			Hostname: "hostname2.example.com",
 			Prefix:   "/test2",
+			Methods:  []string{"GET", "POST"},
+		},
+	}
+	params3 := ListenerParams{
+		Name:           "test_2",
+		Protocol:       "http",
+		TargetHostname: "www.test.inv",
+		Conditions: Conditions{
+			Hostname: "hostname2.example.com",
+			Prefix:   "/test3",
+		},
+		Auth: Auth{
+			JwtProvider: "testJwt",
+			Issuer:      "http://issuer.example.com",
+			Forward:     true,
+			RemoteJwks:  "https://remotejwks.example.com",
 		},
 	}
 	paramsTLS1 := TLSParams{}
 	listener := l.createListener(params1, paramsTLS1)
 	cache.listeners = append(cache.listeners, listener)
-	err := l.updateListener(&cache, params2, paramsTLS1)
-	if err != nil {
-		t.Errorf("Error: %s", err)
+
+	// validate domain 1
+	if err := validateDomain(cache.listeners, params1); err != nil {
+		t.Errorf("Validation failed: %s", err)
+		return
 	}
 
-	if len(cache.listeners) != 1 {
-		t.Errorf("Expected length of 1 (got %d)", len(cache.listeners))
+	// update listener with domain 2
+
+	if err := l.updateListener(&cache, params2, paramsTLS1); err != nil {
+		t.Errorf("Error: %s", err)
+		return
 	}
-	cachedListener := cache.listeners[0].(*api.Listener)
+
+	// validate domain 1 and 2
+	if err := validateDomain(cache.listeners, params1); err != nil {
+		t.Errorf("Validation failed: %s", err)
+		return
+	}
+	if err := validateDomain(cache.listeners, params2); err != nil {
+		t.Errorf("Validation failed: %s", err)
+		return
+	}
+
+	// add domain 3
+	if err := l.updateListener(&cache, params3, paramsTLS1); err != nil {
+		t.Errorf("Error: %s", err)
+		return
+	}
+	// validate domain 3
+	if err := validateDomain(cache.listeners, params3); err != nil {
+		t.Errorf("Validation failed: %s", err)
+		return
+	}
+}
+
+func validateDomain(listeners []cache.Resource, params ListenerParams) error {
+	l := newListener()
+	if len(listeners) == 0 {
+		return fmt.Errorf("Listener is empty (got %d)", len(listeners))
+	}
+	cachedListener := listeners[0].(*api.Listener)
 	if cachedListener.Name != "l_http" {
-		t.Errorf("Expected l_http (got %s)", cachedListener.Name)
+		return fmt.Errorf("Expected l_http (got %s)", cachedListener.Name)
 	}
 
 	manager, err := l.getListenerHTTPConnectionManager(cachedListener)
 	routeSpecifier, err := l.getListenerRouteSpecifier(manager)
 	if err != nil {
-		t.Errorf("Error: %s", err)
+		return fmt.Errorf("Error: %s", err)
 	}
-	if len(routeSpecifier.RouteConfig.VirtualHosts) != 2 {
-		t.Errorf("Expected length of 2 (got %d)", len(routeSpecifier.RouteConfig.VirtualHosts))
+
+	domainFound := false
+	prefixFound := false
+	methodsFound := false
+
+	if params.Conditions.Hostname == "" {
+		params.Conditions.Hostname = "*"
 	}
-	if len(routeSpecifier.RouteConfig.VirtualHosts[0].Domains) != 1 {
-		t.Errorf("Expected length of 1 (got %d)", len(routeSpecifier.RouteConfig.VirtualHosts[0].Domains))
+	if params.Conditions.Prefix == "/" {
+		params.Conditions.Prefix = "/"
 	}
-	if len(routeSpecifier.RouteConfig.VirtualHosts[1].Domains) != 1 {
-		t.Errorf("Expected length of 1 (got %d)", len(routeSpecifier.RouteConfig.VirtualHosts[0].Domains))
+
+	for _, virtualhost := range routeSpecifier.RouteConfig.VirtualHosts {
+		for _, domain := range virtualhost.Domains {
+			if domain == params.Conditions.Hostname {
+				domainFound = true
+				for _, r := range virtualhost.Routes {
+					if r.Match.PathSpecifier.(*route.RouteMatch_Prefix).Prefix == params.Conditions.Prefix {
+						prefixFound = true
+					}
+					if len(params.Conditions.Methods) > 0 {
+						methodsInHeader := []string{}
+						for _, v := range r.Match.Headers {
+							if v.Name == ":method" {
+								methodsInHeader = append(methodsInHeader, v.GetExactMatch())
+							}
+						}
+						sort.Strings(methodsInHeader)
+						sort.Strings(params.Conditions.Methods)
+						if testEqualityString(params.Conditions.Methods, methodsInHeader) {
+							methodsFound = true
+						}
+					}
+
+				}
+			}
+		}
 	}
-	if routeSpecifier.RouteConfig.VirtualHosts[0].Domains[0] != "hostname1.example.com" {
-		t.Errorf("Expected hostname1.example.com (got %s)", routeSpecifier.RouteConfig.VirtualHosts[1].Domains[0])
+
+	if domainFound != true {
+		return fmt.Errorf("Domain not found: %s", params.Conditions.Hostname)
 	}
-	if routeSpecifier.RouteConfig.VirtualHosts[1].Domains[0] != "hostname2.example.com" {
-		t.Errorf("Expected hostname2.example.com (got %s)", routeSpecifier.RouteConfig.VirtualHosts[2].Domains[0])
+	logger.Debugf("Domain found: %s", params.Conditions.Hostname)
+
+	if prefixFound != true {
+		return fmt.Errorf("Prefix not found: %s", params.Conditions.Prefix)
 	}
+	logger.Debugf("Prefix found: %s", params.Conditions.Prefix)
+
+	if len(params.Conditions.Methods) > 0 && !methodsFound {
+		return fmt.Errorf("Methods not found: %s", strings.Join(params.Conditions.Methods, ","))
+
+	}
+	if len(params.Conditions.Methods) > 0 {
+		logger.Debugf("Methods found: %s", strings.Join(params.Conditions.Methods, ","))
+	}
+
+	return nil
+}
+func testEqualityString(a, b []string) bool {
+
+	// If one is nil, the other must also be nil.
+	if (a == nil) != (b == nil) {
+		return false
+	}
+
+	if len(a) != len(b) {
+		return false
+	}
+
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+
+	return true
 }

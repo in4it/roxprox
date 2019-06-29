@@ -176,8 +176,9 @@ func (l *Listener) getListenerHTTPConnectionManager(ll *api.Listener) (hcm.HttpC
 	}
 	return manager, nil
 }
-func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, clusterName, virtualHostName string) route.VirtualHost {
+func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, clusterName, virtualHostName string, methods []string) route.VirtualHost {
 	var hostRewriteSpecifier *route.RouteAction_HostRewrite
+	var match route.RouteMatch
 
 	if hostname == "" {
 		hostname = "*"
@@ -189,21 +190,43 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 		}
 	}
 
-	routes := []route.Route{{
-		Match: route.RouteMatch{
+	if len(methods) > 0 {
+		var headers []*route.HeaderMatcher
+		for _, method := range methods {
+			headers = append(headers, &route.HeaderMatcher{
+				Name: ":method",
+				HeaderMatchSpecifier: &route.HeaderMatcher_ExactMatch{
+					ExactMatch: method,
+				},
+			})
+		}
+		match = route.RouteMatch{
 			PathSpecifier: &route.RouteMatch_Prefix{
 				Prefix: targetPrefix,
 			},
-		},
-		Action: &route.Route_Route{
-			Route: &route.RouteAction{
-				HostRewriteSpecifier: hostRewriteSpecifier,
-				ClusterSpecifier: &route.RouteAction_Cluster{
-					Cluster: clusterName,
+			Headers: headers,
+		}
+	} else {
+		match = route.RouteMatch{
+			PathSpecifier: &route.RouteMatch_Prefix{
+				Prefix: targetPrefix,
+			},
+		}
+	}
+
+	routes := []route.Route{
+		{
+			Match: match,
+			Action: &route.Route_Route{
+				Route: &route.RouteAction{
+					HostRewriteSpecifier: hostRewriteSpecifier,
+					ClusterSpecifier: &route.RouteAction_Cluster{
+						Cluster: clusterName,
+					},
 				},
 			},
 		},
-	}}
+	}
 
 	return route.VirtualHost{
 		Name:    virtualHostName,
@@ -305,7 +328,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	}
 
 	// create new virtualhost
-	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname)
+	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname, params.Conditions.Methods)
 
 	// check if we need to overwrite the virtualhost
 	virtualHostKey := -1
@@ -318,7 +341,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 
 	if virtualHostKey >= 0 {
 		// append new routes to existing virtualhost
-		logger.Debugf("Adding new routes to %s: %+v", v.Name, v.Routes)
+		logger.Debugf("Adding new routes to %s", v.Name)
 		routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes = append(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes, v.Routes...)
 	} else {
 		routeSpecifier.RouteConfig.VirtualHosts = append(routeSpecifier.RouteConfig.VirtualHosts, v)
@@ -459,7 +482,7 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 	logger.Debugf("Processing params %+v", params)
 	logger.Infof("Creating listener " + listenerName)
 
-	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostName)
+	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostName, params.Conditions.Methods)
 	virtualHosts := []route.VirtualHost{v}
 
 	if virtualHostName != "v_nodomain" && !tls {

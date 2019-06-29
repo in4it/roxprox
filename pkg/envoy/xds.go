@@ -225,6 +225,7 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 						Conditions: Conditions{
 							Hostname: condition.Hostname,
 							Prefix:   condition.Prefix,
+							Methods:  condition.Methods,
 						},
 					},
 				}
