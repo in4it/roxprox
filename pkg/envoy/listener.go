@@ -319,14 +319,14 @@ func (l *Listener) getJwtRule(conditions Conditions, clusterName string, jwtProv
 
 	if conditions.Hostname == "" {
 		match = &route.RouteMatch{
-			PathSpecifier: &route.RouteMatch_Path{
-				Path: prefix,
+			PathSpecifier: &route.RouteMatch_Prefix{
+				Prefix: prefix,
 			},
 		}
 	} else {
 		match = &route.RouteMatch{
-			PathSpecifier: &route.RouteMatch_Path{
-				Path: prefix,
+			PathSpecifier: &route.RouteMatch_Prefix{
+				Prefix: prefix,
 			},
 			Headers: []*route.HeaderMatcher{
 				{

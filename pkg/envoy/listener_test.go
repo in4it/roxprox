@@ -231,6 +231,7 @@ func TestUpdateListener(t *testing.T) {
 		return
 	}
 }
+
 func validateDomainTLS(listeners []cache.Resource, params ListenerParams, tlsParams TLSParams) error {
 	l := newListener()
 	if len(listeners) == 0 {
@@ -353,6 +354,45 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 		logger.Debugf("Methods found: %s", strings.Join(params.Conditions.Methods, ","))
 	}
 
+	// validate jwt
+	if params.Auth.JwtProvider != "" {
+		jwtConfig, err := l.getListenerHTTPFilter(manager.HttpFilters)
+		if err != nil {
+			return err
+		}
+		providerFound := false
+		for k := range jwtConfig.Providers {
+			if k == params.Auth.JwtProvider {
+				providerFound = true
+			}
+		}
+		if !providerFound {
+			return fmt.Errorf("JWT provider not found")
+		}
+		logger.Debugf("JWT provider found")
+
+		prefixFound = false
+		domainFound = false
+		for _, rule := range jwtConfig.Rules {
+			if rule.Match.PathSpecifier.(*route.RouteMatch_Prefix).Prefix == params.Conditions.Prefix {
+				prefixFound = true
+				for _, header := range rule.Match.Headers {
+					if header.Name == ":authority" && header.HeaderMatchSpecifier.(*route.HeaderMatcher_ExactMatch).ExactMatch == params.Conditions.Hostname {
+						domainFound = true
+					}
+				}
+			}
+		}
+
+		if !prefixFound {
+			return fmt.Errorf("JWT: prefix not found")
+		}
+		if params.Conditions.Hostname != "" && !domainFound {
+			return fmt.Errorf("JWT: domain not found")
+		}
+
+		logger.Debugf("Prefix & domain found")
+	}
 	return nil
 }
 
