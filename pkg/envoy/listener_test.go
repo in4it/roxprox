@@ -8,7 +8,9 @@ import (
 
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
+	"github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
+	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
 	"github.com/envoyproxy/go-control-plane/pkg/cache"
 	"github.com/juju/loggo"
@@ -86,6 +88,7 @@ func TestUpdateListener(t *testing.T) {
 			Prefix:   "/test1",
 		},
 	}
+	paramsTLS1 := TLSParams{}
 	params2 := ListenerParams{
 		Name:           "test_2",
 		Protocol:       "http",
@@ -126,6 +129,12 @@ func TestUpdateListener(t *testing.T) {
 			RemoteJwks:  "https://remotejwks.example.com",
 		},
 	}
+	paramsTLS4 := TLSParams{
+		Name:       "test-tls",
+		CertBundle: "certbundle",
+		PrivateKey: "privateKey",
+		Domain:     "hostname4.example.com",
+	}
 	params5 := ListenerParams{
 		Name:           "test_5",
 		Protocol:       "tls",
@@ -141,13 +150,6 @@ func TestUpdateListener(t *testing.T) {
 			RemoteJwks:  "https://remotejwks2.example.com",
 		},
 	}
-	paramsTLS1 := TLSParams{}
-	paramsTLS4 := TLSParams{
-		Name:       "test-tls",
-		CertBundle: "certbundle",
-		PrivateKey: "privateKey",
-		Domain:     "hostname4.example.com",
-	}
 	paramsTLS5 := TLSParams{
 		Name:       "test-tls2",
 		CertBundle: "certbundle2",
@@ -159,6 +161,14 @@ func TestUpdateListener(t *testing.T) {
 		CertBundle: "certbundle3",
 		PrivateKey: "privateKey3",
 		Domain:     "hostname5.example.com",
+	}
+	params6 := ListenerParams{
+		Auth: Auth{
+			JwtProvider: "testJwt2",
+			Issuer:      "http://issuer3.example.com",
+			Forward:     true,
+			RemoteJwks:  "https://remotejwks3.example.com",
+		},
 	}
 	listener := l.createListener(params1, paramsTLS1)
 	cache.listeners = append(cache.listeners, listener)
@@ -230,6 +240,16 @@ func TestUpdateListener(t *testing.T) {
 		t.Errorf("Validation failed: %s", err)
 		return
 	}
+
+	// update jwt provider
+	if err := l.updateListenerWithJwtProvider(&cache, params6); err != nil {
+		t.Errorf("Updating tls cert failed: %s", err)
+		return
+	}
+	if err := validateJWTProvider(cache.listeners, params6.Auth); err != nil {
+		t.Errorf("JWTProvider validation failed: %s", err)
+		return
+	}
 }
 
 func validateDomainTLS(listeners []cache.Resource, params ListenerParams, tlsParams TLSParams) error {
@@ -271,7 +291,7 @@ func validateDomainTLS(listeners []cache.Resource, params ListenerParams, tlsPar
 	}
 	logger.Debugf("Key and cert found for domain %s", params.Conditions.Hostname)
 
-	return nil
+	return validateAttributes(manager, params)
 }
 
 func validateDomain(listeners []cache.Resource, params ListenerParams) error {
@@ -354,6 +374,77 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 		logger.Debugf("Methods found: %s", strings.Join(params.Conditions.Methods, ","))
 	}
 
+	return validateJWT(manager, params)
+
+}
+
+func validateJWTProvider(listeners []cache.Resource, auth Auth) error {
+	l := newListener()
+	if len(listeners) == 0 {
+		return fmt.Errorf("Listener is empty (got %d)", len(listeners))
+	}
+
+	for _, cachedListenerResource := range listeners {
+		cachedListener := cachedListenerResource.(*api.Listener)
+
+		if cachedListener.Name == "l_http" {
+			manager, err := l.getListenerHTTPConnectionManager(cachedListener)
+			if err != nil {
+				return err
+			}
+			jwtConfig, err := l.getListenerHTTPFilter(manager.HttpFilters)
+			if err != nil {
+				return err
+			}
+			err = validateJWTProviderWithJWTConfig(jwtConfig, auth, cachedListener.Name)
+		} else if cachedListener.Name == "l_tls" {
+			for _, filterChain := range cachedListener.FilterChains {
+				if len(filterChain.Filters) == 0 {
+					return fmt.Errorf("No filters found in listener %s", cachedListener.Name)
+				}
+				manager, err := l.getManager((filterChain.Filters[0].ConfigType).(*listener.Filter_TypedConfig))
+				if err != nil {
+					return fmt.Errorf("Could not extract manager from listener %s", cachedListener.Name)
+				}
+				jwtConfig, err := l.getListenerHTTPFilter(manager.HttpFilters)
+				if err != nil {
+					return err
+				}
+				err = validateJWTProviderWithJWTConfig(jwtConfig, auth, cachedListener.Name)
+			}
+		} else {
+			return fmt.Errorf("Unknown listener %s", cachedListener.Name)
+		}
+	}
+
+	return nil
+}
+
+func validateJWTProviderWithJWTConfig(jwtConfig jwtAuth.JwtAuthentication, auth Auth, listenerName string) error {
+	providerFound := false
+	for k := range jwtConfig.Providers {
+		if k == auth.JwtProvider {
+			providerFound = true
+		}
+	}
+	if !providerFound {
+		return fmt.Errorf("JWTProvider %s not found in listener %s", auth.JwtProvider, listenerName)
+	}
+	logger.Debugf("JWTProvider %s found in listener %s", auth.JwtProvider, listenerName)
+
+	if jwtConfig.Providers[auth.JwtProvider].Issuer != auth.Issuer {
+		return fmt.Errorf("Issuer %s not found (got: %s)", auth.Issuer, jwtConfig.Providers[auth.JwtProvider].Issuer)
+	}
+	/*if jwtConfig.Providers[auth.JwtProvider].JwksSourceSpecifier != auth.RemoteJwks {
+		return fmt.Errorf("Issuer %s not found (got: %s)", auth.RemoteJwks, jwtConfig.Providers[auth.JwtProvider].Issuer)
+	}*/
+	logger.Debugf("JWT Issuer found found in listener %s", listenerName)
+
+	return nil
+}
+
+func validateJWT(manager hcm.HttpConnectionManager, params ListenerParams) error {
+	l := newListener()
 	// validate jwt
 	if params.Auth.JwtProvider != "" {
 		jwtConfig, err := l.getListenerHTTPFilter(manager.HttpFilters)
@@ -371,8 +462,8 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 		}
 		logger.Debugf("JWT provider found")
 
-		prefixFound = false
-		domainFound = false
+		prefixFound := false
+		domainFound := false
 		for _, rule := range jwtConfig.Rules {
 			if rule.Match.PathSpecifier.(*route.RouteMatch_Prefix).Prefix == params.Conditions.Prefix {
 				prefixFound = true
@@ -393,6 +484,7 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 
 		logger.Debugf("Prefix & domain found")
 	}
+
 	return nil
 }
 

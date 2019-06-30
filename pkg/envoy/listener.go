@@ -180,14 +180,14 @@ func (l *Listener) getListenerRouteSpecifier(manager hcm.HttpConnectionManager) 
 }
 func (l *Listener) getListenerHTTPConnectionManager(ll *api.Listener) (hcm.HttpConnectionManager, error) {
 	var manager hcm.HttpConnectionManager
+	var err error
 	if len(ll.FilterChains) == 0 {
 		return manager, fmt.Errorf("No filterchains found in listener %s", ll.Name)
 	}
 	if len(ll.FilterChains[0].Filters) == 0 {
 		return manager, fmt.Errorf("No filters found in listener %s", ll.Name)
 	}
-	typedConfig := (ll.FilterChains[0].Filters[0].ConfigType).(*listener.Filter_TypedConfig)
-	err := types.UnmarshalAny(typedConfig.TypedConfig, &manager)
+	manager, err = l.getManager((ll.FilterChains[0].Filters[0].ConfigType).(*listener.Filter_TypedConfig))
 	if err != nil {
 		return manager, err
 	}
@@ -206,6 +206,7 @@ func (l *Listener) getFilterChainId(filterChains []listener.FilterChain, hostnam
 	return filterId
 }
 func (l *Listener) getListenerHTTPConnectionManagerTLS(ll *api.Listener, hostname string) (hcm.HttpConnectionManager, error) {
+	var err error
 	var manager hcm.HttpConnectionManager
 
 	filterId := l.getFilterChainId(ll.FilterChains, hostname)
@@ -216,11 +217,20 @@ func (l *Listener) getListenerHTTPConnectionManagerTLS(ll *api.Listener, hostnam
 		if len(ll.FilterChains[filterId].Filters) == 0 {
 			return manager, fmt.Errorf(Error_NoFilterFound)
 		}
-		typedConfig := (ll.FilterChains[filterId].Filters[0].ConfigType).(*listener.Filter_TypedConfig)
-		err := types.UnmarshalAny(typedConfig.TypedConfig, &manager)
+		manager, err = l.getManager(ll.FilterChains[filterId].Filters[0].ConfigType.(*listener.Filter_TypedConfig))
 		if err != nil {
 			return manager, err
 		}
+	}
+
+	return manager, nil
+}
+func (l *Listener) getManager(typedConfig *listener.Filter_TypedConfig) (hcm.HttpConnectionManager, error) {
+	var manager hcm.HttpConnectionManager
+
+	err := types.UnmarshalAny(typedConfig.TypedConfig, &manager)
+	if err != nil {
+		return manager, err
 	}
 
 	return manager, nil
