@@ -165,7 +165,6 @@ func (l *Listener) updateListenerWithChallenge(cache *WorkQueueCache, challenge 
 			ll.FilterChains[0].Filters[0].ConfigType = &listener.Filter_TypedConfig{
 				TypedConfig: pbst,
 			}
-			logger.Debugf("Created new typedConfig: %+v", cache.listeners[listenerKey])
 		}
 	}
 	return nil
@@ -413,7 +412,6 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 			// create newFilterChain with new empty Filter
 			newFilterChain := l.newTLSFilterChain(paramsTLS)
 			newFilterChain.Filters = l.newTLSFilter(params, paramsTLS, listenerName)
-			logger.Debugf("(hostname: %s) => %+v", params.Conditions.Hostname, newFilterChain)
 			ll.FilterChains = append(ll.FilterChains, newFilterChain)
 			manager, err = l.getListenerHTTPConnectionManagerTLS(ll, params.Conditions.Hostname)
 			if err != nil {
@@ -452,9 +450,16 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	}
 
 	if virtualHostKey >= 0 {
-		// append new routes to existing virtualhost
-		logger.Debugf("Adding new routes to %s", v.Name)
-		routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes = append(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes, v.Routes...)
+		if len(v.Routes) != 1 {
+			return fmt.Errorf("Routes containes more than 1 route (contains %d elements)", len(v.Routes))
+		}
+		if l.routeExist(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes, v.Routes[0]) {
+			logger.Debugf("Route already exists, not adding route for %s", v.Name)
+		} else {
+			// append new routes to existing virtualhost
+			logger.Debugf("Adding new routes to %s", v.Name)
+			routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes = append(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes, v.Routes[0])
+		}
 	} else {
 		routeSpecifier.RouteConfig.VirtualHosts = append(routeSpecifier.RouteConfig.VirtualHosts, v)
 	}
@@ -518,6 +523,16 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	logger.Debugf("Updated listener with new Virtualhost")
 
 	return nil
+}
+
+func (l *Listener) routeExist(routes []route.Route, route route.Route) bool {
+	routeFound := false
+	for _, v := range routes {
+		if v.Match.Equal(route.Match) && v.Action.Equal(route.Action) {
+			routeFound = true
+		}
+	}
+	return routeFound
 }
 
 func (l *Listener) getListenerHTTPFilter(httpFilter []*hcm.HttpFilter) (jwtAuth.JwtAuthentication, error) {

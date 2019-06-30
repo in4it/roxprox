@@ -74,6 +74,80 @@ func TestDomainAlreadyExists(t *testing.T) {
 	}
 }
 
+func TestDoubleEntry(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	l := newListener()
+	var cache WorkQueueCache
+	params1 := ListenerParams{
+		Name:           "test_1",
+		Protocol:       "http",
+		TargetHostname: "www.test.inv",
+		Conditions: Conditions{
+			Hostname: "hostname1.example.com",
+			Prefix:   "/test1",
+		},
+	}
+	params2 := ListenerParams{
+		Name:           "test_2",
+		Protocol:       "http",
+		TargetHostname: "www.test.inv",
+		Conditions: Conditions{
+			Hostname: "hostname1.example.com",
+			Prefix:   "/test2",
+		},
+	}
+	paramsTLS1 := TLSParams{}
+
+	// create first domain
+	listener := l.createListener(params1, paramsTLS1)
+	cache.listeners = append(cache.listeners, listener)
+	// update listener with domain 2
+	if err := l.updateListener(&cache, params1, paramsTLS1); err != nil {
+		t.Errorf("Error: %s", err)
+		return
+	}
+	if err := l.updateListener(&cache, params2, paramsTLS1); err != nil {
+		t.Errorf("Error: %s", err)
+		return
+	}
+	cachedListener := cache.listeners[0].(*api.Listener)
+	if cachedListener.Name != "l_http" {
+		t.Errorf("Expected l_http (got %s)", cachedListener.Name)
+		return
+	}
+
+	manager, err := l.getListenerHTTPConnectionManager(cachedListener)
+	if err != nil {
+		t.Errorf("Error: %s", err)
+		return
+	}
+
+	routeSpecifier, err := l.getListenerRouteSpecifier(manager)
+	if err != nil {
+		t.Errorf("Error: %s", err)
+		return
+	}
+
+	domainFound := false
+
+	for _, virtualhost := range routeSpecifier.RouteConfig.VirtualHosts {
+		for _, domain := range virtualhost.Domains {
+			if domain == params1.Conditions.Hostname {
+				domainFound = true
+				if len(virtualhost.Routes) != 2 {
+					t.Errorf("Expected to only have 2 routes. %+v", virtualhost.Routes)
+					return
+				}
+			}
+		}
+	}
+	if !domainFound {
+		t.Errorf("Domain not found in virtualhost")
+		return
+	}
+
+}
+
 func TestUpdateListener(t *testing.T) {
 	// set debug loglevel
 	logger.SetLogLevel(loggo.DEBUG)
@@ -170,6 +244,12 @@ func TestUpdateListener(t *testing.T) {
 			RemoteJwks:  "https://remotejwks3.example.com",
 		},
 	}
+	challenge1 := ChallengeParams{
+		Name:   "cert1",
+		Domain: "example.com",
+		Token:  "abc-mytoken-123",
+		Body:   "this-is-the-token-body",
+	}
 	listener := l.createListener(params1, paramsTLS1)
 	cache.listeners = append(cache.listeners, listener)
 
@@ -243,13 +323,68 @@ func TestUpdateListener(t *testing.T) {
 
 	// update jwt provider
 	if err := l.updateListenerWithJwtProvider(&cache, params6); err != nil {
-		t.Errorf("Updating tls cert failed: %s", err)
+		t.Errorf("Updating jwt provider failed: %s", err)
 		return
 	}
 	if err := validateJWTProvider(cache.listeners, params6.Auth); err != nil {
 		t.Errorf("JWTProvider validation failed: %s", err)
 		return
 	}
+	// update challenge
+	if err := l.updateListenerWithChallenge(&cache, challenge1); err != nil {
+		t.Errorf("Updating challenge failed: %s", err)
+		return
+	}
+	if err := validateChallenge(cache.listeners, challenge1); err != nil {
+		t.Errorf("Challenge validation failed: %s", err)
+		return
+	}
+}
+
+func validateChallenge(listeners []cache.Resource, params ChallengeParams) error {
+	l := newListener()
+	if len(listeners) == 0 {
+		return fmt.Errorf("Listener is empty (got %d)", len(listeners))
+	}
+	cachedListener := listeners[0].(*api.Listener)
+	if cachedListener.Name != "l_http" {
+		return fmt.Errorf("Expected l_http (got %s)", cachedListener.Name)
+	}
+
+	manager, err := l.getListenerHTTPConnectionManager(cachedListener)
+	if err != nil {
+		return err
+	}
+
+	routeSpecifier, err := l.getListenerRouteSpecifier(manager)
+	if err != nil {
+		return fmt.Errorf("Error: %s", err)
+	}
+
+	challengeFound := false
+
+	for _, virtualhost := range routeSpecifier.RouteConfig.VirtualHosts {
+		for _, domain := range virtualhost.Domains {
+			if domain == "*" {
+				for _, r := range virtualhost.Routes {
+					if r.Match.PathSpecifier.(*route.RouteMatch_Path).Path == "/.well-known/acme-challenge/"+params.Token {
+						challengeFound = true
+						if r.Action.(*route.Route_DirectResponse).DirectResponse.Status != 200 {
+							return fmt.Errorf("Challenge has wrong http response")
+						}
+						if r.Action.(*route.Route_DirectResponse).DirectResponse.Body.Specifier.(*core.DataSource_InlineString).InlineString != params.Body {
+							return fmt.Errorf("Challenge has wrong http body")
+						}
+					}
+				}
+			}
+		}
+	}
+	if !challengeFound {
+		return fmt.Errorf("Challenge not found: %s", params.Token)
+	}
+	logger.Debugf("Challenge %s found", params.Token)
+	return nil
 }
 
 func validateDomainTLS(listeners []cache.Resource, params ListenerParams, tlsParams TLSParams) error {
@@ -435,9 +570,9 @@ func validateJWTProviderWithJWTConfig(jwtConfig jwtAuth.JwtAuthentication, auth 
 	if jwtConfig.Providers[auth.JwtProvider].Issuer != auth.Issuer {
 		return fmt.Errorf("Issuer %s not found (got: %s)", auth.Issuer, jwtConfig.Providers[auth.JwtProvider].Issuer)
 	}
-	/*if jwtConfig.Providers[auth.JwtProvider].JwksSourceSpecifier != auth.RemoteJwks {
-		return fmt.Errorf("Issuer %s not found (got: %s)", auth.RemoteJwks, jwtConfig.Providers[auth.JwtProvider].Issuer)
-	}*/
+	if jwtConfig.Providers[auth.JwtProvider].JwksSourceSpecifier.(*jwtAuth.JwtProvider_RemoteJwks).RemoteJwks.HttpUri.Uri != auth.RemoteJwks {
+		return fmt.Errorf("Issuer %s not found (got: %s)", auth.RemoteJwks, jwtConfig.Providers[auth.JwtProvider].JwksSourceSpecifier.(*jwtAuth.JwtProvider_RemoteJwks).RemoteJwks.HttpUri.Uri)
+	}
 	logger.Debugf("JWT Issuer found found in listener %s", listenerName)
 
 	return nil
