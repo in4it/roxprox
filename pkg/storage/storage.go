@@ -30,6 +30,7 @@ type Storage interface {
 	GetPrivateKeyPem(name string) (string, error)
 	WriteChallenge(name string, data []byte) error
 	GetCachedObjectName(filename string) (*api.Object, error)
+	CountCachedObjectByCondition(condition api.RuleConditions) int
 }
 
 func NewStorage(t string, config interface{}) (Storage, error) {

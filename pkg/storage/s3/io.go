@@ -16,6 +16,7 @@ import (
 	"github.com/in4it/roxprox/pkg/crypto"
 	"github.com/juju/loggo"
 	"gopkg.in/yaml.v2"
+	"github.com/google/go-cmp/cmp"
 )
 
 var (
@@ -379,4 +380,25 @@ func (s *S3Storage) GetCachedObjectName(filename string) (*api.Object, error) {
 	}
 
 	return nil, fmt.Errorf("Filename %s not found in cache", filename)
+}
+func (s *S3Storage) CountCachedObjectByCondition(condition api.RuleConditions) int {
+	count := 0
+	for _, object := range s.cache {
+		if object.Kind == "rule" {
+			rule := object.Data.(api.Rule)
+			if conditionExists(rule.Spec.Conditions, condition) {
+				count++
+			}
+		}
+	}
+	return count
+}
+
+func conditionExists(conditions []api.RuleConditions, condition api.RuleConditions) bool {
+	for _, v := range conditions {
+		if cmp.Equal(v, condition) {
+			return true
+		}
+	}
+	return false
 }

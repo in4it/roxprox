@@ -534,6 +534,14 @@ func (l *Listener) routeExist(routes []route.Route, route route.Route) bool {
 	}
 	return routeFound
 }
+func (l *Listener) routeIndex(routes []route.Route, route route.Route) int {
+	for index, v := range routes {
+		if v.Match.Equal(route.Match) && v.Action.Equal(route.Action) {
+			return index
+		}
+	}
+	return -1
+}
 
 func (l *Listener) getListenerHTTPFilter(httpFilter []*hcm.HttpFilter) (jwtAuth.JwtAuthentication, error) {
 	var jwtConfig jwtAuth.JwtAuthentication
@@ -727,10 +735,80 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 	return newListener
 }
 
-func (c *Listener) GetListenerNames(listeners []cache.Resource) []string {
+func (l *Listener) GetListenerNames(listeners []cache.Resource) []string {
 	var listenerNames []string
 	for _, v := range listeners {
 		listenerNames = append(listenerNames, v.(*api.Listener).Name)
 	}
 	return listenerNames
+}
+
+func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, paramsTLS TLSParams) error {
+	listenerKeyHTTP := -1
+	listenerKeyTLS := -1
+	for k, listener := range cache.listeners {
+		if (listener.(*api.Listener)).Name == "l_http" {
+			listenerKeyHTTP = k
+		} else if (listener.(*api.Listener)).Name == "l_tls" {
+			listenerKeyTLS = k
+		}
+	}
+
+	tls, targetPrefix, virtualHostname, _, _ := l.getListenerAttributes(params, paramsTLS)
+
+	if !tls {
+		// http listener
+		var manager hcm.HttpConnectionManager
+		var err error
+
+		ll := cache.listeners[listenerKeyHTTP].(*api.Listener)
+
+		manager, err = l.getListenerHTTPConnectionManager(ll)
+		if err != nil {
+			return err
+		}
+
+		routeSpecifier, err := l.getListenerRouteSpecifier(manager)
+		if err != nil {
+			return err
+		}
+
+		v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname, params.Conditions.Methods)
+
+		virtualHostKey := -1
+		for k, curVirtualHost := range routeSpecifier.RouteConfig.VirtualHosts {
+			if v.Name == curVirtualHost.Name {
+				virtualHostKey = k
+				logger.Debugf("Found existing virtualhost with name %s", v.Name)
+			}
+		}
+		if virtualHostKey == -1 {
+			return fmt.Errorf("Could not find matching virtualhost")
+		}
+		if len(v.Routes) != 1 {
+			return fmt.Errorf("Expected only 1 route")
+		}
+		index := l.routeIndex(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes, v.Routes[0])
+		if index == -1 {
+			return fmt.Errorf("Route not found")
+		}
+		// delete route
+		routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes = append(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes[:index], routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes[index+1:]...)
+		logger.Debugf("Route deleted")
+
+		manager.RouteSpecifier = routeSpecifier
+		pbst, err := types.MarshalAny(&manager)
+		if err != nil {
+			panic(err)
+		}
+		ll.FilterChains[0].Filters[0].ConfigType = &listener.Filter_TypedConfig{
+			TypedConfig: pbst,
+		}
+	} else {
+		// tls listener
+		// ll
+		_ = cache.listeners[listenerKeyTLS].(*api.Listener)
+
+	}
+	return nil
 }

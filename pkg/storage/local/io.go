@@ -275,3 +275,7 @@ func (l *LocalStorage) GetPrivateKeyPem(name string) (string, error) {
 func (l *LocalStorage) GetCachedObjectName(filename string) (*api.Object, error) {
 	return nil, nil // not implemented
 }
+func (l *LocalStorage) CountCachedObjectByCondition(condition api.RuleConditions) int {
+ // not implemented
+ return -1
+}

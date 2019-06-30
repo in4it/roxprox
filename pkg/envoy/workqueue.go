@@ -94,13 +94,12 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 				}
 			}
 			updateXds = true
-		case "deleteListener":
-			element, err := w.listener.findListener(w.cache.listeners, item.ListenerParams)
+		case "deleteRoute":
+			err := w.listener.DeleteRoute(&w.cache, item.ListenerParams, item.TLSParams)
 			if err != nil {
 				logger.Errorf("deleteListener error: %s", err)
 				item.state = "error"
 			} else {
-				w.cache.listeners = removeResource(w.cache.listeners, element)
 				item.state = "finished"
 			}
 			updateXds = true
@@ -116,16 +115,6 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 				} else {
 					item.state = "finished"
 				}
-			}
-			updateXds = true
-		case "deleteTLSListener":
-			element, err := w.listener.findTLSListener(w.cache.listeners, item.ListenerParams)
-			if err != nil {
-				logger.Errorf("deleteTLSListener error: %s", err)
-				item.state = "error"
-			} else {
-				w.cache.listeners = removeResource(w.cache.listeners, element)
-				item.state = "finished"
 			}
 			updateXds = true
 		case "updateListenerWithJwtProvider":

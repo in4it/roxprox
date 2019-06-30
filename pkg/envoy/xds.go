@@ -116,7 +116,38 @@ func (x *XDS) ImportObjects() error {
 }
 
 func (x *XDS) RemoveRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
-	workQueueItems := []WorkQueueItem{
+	// check if matching is in use
+	var workQueueItems []WorkQueueItem
+	for _, condition := range rule.Spec.Conditions {
+		if x.s.CountCachedObjectByCondition(condition) > 1 {
+			newWorkQueueItem := WorkQueueItem{
+				Action: "deleteRoute",
+				ListenerParams: ListenerParams{
+					Name: rule.Metadata.Name,
+					Conditions: Conditions{
+						Hostname: condition.Hostname,
+						Prefix:   condition.Prefix,
+						Methods:  condition.Methods,
+					},
+				},
+			}
+			if rule.Spec.Certificate != "" {
+				newWorkQueueItem.TLSParams = TLSParams{
+					Name: rule.Metadata.Name,
+				}
+			}
+			if rule.Spec.Auth.JwtProvider != "" {
+				newWorkQueueItem.ListenerParams.Auth = Auth{
+					JwtProvider: rule.Spec.Auth.JwtProvider,
+				}
+			}
+			workQueueItems = append(workQueueItems, newWorkQueueItem)
+
+		}
+	}
+	// check if cluster is in use
+	// delete object from cache
+	/*workQueueItems := []WorkQueueItem{
 		{
 			Action: "deleteCluster",
 			ClusterParams: ClusterParams{
@@ -135,7 +166,7 @@ func (x *XDS) RemoveRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 				Name: rule.Metadata.Name,
 			},
 		},
-	}
+	}*/
 	return workQueueItems, nil
 }
 func (x *XDS) ImportObject(object pkgApi.Object) ([]WorkQueueItem, error) {
