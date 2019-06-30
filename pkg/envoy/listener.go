@@ -756,59 +756,100 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 
 	tls, targetPrefix, virtualHostname, _, _ := l.getListenerAttributes(params, paramsTLS)
 
-	if !tls {
-		// http listener
-		var manager hcm.HttpConnectionManager
-		var err error
+	// http listener
+	var manager hcm.HttpConnectionManager
+	var err error
 
-		ll := cache.listeners[listenerKeyHTTP].(*api.Listener)
-
+	var ll *api.Listener
+	if tls {
+		manager, err = l.getListenerHTTPConnectionManagerTLS(ll, params.Conditions.Hostname)
+		ll = cache.listeners[listenerKeyTLS].(*api.Listener)
+	} else {
+		ll = cache.listeners[listenerKeyHTTP].(*api.Listener)
 		manager, err = l.getListenerHTTPConnectionManager(ll)
 		if err != nil {
 			return err
 		}
+	}
 
-		routeSpecifier, err := l.getListenerRouteSpecifier(manager)
+	routeSpecifier, err := l.getListenerRouteSpecifier(manager)
+	if err != nil {
+		return err
+	}
+
+	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname, params.Conditions.Methods)
+
+	virtualHostKey := -1
+	for k, curVirtualHost := range routeSpecifier.RouteConfig.VirtualHosts {
+		if v.Name == curVirtualHost.Name {
+			virtualHostKey = k
+			logger.Debugf("Found existing virtualhost with name %s", v.Name)
+		}
+	}
+	if virtualHostKey == -1 {
+		return fmt.Errorf("Could not find matching virtualhost")
+	}
+	if len(v.Routes) != 1 {
+		return fmt.Errorf("Expected only 1 route")
+	}
+	index := l.routeIndex(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes, v.Routes[0])
+	if index == -1 {
+		return fmt.Errorf("Route not found")
+	}
+	// delete route
+	routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes = append(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes[:index], routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes[index+1:]...)
+	logger.Debugf("Route deleted")
+
+	// delete jwt rule if necessary
+	if params.Auth.JwtProvider != "" {
+		jwtConfig, err := l.getListenerHTTPFilter(manager.HttpFilters)
 		if err != nil {
 			return err
 		}
+		if _, ok := jwtConfig.Providers[params.Auth.JwtProvider]; ok {
+			// update rules
+			rule := l.getJwtRule(params.Conditions, params.Name, params.Auth.JwtProvider)
+			index := l.requirementRuleIndex(jwtConfig.Rules, rule)
 
-		v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname, params.Conditions.Methods)
+			jwtConfig.Rules = append(jwtConfig.Rules[:index], jwtConfig.Rules[index+1:]...)
 
-		virtualHostKey := -1
-		for k, curVirtualHost := range routeSpecifier.RouteConfig.VirtualHosts {
-			if v.Name == curVirtualHost.Name {
-				virtualHostKey = k
-				logger.Debugf("Found existing virtualhost with name %s", v.Name)
+			jwtConfigEncoded, err := types.MarshalAny(&jwtConfig)
+			if err != nil {
+				panic(err)
 			}
-		}
-		if virtualHostKey == -1 {
-			return fmt.Errorf("Could not find matching virtualhost")
-		}
-		if len(v.Routes) != 1 {
-			return fmt.Errorf("Expected only 1 route")
-		}
-		index := l.routeIndex(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes, v.Routes[0])
-		if index == -1 {
-			return fmt.Errorf("Route not found")
-		}
-		// delete route
-		routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes = append(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes[:index], routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes[index+1:]...)
-		logger.Debugf("Route deleted")
 
-		manager.RouteSpecifier = routeSpecifier
-		pbst, err := types.MarshalAny(&manager)
-		if err != nil {
-			panic(err)
+			manager.HttpFilters = l.newHttpFilter(jwtConfigEncoded)
+		} else {
+			logger.Debugf("Couldn't find jwt provider %s during deleteRoute", params.Auth.JwtProvider)
 		}
-		ll.FilterChains[0].Filters[0].ConfigType = &listener.Filter_TypedConfig{
-			TypedConfig: pbst,
-		}
-	} else {
-		// tls listener
-		// ll
-		_ = cache.listeners[listenerKeyTLS].(*api.Listener)
 
 	}
+
+	manager.RouteSpecifier = routeSpecifier
+	pbst, err := types.MarshalAny(&manager)
+	if err != nil {
+		panic(err)
+	}
+
+	filterId := -1
+	if tls {
+		filterId = l.getFilterChainId(ll.FilterChains, params.Conditions.Hostname)
+	} else {
+		filterId = 0
+	}
+
+	ll.FilterChains[filterId].Filters[0].ConfigType = &listener.Filter_TypedConfig{
+		TypedConfig: pbst,
+	}
+
 	return nil
+}
+
+func (l *Listener) requirementRuleIndex(rules []*jwtAuth.RequirementRule, rule *jwtAuth.RequirementRule) int {
+	for index, v := range rules {
+		if v.Match.Equal(rule.Match) && v.Requires.RequiresType.(*jwtAuth.JwtRequirement_ProviderName).ProviderName == rule.Requires.RequiresType.(*jwtAuth.JwtRequirement_ProviderName).ProviderName {
+			return index
+		}
+	}
+	return -1
 }
