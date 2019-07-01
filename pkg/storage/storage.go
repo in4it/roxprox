@@ -32,6 +32,7 @@ type Storage interface {
 	GetCachedObjectName(filename string) (*api.Object, error)
 	DeleteCachedObject(filename string) error
 	CountCachedObjectByCondition(condition api.RuleConditions) int
+	GetCachedRule(name string) *api.Object
 }
 
 func NewStorage(t string, config interface{}) (Storage, error) {

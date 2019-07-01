@@ -535,7 +535,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 func (l *Listener) routeExist(routes []route.Route, route route.Route) bool {
 	routeFound := false
 	for _, v := range routes {
-		if v.Match.Equal(route.Match) && v.Action.Equal(route.Action) {
+		if l.cmpMatch(&v.Match, &route.Match) && v.Action.Equal(route.Action) {
 			routeFound = true
 		}
 	}
@@ -543,7 +543,7 @@ func (l *Listener) routeExist(routes []route.Route, route route.Route) bool {
 }
 func (l *Listener) routeIndex(routes []route.Route, route route.Route) int {
 	for index, v := range routes {
-		if v.Match.Equal(route.Match) && v.Action.Equal(route.Action) {
+		if l.cmpMatch(&v.Match, &route.Match) && v.Action.Equal(route.Action) {
 			return index
 		}
 	}
@@ -587,6 +587,10 @@ func (l *Listener) getListenerAttributes(params ListenerParams, paramsTLS TLSPar
 	}
 	if params.Conditions.Path != "" {
 		matchType = "path"
+	}
+
+	if params.Conditions.Prefix == "" && params.Conditions.Path == "" {
+		matchType = "prefix"
 	}
 
 	if params.Conditions.Prefix != "" && params.Conditions.Prefix != "/" {
@@ -851,9 +855,44 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 
 func (l *Listener) requirementRuleIndex(rules []*jwtAuth.RequirementRule, rule *jwtAuth.RequirementRule) int {
 	for index, v := range rules {
-		if v.Match.Equal(rule.Match) && v.Requires.RequiresType.(*jwtAuth.JwtRequirement_ProviderName).ProviderName == rule.Requires.RequiresType.(*jwtAuth.JwtRequirement_ProviderName).ProviderName {
+		if l.cmpMatch(v.Match, rule.Match) && v.Requires.RequiresType.(*jwtAuth.JwtRequirement_ProviderName).ProviderName == rule.Requires.RequiresType.(*jwtAuth.JwtRequirement_ProviderName).ProviderName {
 			return index
 		}
 	}
 	return -1
+}
+
+func (l *Listener) cmpMatch(a *route.RouteMatch, b *route.RouteMatch) bool {
+	if a.GetPath() != b.GetPath() {
+		return false
+	}
+	if a.GetPrefix() != b.GetPrefix() {
+		return false
+	}
+	aHeaders := a.GetHeaders()
+	bHeaders := b.GetHeaders()
+
+	if len(aHeaders) != len(bHeaders) {
+		return false
+	}
+	for k := range aHeaders {
+		aa := aHeaders[k]
+		bb := bHeaders[k]
+		if aa.Name != bb.Name {
+			logger.Debugf("mismatch in header name ")
+			return false
+		}
+
+		if aa.HeaderMatchSpecifier.(*route.HeaderMatcher_ExactMatch).ExactMatch != bb.HeaderMatchSpecifier.(*route.HeaderMatcher_ExactMatch).ExactMatch {
+			logger.Debugf("mismatch in header value ")
+
+			return false
+		}
+	}
+
+	if !a.Equal(b) {
+		return false
+	}
+
+	return true
 }
