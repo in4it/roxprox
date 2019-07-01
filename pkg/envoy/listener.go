@@ -762,8 +762,8 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 
 	var ll *api.Listener
 	if tls {
-		manager, err = l.getListenerHTTPConnectionManagerTLS(ll, params.Conditions.Hostname)
 		ll = cache.listeners[listenerKeyTLS].(*api.Listener)
+		manager, err = l.getListenerHTTPConnectionManagerTLS(ll, params.Conditions.Hostname)
 	} else {
 		ll = cache.listeners[listenerKeyHTTP].(*api.Listener)
 		manager, err = l.getListenerHTTPConnectionManager(ll)
@@ -799,6 +799,12 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 	// delete route
 	routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes = append(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes[:index], routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes[index+1:]...)
 	logger.Debugf("Route deleted")
+
+	if len(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes) == 0 {
+		// virtualhost is empty, delete it
+		routeSpecifier.RouteConfig.VirtualHosts = append(routeSpecifier.RouteConfig.VirtualHosts[:virtualHostKey], routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey+1:]...)
+		logger.Debugf("Virtualhost was empty, deleted")
+	}
 
 	// delete jwt rule if necessary
 	if params.Auth.JwtProvider != "" {

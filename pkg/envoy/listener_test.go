@@ -339,6 +339,64 @@ func TestUpdateListener(t *testing.T) {
 		t.Errorf("Challenge validation failed: %s", err)
 		return
 	}
+	// delete route for domain 5
+	if err := l.DeleteRoute(&cache, params5, paramsTLS5New); err != nil {
+		t.Errorf("Delete route failed: %s", err)
+		return
+	}
+	// validate domain 5 (TLSNew)
+	if err := validateDeleteRoute(cache.listeners, params5, paramsTLS5New); err != nil {
+		t.Errorf("Delete Validation failed: %s", err)
+		return
+	}
+	// delete route for domani 1
+	if err := l.DeleteRoute(&cache, params1, paramsTLS1); err != nil {
+		t.Errorf("Delete route failed: %s", err)
+		return
+	}
+	// validate domain 1
+	if err := validateDeleteRoute(cache.listeners, params1, paramsTLS1); err != nil {
+		t.Errorf("Delete Validation failed: %s", err)
+		return
+	}
+}
+
+func validateDeleteRoute(listeners []cache.Resource, params ListenerParams, tlsParams TLSParams) error {
+	l := newListener()
+	if len(listeners) != 2 {
+		return fmt.Errorf("Expected 2 listeners (l_http and l_tls) (got %d)", len(listeners))
+	}
+	cachedListener := listeners[0].(*api.Listener)
+	if cachedListener.Name != "l_http" {
+		return fmt.Errorf("Expected l_http (got %s)", cachedListener.Name)
+	}
+	cachedListenerTLS := listeners[1].(*api.Listener)
+	if cachedListenerTLS.Name != "l_tls" {
+		return fmt.Errorf("Expected l_tls (got %s)", cachedListenerTLS.Name)
+	}
+
+	var manager hcm.HttpConnectionManager
+	var err error
+	if tlsParams.Name == "" {
+		manager, err = l.getListenerHTTPConnectionManager(cachedListener)
+		if err != nil {
+			return err
+		}
+	} else {
+		manager, err = l.getListenerHTTPConnectionManagerTLS(cachedListenerTLS, params.Conditions.Hostname)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = validateAttributes(manager, params)
+
+	if err == nil {
+		return fmt.Errorf("Expected domain to be deleted, still found")
+	}
+	logger.Debugf("Domain %s with prefix %s not found anymore", params.Conditions.Hostname, params.Conditions.Prefix)
+
+	return nil
 }
 
 func validateChallenge(listeners []cache.Resource, params ChallengeParams) error {
@@ -426,7 +484,7 @@ func validateDomainTLS(listeners []cache.Resource, params ListenerParams, tlsPar
 	}
 	logger.Debugf("Key and cert found for domain %s", params.Conditions.Hostname)
 
-	return validateAttributes(manager, params)
+	return nil
 }
 
 func validateDomain(listeners []cache.Resource, params ListenerParams) error {
