@@ -27,7 +27,7 @@ type XDS struct {
 	acmeContact string
 }
 
-func NewXDS(s storage.Storage, acmeContact string) *XDS {
+func NewXDS(s storage.Storage, acmeContact, port string) *XDS {
 	workQueue, err := NewWorkQueue(s, acmeContact)
 	if err != nil {
 		logger.Debugf("Couldn't initialize workqueue")
@@ -40,20 +40,22 @@ func NewXDS(s storage.Storage, acmeContact string) *XDS {
 	}
 
 	server := xds.NewServer(x.workQueue.InitCache(), x.workQueue.InitCallback())
-	grpcServer := grpc.NewServer()
-	lis, _ := net.Listen("tcp", ":8080")
+	if port != "" {
+		grpcServer := grpc.NewServer()
+		lis, _ := net.Listen("tcp", ":"+port)
 
-	discovery.RegisterAggregatedDiscoveryServiceServer(grpcServer, server)
-	api.RegisterEndpointDiscoveryServiceServer(grpcServer, server)
-	api.RegisterClusterDiscoveryServiceServer(grpcServer, server)
-	api.RegisterRouteDiscoveryServiceServer(grpcServer, server)
-	api.RegisterListenerDiscoveryServiceServer(grpcServer, server)
-	go func() {
-		if err := grpcServer.Serve(lis); err != nil {
-			panic(err)
-			// error handling
-		}
-	}()
+		discovery.RegisterAggregatedDiscoveryServiceServer(grpcServer, server)
+		api.RegisterEndpointDiscoveryServiceServer(grpcServer, server)
+		api.RegisterClusterDiscoveryServiceServer(grpcServer, server)
+		api.RegisterRouteDiscoveryServiceServer(grpcServer, server)
+		api.RegisterListenerDiscoveryServiceServer(grpcServer, server)
+		go func() {
+			if err := grpcServer.Serve(lis); err != nil {
+				panic(err)
+				// error handling
+			}
+		}()	
+	}
 
 	return x
 }
@@ -145,7 +147,8 @@ func (x *XDS) RemoveRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 				}
 			}
 			workQueueItems = append(workQueueItems, newWorkQueueItem)
-
+		} else {
+			logger.Debugf("Not removing rule with conditions %s %s (is identical to other condition in other rule)", condition.Hostname, condition.Prefix)
 		}
 	}
 	// delete cluster (has the same name as the rule)

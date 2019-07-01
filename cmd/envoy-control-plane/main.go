@@ -73,7 +73,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	xds := envoy.NewXDS(s, acmeContact)
+	xds := envoy.NewXDS(s, acmeContact, "8080")
 
 	logger.Infof("Importing Rules")
 

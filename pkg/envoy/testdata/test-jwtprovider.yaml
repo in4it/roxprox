@@ -1,0 +1,8 @@
+api: proxy.in4it.io/v1
+kind: jwtProvider
+metadata:
+  name: test-jwt
+spec:
+  remoteJwks: https://example.com/.well-known/jwks.json
+  issuer: https://example.com
+  forward: true
