@@ -21,6 +21,7 @@ type RuleAuth struct {
 type RuleConditions struct {
 	Hostname string   `json:"hostname"`
 	Prefix   string   `json:"prefix"`
+	Path     string   `json:"path"`
 	Methods  []string `json:"methods"`
 }
 type RuleActions struct {
