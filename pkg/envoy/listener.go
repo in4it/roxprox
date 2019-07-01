@@ -349,7 +349,7 @@ func (l *Listener) getJwtRule(conditions Conditions, clusterName string, jwtProv
 	} else if matchType == "path" {
 		match = &route.RouteMatch{
 			PathSpecifier: &route.RouteMatch_Path{
-				Path: prefix,
+				Path: conditions.Path,
 			},
 			Headers: headers,
 		}
@@ -572,7 +572,7 @@ func (l *Listener) getListenerAttributes(params ListenerParams, paramsTLS TLSPar
 	var (
 		tls             bool
 		listenerName    string
-		targetPrefix    = "/"
+		targetPrefix    string
 		matchType       string
 		virtualHostName string
 		listenerPort    uint32
@@ -584,17 +584,16 @@ func (l *Listener) getListenerAttributes(params ListenerParams, paramsTLS TLSPar
 
 	if params.Conditions.Prefix != "" {
 		matchType = "prefix"
+		targetPrefix = params.Conditions.Prefix
 	}
 	if params.Conditions.Path != "" {
 		matchType = "path"
+		targetPrefix = params.Conditions.Path
 	}
 
 	if params.Conditions.Prefix == "" && params.Conditions.Path == "" {
 		matchType = "prefix"
-	}
-
-	if params.Conditions.Prefix != "" && params.Conditions.Prefix != "/" {
-		targetPrefix = params.Conditions.Prefix
+		targetPrefix = "/"
 	}
 
 	if params.Conditions.Hostname == "" {
