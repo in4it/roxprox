@@ -1,0 +1,11 @@
+cache: vendor
+language: go
+go:
+  - 1.12
+os:
+  - linux
+sudo: false
+install: true
+script:
+  - env GO111MODULE=on go build cmd/envoy-control-plane/*.go
+  - env GO111MODULE=on go test -v ./...
