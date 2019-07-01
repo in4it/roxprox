@@ -103,6 +103,7 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 			err := w.listener.DeleteRoute(&w.cache, item.ListenerParams, item.TLSParams)
 			if err != nil {
 				logger.Errorf("deleteRoute error: %s", err)
+				logger.Debugf("Params: %+v %+v", item.ListenerParams, item.TLSParams)
 				item.state = "error"
 			} else {
 				item.state = "finished"

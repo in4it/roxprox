@@ -12,9 +12,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	"github.com/google/go-cmp/cmp"
 	"github.com/in4it/roxprox/pkg/api"
 	"github.com/in4it/roxprox/pkg/crypto"
+	"github.com/in4it/roxprox/pkg/storage/util"
 	"github.com/juju/loggo"
 	"gopkg.in/yaml.v2"
 )
@@ -398,19 +398,18 @@ func (s *S3Storage) CountCachedObjectByCondition(condition api.RuleConditions) i
 	for _, object := range s.cache {
 		if object.Kind == "rule" {
 			rule := object.Data.(api.Rule)
-			if conditionExists(rule.Spec.Conditions, condition) {
+			if util.ConditionExists(rule.Spec.Conditions, condition) {
 				count++
 			}
 		}
 	}
 	return count
 }
-
-func conditionExists(conditions []api.RuleConditions, condition api.RuleConditions) bool {
-	for _, v := range conditions {
-		if cmp.Equal(v, condition) {
-			return true
+func (s *S3Storage) GetCachedRule(name string) *api.Object {
+	for _, object := range s.cache {
+		if object.Kind == "rule" && object.Metadata.Name == name {
+			return object
 		}
 	}
-	return false
+	return nil
 }

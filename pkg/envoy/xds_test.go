@@ -3,6 +3,7 @@ package envoy
 import (
 	"testing"
 
+	pkgApi "github.com/in4it/roxprox/pkg/api"
 	"github.com/in4it/roxprox/pkg/storage"
 	localStorage "github.com/in4it/roxprox/pkg/storage/local"
 	"github.com/juju/loggo"
@@ -109,6 +110,61 @@ func TestDeleteObject(t *testing.T) {
 	_, err = x.deleteObject("test1.yaml")
 	if err == nil {
 		t.Errorf("Expected deleteObject to fail with error")
+		return
+	}
+
+}
+func TestChange(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	workQueueItems := []WorkQueueItem{}
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+
+	workQueueItems, err = x.putObject("test1.yaml")
+	if err != nil {
+		t.Errorf("PutObject failed: %s", err)
+		return
+	}
+
+	_, err = x.workQueue.Submit(workQueueItems)
+	if err != nil {
+		t.Errorf("WorkQueue error: %s", err)
+		return
+	}
+
+	newObject, err := x.s.GetObject("test1-change.yaml")
+	if err != nil {
+		t.Errorf("Couldn't get new rule from storage: %s", err)
+		return
+	}
+
+	rule := newObject.Data.(pkgApi.Rule)
+	newItems, err := x.ImportRule(rule)
+	if err != nil {
+		t.Errorf("Couldn't import new rule: %s", err)
+		return
+	}
+
+	deleteRouteFound := false
+	for _, v := range newItems {
+		if v.Action == "deleteRoute" {
+			deleteRouteFound = true
+		}
+	}
+	if !deleteRouteFound {
+		t.Errorf("Delete route not found")
+		return
+	}
+
+	logger.Debugf("Delete route found")
+
+	_, err = x.workQueue.Submit(newItems)
+	if err != nil {
+		t.Errorf("WorkQueue error: %s", err)
 		return
 	}
 

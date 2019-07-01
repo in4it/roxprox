@@ -11,6 +11,7 @@ import (
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
 	xds "github.com/envoyproxy/go-control-plane/pkg/server"
+	"github.com/google/go-cmp/cmp"
 	pkgApi "github.com/in4it/roxprox/pkg/api"
 	storage "github.com/in4it/roxprox/pkg/storage"
 	n "github.com/in4it/roxprox/proto/notification"
@@ -220,6 +221,53 @@ func (x *XDS) getObject(kind, name string) (pkgApi.Object, error) {
 	return pkgApi.Object{}, fmt.Errorf("object %s/%s not found", kind, name)
 }
 
+func (x *XDS) getRuleDeletions(cachedObject *pkgApi.Object, conditions []pkgApi.RuleConditions) []WorkQueueItem {
+	var workQueueItems []WorkQueueItem
+	cachedRule := cachedObject.Data.(pkgApi.Rule)
+	cachedConditions := cachedRule.Spec.Conditions
+	for _, cachedCondition := range cachedConditions {
+		conditionFound := false
+		for _, condition := range conditions {
+			if cmp.Equal(condition, cachedCondition) {
+				conditionFound = true
+			}
+		}
+		if !conditionFound {
+			logger.Debugf("Condition found in cache and not in new version, submitting removal")
+			newWorkQueueItem := WorkQueueItem{
+				Action: "deleteRoute",
+				ListenerParams: ListenerParams{
+					Name: cachedRule.Metadata.Name,
+					Conditions: Conditions{
+						Hostname: cachedCondition.Hostname,
+						Prefix:   cachedCondition.Prefix,
+						Path:     cachedCondition.Path,
+						Methods:  cachedCondition.Methods,
+					},
+				},
+			}
+			for _, action := range cachedRule.Spec.Actions {
+				if action.Proxy.Hostname != "" {
+					newWorkQueueItem.ListenerParams.TargetHostname = action.Proxy.Hostname
+				}
+			}
+			if cachedRule.Spec.Certificate != "" {
+				newWorkQueueItem.TLSParams = TLSParams{
+					Name: cachedRule.Metadata.Name,
+				}
+			}
+			if cachedRule.Spec.Auth.JwtProvider != "" {
+				newWorkQueueItem.ListenerParams.Auth = Auth{
+					JwtProvider: cachedRule.Spec.Auth.JwtProvider,
+				}
+			}
+			workQueueItems = append(workQueueItems, newWorkQueueItem)
+		}
+	}
+
+	return workQueueItems
+}
+
 func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 	var workQueueItems []WorkQueueItem
 	targetHostname := ""
@@ -236,6 +284,11 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 			}
 			workQueueItems = append(workQueueItems, workQueueItem)
 		}
+	}
+	if cachedObject := x.s.GetCachedRule(rule.Metadata.Name); cachedObject != nil {
+		workQueueItems = append(workQueueItems, x.getRuleDeletions(cachedObject, rule.Spec.Conditions)...)
+	} else {
+		logger.Debugf("No cached object found, this is a new object")
 	}
 	if targetHostname != "" {
 		// create listener that proxies to targetHostname

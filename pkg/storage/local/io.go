@@ -3,16 +3,16 @@ package local
 import (
 	"crypto/rsa"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
-	"fmt"
 
 	"github.com/ghodss/yaml"
 	"github.com/in4it/roxprox/pkg/api"
 	"github.com/in4it/roxprox/pkg/crypto"
+	"github.com/in4it/roxprox/pkg/storage/util"
 	"github.com/juju/loggo"
-	"github.com/google/go-cmp/cmp"
 )
 
 var (
@@ -297,18 +297,18 @@ func (l *LocalStorage) CountCachedObjectByCondition(condition api.RuleConditions
 	for _, object := range l.cache {
 		if object.Kind == "rule" {
 			rule := object.Data.(api.Rule)
-			if conditionExists(rule.Spec.Conditions, condition) {
+			if util.ConditionExists(rule.Spec.Conditions, condition) {
 				count++
 			}
 		}
 	}
 	return count
 }
-func conditionExists(conditions []api.RuleConditions, condition api.RuleConditions) bool {
-	for _, v := range conditions {
-		if cmp.Equal(v, condition) {
-			return true
+func (l *LocalStorage) GetCachedRule(name string) *api.Object {
+	for _, object := range l.cache {
+		if object.Kind == "rule" && object.Metadata.Name == name {
+			return object
 		}
 	}
-	return false
+	return nil
 }
