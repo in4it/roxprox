@@ -595,23 +595,6 @@ func (l *Listener) getListenerAttributes(params ListenerParams, paramsTLS TLSPar
 	return tls, targetPrefix, virtualHostName, listenerName, listenerPort
 }
 
-func (l *Listener) findListener(listeners []cache.Resource, params ListenerParams) (int, error) {
-	for k, v := range listeners {
-		if v.(*api.Listener).Name == "l_"+params.Name {
-			return k, nil
-		}
-	}
-	return -1, fmt.Errorf("Cluster not found")
-}
-func (l *Listener) findTLSListener(listeners []cache.Resource, params ListenerParams) (int, error) {
-	for k, v := range listeners {
-		if v.(*api.Listener).Name == "l_"+params.Name+"_tls" {
-			return k, nil
-		}
-	}
-	return -1, fmt.Errorf("Cluster not found")
-}
-
 func (l *Listener) newHttpFilter(jwtAuth *types.Any) []*hcm.HttpFilter {
 	return []*hcm.HttpFilter{
 		{

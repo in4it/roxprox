@@ -1,0 +1,13 @@
+api: proxy.in4it.io/v1
+kind: rule
+metadata:
+  name: test2
+spec:
+  conditions:
+    - hostname: test2-1.example.com
+    - hostname: test2-2.example.com
+      prefix: /test2-2
+  actions:
+    - proxy:
+        hostname: target-example.com
+        port: 443

@@ -23,11 +23,16 @@ type WorkQueue struct {
 }
 
 func NewWorkQueue(s storage.Storage, acmeContact string) (*WorkQueue, error) {
+	var cert *Cert
+	var err error
 	cs := make(chan WorkQueueSubmissionState)
 	c := make(chan WorkQueueItem)
-	cert, err := newCert(s, acmeContact)
-	if err != nil {
-		return nil, err
+
+	if acmeContact != "" {
+		cert, err = newCert(s, acmeContact)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	w := &WorkQueue{c: c, cs: cs, cert: cert, listener: newListener(), cluster: newCluster()}
@@ -97,7 +102,7 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 		case "deleteRoute":
 			err := w.listener.DeleteRoute(&w.cache, item.ListenerParams, item.TLSParams)
 			if err != nil {
-				logger.Errorf("deleteListener error: %s", err)
+				logger.Errorf("deleteRoute error: %s", err)
 				item.state = "error"
 			} else {
 				item.state = "finished"
@@ -146,30 +151,40 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 			}
 			updateXds = true
 		case "acceptChallenge":
-			err := w.cert.acceptChallenge(item.ChallengeParams)
-			if err != nil {
+			if w.cert == nil {
 				item.state = "error"
-				logger.Errorf("acceptChallenge error: %s", err)
+				logger.Errorf("Cert feature is disabled")
 			} else {
-				item.state = "finished"
+				err := w.cert.acceptChallenge(item.ChallengeParams)
+				if err != nil {
+					item.state = "error"
+					logger.Errorf("acceptChallenge error: %s", err)
+				} else {
+					item.state = "finished"
+				}
 			}
 		case "waitForValidation":
 			item.state = "pending"
 			// wait for validation
 			go w.waitForValidation(id, itemID, item.ChallengeParams)
 		case "verifyDomains":
-			workQueueItems, err := w.cert.verifyDomains(item.CreateCertParams)
-			if err != nil {
-				logger.Errorf("verifyDomains error: %s", err)
+			if w.cert == nil {
 				item.state = "error"
-			}
-			_, err = w.Submit(workQueueItems)
-			if err != nil {
-				logger.Errorf("verifyDomains error: %s", err)
-				item.state = "error"
-			}
-			if item.state != "error" {
-				item.state = "finished"
+				logger.Errorf("Cert feature is disabled")
+			} else {
+				workQueueItems, err := w.cert.verifyDomains(item.CreateCertParams)
+				if err != nil {
+					logger.Errorf("verifyDomains error: %s", err)
+					item.state = "error"
+				}
+				_, err = w.Submit(workQueueItems)
+				if err != nil {
+					logger.Errorf("verifyDomains error: %s", err)
+					item.state = "error"
+				}
+				if item.state != "error" {
+					item.state = "finished"
+				}
 			}
 		case "createCertAfterVerification":
 			// create a list of items to depend on
@@ -191,25 +206,30 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 				CreateCertParams: item.CreateCertParams,
 			}
 		case "createCert":
-			certBundle, privateKeyPem, err := w.cert.CreateCert(item.CreateCertParams)
-			if err != nil {
-				logger.Errorf("error while creating cert: %s", err)
+			if w.cert == nil {
 				item.state = "error"
+				logger.Errorf("Cert feature is disabled")
 			} else {
-				var newItems []WorkQueueItem
-				for _, domain := range item.CreateCertParams.Domains {
-					newItems = append(newItems, WorkQueueItem{
-						Action: "updateListenerWithNewCert",
-						TLSParams: TLSParams{
-							Name:       item.CreateCertParams.Name,
-							CertBundle: certBundle,
-							PrivateKey: privateKeyPem,
-							Domain:     domain,
-						},
-					})
+				certBundle, privateKeyPem, err := w.cert.CreateCert(item.CreateCertParams)
+				if err != nil {
+					logger.Errorf("error while creating cert: %s", err)
+					item.state = "error"
+				} else {
+					var newItems []WorkQueueItem
+					for _, domain := range item.CreateCertParams.Domains {
+						newItems = append(newItems, WorkQueueItem{
+							Action: "updateListenerWithNewCert",
+							TLSParams: TLSParams{
+								Name:       item.CreateCertParams.Name,
+								CertBundle: certBundle,
+								PrivateKey: privateKeyPem,
+								Domain:     domain,
+							},
+						})
+					}
+					w.Submit(newItems)
+					item.state = "finished"
 				}
-				w.Submit(newItems)
-				item.state = "finished"
 			}
 		default:
 			logger.Errorf("Wrong action submitted to workingqueue")
@@ -305,7 +325,10 @@ func (w *WorkQueue) resolveDependsOn() {
 }
 
 func (w *WorkQueue) waitForValidation(id, itemID string, params ChallengeParams) {
-
+	if w.cert == nil {
+		logger.Errorf("Cert feature is disabled")
+		return
+	}
 	// async wait for authz
 	result, err := w.cert.a.WaitForAuthz(params.Domain, params.AuthzURI)
 	if err != nil {

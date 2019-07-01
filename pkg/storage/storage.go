@@ -30,6 +30,7 @@ type Storage interface {
 	GetPrivateKeyPem(name string) (string, error)
 	WriteChallenge(name string, data []byte) error
 	GetCachedObjectName(filename string) (*api.Object, error)
+	DeleteCachedObject(filename string) error
 	CountCachedObjectByCondition(condition api.RuleConditions) int
 }
 

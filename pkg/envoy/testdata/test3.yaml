@@ -1,0 +1,11 @@
+api: proxy.in4it.io/v1
+kind: rule
+metadata:
+  name: test1-conflict
+spec:
+  conditions:
+    - hostname: test1-1.example.com
+  actions:
+    - proxy:
+        hostname: target-example.com
+        port: 443

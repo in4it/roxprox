@@ -110,7 +110,10 @@ func (x *XDS) ImportObjects() error {
 		}
 	}
 
-	x.workQueue.Submit(workQueueItems)
+	_, err = x.workQueue.Submit(workQueueItems)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -145,28 +148,14 @@ func (x *XDS) RemoveRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 
 		}
 	}
-	// check if cluster is in use
-	// delete object from cache
-	/*workQueueItems := []WorkQueueItem{
-		{
-			Action: "deleteCluster",
-			ClusterParams: ClusterParams{
-				Name: rule.Metadata.Name,
-			},
+	// delete cluster (has the same name as the rule)
+	workQueueItems = append(workQueueItems, WorkQueueItem{
+		Action: "deleteCluster",
+		ClusterParams: ClusterParams{
+			Name: rule.Metadata.Name,
 		},
-		{
-			Action: "deleteListener",
-			ListenerParams: ListenerParams{
-				Name: rule.Metadata.Name,
-			},
-		},
-		{
-			Action: "deleteTLSListener",
-			ListenerParams: ListenerParams{
-				Name: rule.Metadata.Name,
-			},
-		},
-	}*/
+	})
+
 	return workQueueItems, nil
 }
 func (x *XDS) ImportObject(object pkgApi.Object) ([]WorkQueueItem, error) {
@@ -342,7 +331,10 @@ func (x *XDS) CreateCertsForRules() error {
 			}
 		}
 	}
-	x.workQueue.Submit(workQueueItems)
+	_, err := x.workQueue.Submit(workQueueItems)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -419,7 +411,11 @@ func (x *XDS) receiveFromQueue(queue chan []*n.NotificationRequest_NotificationI
 		}
 
 		if len(workQueueItems) > 0 {
-			x.workQueue.Submit(workQueueItems)
+			_, err := x.workQueue.Submit(workQueueItems)
+			if err != nil {
+				logger.Errorf("ReceiveFromQueue Error while Submitting WorkQueue: %s", err)
+			}
+
 		}
 	}
 }
@@ -456,6 +452,8 @@ func (x *XDS) deleteObject(filename string) ([]WorkQueueItem, error) {
 		if err != nil {
 			return []WorkQueueItem{}, fmt.Errorf("Couldn't remove rule: %s", err)
 		}
+		// delete cache entry
+		x.s.DeleteCachedObject(filename)
 		return newItems, nil
 	}
 	return []WorkQueueItem{}, nil
