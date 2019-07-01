@@ -27,7 +27,7 @@ type XDS struct {
 	acmeContact string
 }
 
-func NewXDS(s storage.Storage, acmeContact string) *XDS {
+func NewXDS(s storage.Storage, acmeContact, port string) *XDS {
 	workQueue, err := NewWorkQueue(s, acmeContact)
 	if err != nil {
 		logger.Debugf("Couldn't initialize workqueue")
@@ -40,20 +40,22 @@ func NewXDS(s storage.Storage, acmeContact string) *XDS {
 	}
 
 	server := xds.NewServer(x.workQueue.InitCache(), x.workQueue.InitCallback())
-	grpcServer := grpc.NewServer()
-	lis, _ := net.Listen("tcp", ":8080")
+	if port != "" {
+		grpcServer := grpc.NewServer()
+		lis, _ := net.Listen("tcp", ":"+port)
 
-	discovery.RegisterAggregatedDiscoveryServiceServer(grpcServer, server)
-	api.RegisterEndpointDiscoveryServiceServer(grpcServer, server)
-	api.RegisterClusterDiscoveryServiceServer(grpcServer, server)
-	api.RegisterRouteDiscoveryServiceServer(grpcServer, server)
-	api.RegisterListenerDiscoveryServiceServer(grpcServer, server)
-	go func() {
-		if err := grpcServer.Serve(lis); err != nil {
-			panic(err)
-			// error handling
-		}
-	}()
+		discovery.RegisterAggregatedDiscoveryServiceServer(grpcServer, server)
+		api.RegisterEndpointDiscoveryServiceServer(grpcServer, server)
+		api.RegisterClusterDiscoveryServiceServer(grpcServer, server)
+		api.RegisterRouteDiscoveryServiceServer(grpcServer, server)
+		api.RegisterListenerDiscoveryServiceServer(grpcServer, server)
+		go func() {
+			if err := grpcServer.Serve(lis); err != nil {
+				panic(err)
+				// error handling
+			}
+		}()	
+	}
 
 	return x
 }
@@ -110,32 +112,53 @@ func (x *XDS) ImportObjects() error {
 		}
 	}
 
-	x.workQueue.Submit(workQueueItems)
+	_, err = x.workQueue.Submit(workQueueItems)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
 
 func (x *XDS) RemoveRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
-	workQueueItems := []WorkQueueItem{
-		{
-			Action: "deleteCluster",
-			ClusterParams: ClusterParams{
-				Name: rule.Metadata.Name,
-			},
-		},
-		{
-			Action: "deleteListener",
-			ListenerParams: ListenerParams{
-				Name: rule.Metadata.Name,
-			},
-		},
-		{
-			Action: "deleteTLSListener",
-			ListenerParams: ListenerParams{
-				Name: rule.Metadata.Name,
-			},
-		},
+	// check if matching is in use
+	var workQueueItems []WorkQueueItem
+	for _, condition := range rule.Spec.Conditions {
+		if x.s.CountCachedObjectByCondition(condition) > 1 {
+			newWorkQueueItem := WorkQueueItem{
+				Action: "deleteRoute",
+				ListenerParams: ListenerParams{
+					Name: rule.Metadata.Name,
+					Conditions: Conditions{
+						Hostname: condition.Hostname,
+						Prefix:   condition.Prefix,
+						Methods:  condition.Methods,
+					},
+				},
+			}
+			if rule.Spec.Certificate != "" {
+				newWorkQueueItem.TLSParams = TLSParams{
+					Name: rule.Metadata.Name,
+				}
+			}
+			if rule.Spec.Auth.JwtProvider != "" {
+				newWorkQueueItem.ListenerParams.Auth = Auth{
+					JwtProvider: rule.Spec.Auth.JwtProvider,
+				}
+			}
+			workQueueItems = append(workQueueItems, newWorkQueueItem)
+		} else {
+			logger.Debugf("Not removing rule with conditions %s %s (is identical to other condition in other rule)", condition.Hostname, condition.Prefix)
+		}
 	}
+	// delete cluster (has the same name as the rule)
+	workQueueItems = append(workQueueItems, WorkQueueItem{
+		Action: "deleteCluster",
+		ClusterParams: ClusterParams{
+			Name: rule.Metadata.Name,
+		},
+	})
+
 	return workQueueItems, nil
 }
 func (x *XDS) ImportObject(object pkgApi.Object) ([]WorkQueueItem, error) {
@@ -216,6 +239,11 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 	if targetHostname != "" {
 		// create listener that proxies to targetHostname
 		for _, condition := range rule.Spec.Conditions {
+			// validation
+			if rule.Spec.Certificate != "" && condition.Hostname == "" {
+				return []WorkQueueItem{}, fmt.Errorf("Validation error: rule with certificate, but without a hostname condition - ignoring rule")
+
+			}
 			if condition.Hostname != "" || condition.Prefix != "" {
 				workQueueItem := WorkQueueItem{
 					Action: "createListener",
@@ -225,6 +253,7 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 						Conditions: Conditions{
 							Hostname: condition.Hostname,
 							Prefix:   condition.Prefix,
+							Methods:  condition.Methods,
 						},
 					},
 				}
@@ -265,6 +294,7 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 							Name:       rule.Metadata.Name,
 							CertBundle: certBundle,
 							PrivateKey: privateKeyPem,
+							Domain:     workQueueItem.ListenerParams.Conditions.Hostname,
 						}
 						workQueueItems = append(workQueueItems, workQueueItemTLS)
 					}
@@ -304,7 +334,10 @@ func (x *XDS) CreateCertsForRules() error {
 			}
 		}
 	}
-	x.workQueue.Submit(workQueueItems)
+	_, err := x.workQueue.Submit(workQueueItems)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -381,7 +414,11 @@ func (x *XDS) receiveFromQueue(queue chan []*n.NotificationRequest_NotificationI
 		}
 
 		if len(workQueueItems) > 0 {
-			x.workQueue.Submit(workQueueItems)
+			_, err := x.workQueue.Submit(workQueueItems)
+			if err != nil {
+				logger.Errorf("ReceiveFromQueue Error while Submitting WorkQueue: %s", err)
+			}
+
 		}
 	}
 }
@@ -418,6 +455,8 @@ func (x *XDS) deleteObject(filename string) ([]WorkQueueItem, error) {
 		if err != nil {
 			return []WorkQueueItem{}, fmt.Errorf("Couldn't remove rule: %s", err)
 		}
+		// delete cache entry
+		x.s.DeleteCachedObject(filename)
 		return newItems, nil
 	}
 	return []WorkQueueItem{}, nil

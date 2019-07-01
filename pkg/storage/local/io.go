@@ -6,11 +6,13 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
+	"fmt"
 
 	"github.com/ghodss/yaml"
 	"github.com/in4it/roxprox/pkg/api"
 	"github.com/in4it/roxprox/pkg/crypto"
 	"github.com/juju/loggo"
+	"github.com/google/go-cmp/cmp"
 )
 
 var (
@@ -21,6 +23,7 @@ var (
 type LocalStorage struct {
 	config Config
 	dir    string
+	cache  map[string]*api.Object
 }
 type Config struct {
 	Path string
@@ -35,7 +38,7 @@ func NewLocalStorage(config Config) (*LocalStorage, error) {
 	} else {
 		dir = config.Path
 	}
-	return &LocalStorage{config: config, dir: dir}, nil
+	return &LocalStorage{config: config, dir: dir, cache: make(map[string]*api.Object)}, nil
 }
 
 func (l *LocalStorage) GetError(name string) error {
@@ -103,7 +106,9 @@ func (l *LocalStorage) GetObject(name string) (api.Object, error) {
 	default:
 		return object, errors.New("Rule in wrong format")
 	}
-	return object, errors.New("Rule in wrong format")
+	// keep a cache of filename -> rule name matching
+	l.cache[name] = &object
+	return object, nil
 }
 func (l *LocalStorage) ListCerts() (map[string]string, error) {
 	dirname := l.dir + "/pki/certs/"
@@ -273,5 +278,37 @@ func (l *LocalStorage) GetPrivateKeyPem(name string) (string, error) {
 }
 
 func (l *LocalStorage) GetCachedObjectName(filename string) (*api.Object, error) {
-	return nil, nil // not implemented
+	if val, ok := l.cache[filename]; ok {
+		return val, nil
+	}
+
+	return nil, fmt.Errorf("Filename %s not found in cache", filename)
+}
+func (l *LocalStorage) DeleteCachedObject(filename string) error {
+	if _, ok := l.cache[filename]; ok {
+		delete(l.cache, filename)
+		return nil
+	}
+
+	return fmt.Errorf("Filename %s not found in cache", filename)
+}
+func (l *LocalStorage) CountCachedObjectByCondition(condition api.RuleConditions) int {
+	count := 0
+	for _, object := range l.cache {
+		if object.Kind == "rule" {
+			rule := object.Data.(api.Rule)
+			if conditionExists(rule.Spec.Conditions, condition) {
+				count++
+			}
+		}
+	}
+	return count
+}
+func conditionExists(conditions []api.RuleConditions, condition api.RuleConditions) bool {
+	for _, v := range conditions {
+		if cmp.Equal(v, condition) {
+			return true
+		}
+	}
+	return false
 }

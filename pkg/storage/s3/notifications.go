@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net"
 	"time"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -133,10 +134,10 @@ func (n *Notifications) SendNotificationToPeers(req pbN.NotificationRequest, pee
 		defer cancel()
 		r, err := n.peers[v].SendNotification(ctx, &req)
 		if err != nil {
-			logger.Errorf("SendNotification error: %s", err)
+			return fmt.Errorf("SendNotification error: %s", err)
 		}
 		if !r.GetResult() {
-			logger.Errorf("SendNotification error: %s", err)
+			return fmt.Errorf("SendNotification error: %s", err)
 		}
 
 		logger.Debugf("Sent notification to %s", v.address)

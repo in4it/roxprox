@@ -17,6 +17,7 @@ resource "aws_security_group" "roxprox" {
     to_port         = 50051
     protocol        = "tcp"
     self            = true
+    security_groups = var.management_access_sg
   }
 
 

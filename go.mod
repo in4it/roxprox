@@ -8,6 +8,7 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang/protobuf v1.3.2-0.20190517061210-b285ee9cfc6c
+	github.com/google/go-cmp v0.2.0
 	github.com/google/uuid v1.1.1
 	github.com/hashicorp/golang-lru v0.5.1 // indirect
 	github.com/juju/loggo v0.0.0-20190526231331-6e530bcce5d8

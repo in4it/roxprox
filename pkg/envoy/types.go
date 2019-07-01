@@ -32,6 +32,7 @@ type TLSParams struct {
 	Name       string
 	CertBundle string
 	PrivateKey string
+	Domain     string
 }
 type ClusterParams struct {
 	Name           string
@@ -62,6 +63,7 @@ type CreateCertParams struct {
 type Conditions struct {
 	Hostname string
 	Prefix   string
+	Methods  []string
 }
 type Auth struct {
 	JwtProvider string

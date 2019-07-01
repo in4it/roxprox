@@ -19,8 +19,9 @@ type RuleAuth struct {
 	JwtProvider string `json:"jwtProvider" yaml:"jwtProvider"`
 }
 type RuleConditions struct {
-	Hostname string `json:"hostname"`
-	Prefix   string `json:"prefix"`
+	Hostname string   `json:"hostname"`
+	Prefix   string   `json:"prefix"`
+	Methods  []string `json:"methods"`
 }
 type RuleActions struct {
 	Proxy RuleActionsProxy `json:"proxy"`

@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/google/go-cmp/cmp"
 	"github.com/in4it/roxprox/pkg/api"
 	"github.com/in4it/roxprox/pkg/crypto"
 	"github.com/juju/loggo"
@@ -379,4 +380,37 @@ func (s *S3Storage) GetCachedObjectName(filename string) (*api.Object, error) {
 	}
 
 	return nil, fmt.Errorf("Filename %s not found in cache", filename)
+}
+
+func (s *S3Storage) DeleteCachedObject(filename string) error {
+	if s.config.Prefix == "" {
+		filename = "/" + filename
+	}
+	if _, ok := s.cache[filename]; ok {
+		delete(s.cache, filename)
+		return nil
+	}
+
+	return fmt.Errorf("Filename %s not found in cache", filename)
+}
+func (s *S3Storage) CountCachedObjectByCondition(condition api.RuleConditions) int {
+	count := 0
+	for _, object := range s.cache {
+		if object.Kind == "rule" {
+			rule := object.Data.(api.Rule)
+			if conditionExists(rule.Spec.Conditions, condition) {
+				count++
+			}
+		}
+	}
+	return count
+}
+
+func conditionExists(conditions []api.RuleConditions, condition api.RuleConditions) bool {
+	for _, v := range conditions {
+		if cmp.Equal(v, condition) {
+			return true
+		}
+	}
+	return false
 }
