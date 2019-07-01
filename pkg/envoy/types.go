@@ -63,6 +63,7 @@ type CreateCertParams struct {
 type Conditions struct {
 	Hostname string
 	Prefix   string
+	Path     string
 	Methods  []string
 }
 type Auth struct {

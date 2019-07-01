@@ -234,7 +234,7 @@ func (l *Listener) getManager(typedConfig *listener.Filter_TypedConfig) (hcm.Htt
 
 	return manager, nil
 }
-func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, clusterName, virtualHostName string, methods []string) route.VirtualHost {
+func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, clusterName, virtualHostName string, methods []string, matchType string) route.VirtualHost {
 	var hostRewriteSpecifier *route.RouteAction_HostRewrite
 	var match route.RouteMatch
 
@@ -248,8 +248,8 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 		}
 	}
 
+	var headers []*route.HeaderMatcher
 	if len(methods) > 0 {
-		var headers []*route.HeaderMatcher
 		for _, method := range methods {
 			headers = append(headers, &route.HeaderMatcher{
 				Name: ":method",
@@ -258,17 +258,20 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 				},
 			})
 		}
+	}
+	if matchType == "prefix" {
 		match = route.RouteMatch{
 			PathSpecifier: &route.RouteMatch_Prefix{
 				Prefix: targetPrefix,
 			},
 			Headers: headers,
 		}
-	} else {
+	} else if matchType == "path" {
 		match = route.RouteMatch{
-			PathSpecifier: &route.RouteMatch_Prefix{
-				Prefix: targetPrefix,
+			PathSpecifier: &route.RouteMatch_Path{
+				Path: targetPrefix,
 			},
+			Headers: headers,
 		}
 	}
 
@@ -319,32 +322,36 @@ func (l *Listener) getJwtConfig(auth Auth) *jwtAuth.JwtAuthentication {
 	}
 }
 
-func (l *Listener) getJwtRule(conditions Conditions, clusterName string, jwtProvider string) *jwtAuth.RequirementRule {
+func (l *Listener) getJwtRule(conditions Conditions, clusterName string, jwtProvider string, matchType string) *jwtAuth.RequirementRule {
 	var match *route.RouteMatch
 	prefix := "/"
 	if conditions.Prefix != "" {
 		prefix = conditions.Prefix
 	}
-
-	if conditions.Hostname == "" {
-		match = &route.RouteMatch{
-			PathSpecifier: &route.RouteMatch_Prefix{
-				Prefix: prefix,
-			},
-		}
-	} else {
-		match = &route.RouteMatch{
-			PathSpecifier: &route.RouteMatch_Prefix{
-				Prefix: prefix,
-			},
-			Headers: []*route.HeaderMatcher{
-				{
-					Name: ":authority",
-					HeaderMatchSpecifier: &route.HeaderMatcher_ExactMatch{
-						ExactMatch: conditions.Hostname,
-					},
+	var headers []*route.HeaderMatcher
+	if conditions.Hostname != "" {
+		headers = []*route.HeaderMatcher{
+			{
+				Name: ":authority",
+				HeaderMatchSpecifier: &route.HeaderMatcher_ExactMatch{
+					ExactMatch: conditions.Hostname,
 				},
 			},
+		}
+	}
+	if matchType == "prefix" {
+		match = &route.RouteMatch{
+			PathSpecifier: &route.RouteMatch_Prefix{
+				Prefix: prefix,
+			},
+			Headers: headers,
+		}
+	} else if matchType == "path" {
+		match = &route.RouteMatch{
+			PathSpecifier: &route.RouteMatch_Path{
+				Path: prefix,
+			},
+			Headers: headers,
 		}
 	}
 	rule := &jwtAuth.RequirementRule{
@@ -388,7 +395,7 @@ func (l *Listener) newTLSFilter(params ListenerParams, paramsTLS TLSParams, list
 func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, paramsTLS TLSParams) error {
 	var listenerKey = -1
 
-	tls, targetPrefix, virtualHostname, listenerName, _ := l.getListenerAttributes(params, paramsTLS)
+	tls, targetPrefix, virtualHostname, listenerName, _, matchType := l.getListenerAttributes(params, paramsTLS)
 
 	logger.Infof("Updating listener " + listenerName)
 
@@ -438,7 +445,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	}
 
 	// create new virtualhost
-	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname, params.Conditions.Methods)
+	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname, params.Conditions.Methods, matchType)
 
 	// check if we need to overwrite the virtualhost
 	virtualHostKey := -1
@@ -491,7 +498,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 		}
 
 		// update rules
-		jwtConfig.Rules = append(jwtConfig.Rules, l.getJwtRule(params.Conditions, params.Name, params.Auth.JwtProvider))
+		jwtConfig.Rules = append(jwtConfig.Rules, l.getJwtRule(params.Conditions, params.Name, params.Auth.JwtProvider, matchType))
 		jwtConfigEncoded, err := types.MarshalAny(&jwtConfig)
 		if err != nil {
 			panic(err)
@@ -561,17 +568,25 @@ func (l *Listener) getListenerHTTPFilter(httpFilter []*hcm.HttpFilter) (jwtAuth.
 	return jwtConfig, nil
 }
 
-func (l *Listener) getListenerAttributes(params ListenerParams, paramsTLS TLSParams) (bool, string, string, string, uint32) {
+func (l *Listener) getListenerAttributes(params ListenerParams, paramsTLS TLSParams) (bool, string, string, string, uint32, string) {
 	var (
 		tls             bool
 		listenerName    string
 		targetPrefix    = "/"
+		matchType       string
 		virtualHostName string
 		listenerPort    uint32
 	)
 
 	if paramsTLS.CertBundle != "" {
 		tls = true
+	}
+
+	if params.Conditions.Prefix != "" {
+		matchType = "prefix"
+	}
+	if params.Conditions.Path != "" {
+		matchType = "path"
 	}
 
 	if params.Conditions.Prefix != "" && params.Conditions.Prefix != "/" {
@@ -592,7 +607,7 @@ func (l *Listener) getListenerAttributes(params ListenerParams, paramsTLS TLSPar
 		listenerPort = 10000
 		listenerName = "l_http"
 	}
-	return tls, targetPrefix, virtualHostName, listenerName, listenerPort
+	return tls, targetPrefix, virtualHostName, listenerName, listenerPort, matchType
 }
 
 func (l *Listener) newHttpFilter(jwtAuth *types.Any) []*hcm.HttpFilter {
@@ -626,12 +641,12 @@ func (l *Listener) newManager(routeName string, virtualHosts []route.VirtualHost
 func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *api.Listener {
 	var err error
 
-	tls, targetPrefix, virtualHostName, listenerName, listenerPort := l.getListenerAttributes(params, paramsTLS)
+	tls, targetPrefix, virtualHostName, listenerName, listenerPort, matchType := l.getListenerAttributes(params, paramsTLS)
 
 	logger.Debugf("Processing params %+v", params)
 	logger.Infof("Creating listener " + listenerName)
 
-	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostName, params.Conditions.Methods)
+	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostName, params.Conditions.Methods, matchType)
 	virtualHosts := []route.VirtualHost{v}
 
 	if virtualHostName != "v_nodomain" && !tls {
@@ -645,7 +660,7 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 	jwtConfig := l.getJwtConfig(params.Auth)
 	if params.Auth.JwtProvider != "" {
 		// add rule if there is a jwtprovider
-		jwtConfig.Rules = append(jwtConfig.Rules, l.getJwtRule(params.Conditions, params.Name, params.Auth.JwtProvider))
+		jwtConfig.Rules = append(jwtConfig.Rules, l.getJwtRule(params.Conditions, params.Name, params.Auth.JwtProvider, matchType))
 	}
 	jwtAuth, err := types.MarshalAny(jwtConfig)
 	if err != nil {
@@ -737,7 +752,7 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 		}
 	}
 
-	tls, targetPrefix, virtualHostname, _, _ := l.getListenerAttributes(params, paramsTLS)
+	tls, targetPrefix, virtualHostname, _, _, matchType := l.getListenerAttributes(params, paramsTLS)
 
 	// http listener
 	var manager hcm.HttpConnectionManager
@@ -760,7 +775,7 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 		return err
 	}
 
-	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname, params.Conditions.Methods)
+	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname, params.Conditions.Methods, matchType)
 
 	virtualHostKey := -1
 	for k, curVirtualHost := range routeSpecifier.RouteConfig.VirtualHosts {
@@ -797,7 +812,7 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 		}
 		if _, ok := jwtConfig.Providers[params.Auth.JwtProvider]; ok {
 			// update rules
-			rule := l.getJwtRule(params.Conditions, params.Name, params.Auth.JwtProvider)
+			rule := l.getJwtRule(params.Conditions, params.Name, params.Auth.JwtProvider, matchType)
 			index := l.requirementRuleIndex(jwtConfig.Rules, rule)
 
 			jwtConfig.Rules = append(jwtConfig.Rules[:index], jwtConfig.Rules[index+1:]...)
