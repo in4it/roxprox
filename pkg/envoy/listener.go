@@ -2,6 +2,7 @@ package envoy
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
@@ -250,6 +251,7 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 
 	var headers []*route.HeaderMatcher
 	if len(methods) > 0 {
+		sort.Strings(methods)
 		for _, method := range methods {
 			headers = append(headers, &route.HeaderMatcher{
 				Name: ":method",
@@ -338,6 +340,7 @@ func (l *Listener) getJwtRule(conditions Conditions, clusterName string, jwtProv
 		})
 	}
 	if len(conditions.Methods) > 0 {
+		sort.Strings(conditions.Methods)
 		for _, method := range conditions.Methods {
 			headers = append(headers, &route.HeaderMatcher{
 				Name: ":method",
@@ -505,8 +508,13 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 			logger.Debugf("adding provider %s to jwt config", params.Auth.JwtProvider)
 		}
 
-		// update rules
-		jwtConfig.Rules = append(jwtConfig.Rules, l.getJwtRule(params.Conditions, params.Name, params.Auth.JwtProvider, matchType))
+		// update routes
+		newJwtRule := l.getJwtRule(params.Conditions, params.Name, params.Auth.JwtProvider, matchType)
+		if l.jwtRuleExist(jwtConfig.Rules, newJwtRule) {
+			logger.Debugf("JWT Rule already exists, not adding route for %s", v.Name)
+		} else {
+			jwtConfig.Rules = append(jwtConfig.Rules, newJwtRule)
+		}
 		jwtConfigEncoded, err := types.MarshalAny(&jwtConfig)
 		if err != nil {
 			panic(err)
@@ -540,6 +548,15 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	return nil
 }
 
+func (l *Listener) jwtRuleExist(rules []*jwtAuth.RequirementRule, rule *jwtAuth.RequirementRule) bool {
+	ruleFound := false
+	for _, v := range rules {
+		if v.Match.Equal(rule.Match) && v.Requires.RequiresType.(*jwtAuth.JwtRequirement_ProviderName).ProviderName == rule.Requires.RequiresType.(*jwtAuth.JwtRequirement_ProviderName).ProviderName {
+			ruleFound = true
+		}
+	}
+	return ruleFound
+}
 func (l *Listener) routeExist(routes []route.Route, route route.Route) bool {
 	routeFound := false
 	for _, v := range routes {
@@ -671,7 +688,12 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 	jwtConfig := l.getJwtConfig(params.Auth)
 	if params.Auth.JwtProvider != "" {
 		// add rule if there is a jwtprovider
-		jwtConfig.Rules = append(jwtConfig.Rules, l.getJwtRule(params.Conditions, params.Name, params.Auth.JwtProvider, matchType))
+		newJwtRule := l.getJwtRule(params.Conditions, params.Name, params.Auth.JwtProvider, matchType)
+		if l.jwtRuleExist(jwtConfig.Rules, newJwtRule) {
+			logger.Debugf("JWT Rule already exists, not adding route for %s", v.Name)
+		} else {
+			jwtConfig.Rules = append(jwtConfig.Rules, newJwtRule)
+		}
 	}
 	jwtAuth, err := types.MarshalAny(jwtConfig)
 	if err != nil {
