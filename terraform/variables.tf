@@ -8,7 +8,7 @@ variable "release" {
 }
 
 variable "acme_contact" {
-  default     = "email@invalid.inv"
+  default     = ""
   description = "email address to be used for ACME - Let's encrypt will use this to notify you of expiring domains"
 }
 
