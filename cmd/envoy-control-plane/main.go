@@ -96,9 +96,13 @@ func main() {
 		logger.Errorf("Couldn't create certs: %s", err)
 	}
 
-	err = xds.StartRenewalQueue()
-	if err != nil {
-		logger.Errorf("Couldn't start renewal queue: %s", err)
+	if acmeContact != "" {
+		err = xds.StartRenewalQueue()
+		if err != nil {
+			logger.Errorf("Couldn't start renewal queue: %s", err)
+		}
+	} else {
+		logger.Infof("Not starting renewal queue: acme contact is empty")
 	}
 
 	// run forever

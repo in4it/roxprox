@@ -29,7 +29,10 @@ func newCert(s storage.Storage, acmeContact string) (*Cert, error) {
 			return c, err
 		}
 		c.a = acme.NewAcme(acme.Config{AccountKey: accountKey, Contact: acmeContact})
-		c.a.Register()
+		err = c.a.Register()
+		if err != nil {
+			return c, err
+		}
 	} else if err == nil {
 		logger.Debugf("Private key found, initializing")
 		c.a = acme.NewAcme(acme.Config{AccountKey: accountKey, Contact: acmeContact})
