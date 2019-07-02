@@ -79,7 +79,7 @@ resource "aws_ecs_service" "envoy-proxy" {
   }
 
   service_registries {
-    registry_arn = aws_service_discovery_service.roxprox.arn
+    registry_arn = aws_service_discovery_service.roxprox-envoy.arn
   }
 
   load_balancer {
