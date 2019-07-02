@@ -1,19 +1,18 @@
 # roxprox
 
-Envoy autocert is an envoy control plane that lets you issue (and renew) certs automatically through Let's encrypt or any other ACME-compatible provider. It controls one or more envoy proxies that sit in front of your app or service mesh.
+Envoy autocert is an envoy control plane with AWS Cloud support.
 
-You can download the server binary from the releases, or use the docker image.
-
-## Current status
-The first version works, but the project is still WIP.
+* Write & Store configuration in S3
+* Instant s3 notifications update the envoy proxy without having to do a manual reload or restart
+* ACME support to automatically verify, issue and setup letsencrypt certificates
+* authn: support for JWT authentication
+* Works stand-alone or serverless with AWS Fargate
+* Traffic only passes the envoy proxy
 
 ## Run roxprox
-You can find configuration examples in resources/example-config
-```
-./envoy-control-plane-linux-amd64 -storage-path data/ -acme-contact <your-email-address>
-```
-
-You can use local storage (default) or s3 storage. To use s3 storage, use:
+* You can download the server binary from the releases, or use the docker image.
+* You can find configuration examples in resources/example-config
+* You can use local storage (default) or s3 storage. To use s3 storage, use:
 
 ```
 ./envoy-control-plane-linux-amd64 -acme-contact <your-email-address> -storage-type s3 -storage-bucket your-bucket-name -aws-region your-aws-region
