@@ -2,6 +2,7 @@ package envoy
 
 import (
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -250,6 +251,23 @@ func TestUpdateListener(t *testing.T) {
 		Token:  "abc-mytoken-123",
 		Body:   "this-is-the-token-body",
 	}
+	params7 := ListenerParams{
+		Name:           "test_7",
+		Protocol:       "http",
+		TargetHostname: "www.test.inv",
+		Conditions: Conditions{
+			Hostname: "hostname1.example.com",
+			Path:     "/test7",
+			Methods:  []string{"POST", "DELETE"},
+		},
+		Auth: Auth{
+			JwtProvider: "testJwt2",
+			Issuer:      "http://issuer3.example.com",
+			Forward:     true,
+			RemoteJwks:  "https://remotejwks3.example.com",
+		},
+	}
+
 	listener := l.createListener(params1, paramsTLS1)
 	cache.listeners = append(cache.listeners, listener)
 
@@ -357,6 +375,16 @@ func TestUpdateListener(t *testing.T) {
 	// validate domain 1
 	if err := validateDeleteRoute(cache.listeners, params1, paramsTLS1); err != nil {
 		t.Errorf("Delete Validation failed: %s", err)
+		return
+	}
+	// add domain 7 (methods and path)
+	if err := l.updateListener(&cache, params7, paramsTLS1); err != nil {
+		t.Errorf("Error: %s", err)
+		return
+	}
+	// validate domain 7
+	if err := validateDomain(cache.listeners, params7); err != nil {
+		t.Errorf("Validation failed: %s", err)
 		return
 	}
 }
@@ -513,12 +541,14 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 
 	domainFound := false
 	prefixFound := false
+	pathFound := false
 	methodsFound := false
 
 	if params.Conditions.Hostname == "" {
 		params.Conditions.Hostname = "*"
 	}
-	if params.Conditions.Prefix == "/" {
+
+	if params.Conditions.Path == "" && params.Conditions.Prefix == "" {
 		params.Conditions.Prefix = "/"
 	}
 
@@ -527,23 +557,23 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 			if domain == params.Conditions.Hostname {
 				domainFound = true
 				for _, r := range virtualhost.Routes {
-					if r.Match.PathSpecifier.(*route.RouteMatch_Prefix).Prefix == params.Conditions.Prefix {
-						prefixFound = true
+					switch reflect.TypeOf(r.Match.PathSpecifier).String() {
+					case "*route.RouteMatch_Prefix":
+						if r.Match.PathSpecifier.(*route.RouteMatch_Prefix).Prefix == params.Conditions.Prefix {
+							prefixFound = true
+						}
+					case "*route.RouteMatch_Path":
+						if r.Match.PathSpecifier.(*route.RouteMatch_Path).Path == params.Conditions.Path {
+							pathFound = true
+						}
+					default:
+						return fmt.Errorf("Match PathSpecifier unknown type %s", reflect.TypeOf(r.Match.PathSpecifier).String())
 					}
 					if len(params.Conditions.Methods) > 0 {
-						methodsInHeader := []string{}
-						for _, v := range r.Match.Headers {
-							if v.Name == ":method" {
-								methodsInHeader = append(methodsInHeader, v.GetExactMatch())
-							}
-						}
-						sort.Strings(methodsInHeader)
-						sort.Strings(params.Conditions.Methods)
-						if testEqualityString(params.Conditions.Methods, methodsInHeader) {
+						if validateMethods(r.Match.Headers, params.Conditions.Methods) {
 							methodsFound = true
 						}
 					}
-
 				}
 			}
 		}
@@ -554,10 +584,15 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 	}
 	logger.Debugf("Domain found: %s", params.Conditions.Hostname)
 
-	if prefixFound != true {
+	if params.Conditions.Path == "" && prefixFound != true {
 		return fmt.Errorf("Prefix not found: %s", params.Conditions.Prefix)
 	}
 	logger.Debugf("Prefix found: %s", params.Conditions.Prefix)
+
+	if params.Conditions.Path != "" && pathFound != true {
+		return fmt.Errorf("Path not found: %s", params.Conditions.Path)
+	}
+	logger.Debugf("Path found: %s", params.Conditions.Path)
 
 	if len(params.Conditions.Methods) > 0 && !methodsFound {
 		return fmt.Errorf("Methods not found: %s", strings.Join(params.Conditions.Methods, ","))
@@ -569,6 +604,21 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 
 	return validateJWT(manager, params)
 
+}
+
+func validateMethods(headers []*route.HeaderMatcher, methods []string) bool {
+	methodsInHeader := []string{}
+	for _, v := range headers {
+		if v.Name == ":method" {
+			methodsInHeader = append(methodsInHeader, v.GetExactMatch())
+		}
+	}
+	sort.Strings(methodsInHeader)
+	sort.Strings(methods)
+	if testEqualityString(methods, methodsInHeader) {
+		return true
+	}
+	return false
 }
 
 func validateJWTProvider(listeners []cache.Resource, auth Auth) error {
@@ -656,26 +706,50 @@ func validateJWT(manager hcm.HttpConnectionManager, params ListenerParams) error
 		logger.Debugf("JWT provider found")
 
 		prefixFound := false
+		pathFound := false
 		domainFound := false
+		methodsFound := false
 		for _, rule := range jwtConfig.Rules {
-			if rule.Match.PathSpecifier.(*route.RouteMatch_Prefix).Prefix == params.Conditions.Prefix {
-				prefixFound = true
+			switch reflect.TypeOf(rule.Match.PathSpecifier).String() {
+			case "*route.RouteMatch_Prefix":
+				if rule.Match.PathSpecifier.(*route.RouteMatch_Prefix).Prefix == params.Conditions.Prefix {
+					prefixFound = true
+				}
+			case "*route.RouteMatch_Path":
+				if rule.Match.PathSpecifier.(*route.RouteMatch_Path).Path == params.Conditions.Path {
+					pathFound = true
+				}
+			default:
+				return fmt.Errorf("Match PathSpecifier unknown type %s", reflect.TypeOf(rule.Match.PathSpecifier).String())
+			}
+			if prefixFound || pathFound {
 				for _, header := range rule.Match.Headers {
 					if header.Name == ":authority" && header.HeaderMatchSpecifier.(*route.HeaderMatcher_ExactMatch).ExactMatch == params.Conditions.Hostname {
 						domainFound = true
 					}
 				}
+				if len(params.Conditions.Methods) > 0 {
+					if validateMethods(rule.Match.Headers, params.Conditions.Methods) {
+						methodsFound = true
+					}
+				}
 			}
 		}
 
-		if !prefixFound {
+		if params.Conditions.Path == "" && !prefixFound {
 			return fmt.Errorf("JWT: prefix not found")
+		}
+		if params.Conditions.Path != "" && !pathFound {
+			return fmt.Errorf("JWT: path not found")
 		}
 		if params.Conditions.Hostname != "" && !domainFound {
 			return fmt.Errorf("JWT: domain not found")
 		}
+		if len(params.Conditions.Methods) > 0 && !methodsFound {
+			return fmt.Errorf("JWT: Methods not found")
+		}
 
-		logger.Debugf("Prefix & domain found")
+		logger.Debugf("Prefix, path, methods & domain found")
 	}
 
 	return nil
