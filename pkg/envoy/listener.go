@@ -330,13 +330,21 @@ func (l *Listener) getJwtRule(conditions Conditions, clusterName string, jwtProv
 	}
 	var headers []*route.HeaderMatcher
 	if conditions.Hostname != "" {
-		headers = []*route.HeaderMatcher{
-			{
-				Name: ":authority",
-				HeaderMatchSpecifier: &route.HeaderMatcher_ExactMatch{
-					ExactMatch: conditions.Hostname,
-				},
+		headers = append(headers, &route.HeaderMatcher{
+			Name: ":authority",
+			HeaderMatchSpecifier: &route.HeaderMatcher_ExactMatch{
+				ExactMatch: conditions.Hostname,
 			},
+		})
+	}
+	if len(conditions.Methods) > 0 {
+		for _, method := range conditions.Methods {
+			headers = append(headers, &route.HeaderMatcher{
+				Name: ":method",
+				HeaderMatchSpecifier: &route.HeaderMatcher_ExactMatch{
+					ExactMatch: method,
+				},
+			})
 		}
 	}
 	if matchType == "prefix" {
