@@ -387,6 +387,16 @@ func TestUpdateListener(t *testing.T) {
 		t.Errorf("Validation failed: %s", err)
 		return
 	}
+	// add domain 7 (second time to see if there are no duplicates)
+	if err := l.updateListener(&cache, params7, paramsTLS1); err != nil {
+		t.Errorf("Error: %s", err)
+		return
+	}
+	// validate domain 7
+	if err := validateDomain(cache.listeners, params7); err != nil {
+		t.Errorf("Validation failed: %s", err)
+		return
+	}
 }
 
 func validateDeleteRoute(listeners []cache.Resource, params ListenerParams, tlsParams TLSParams) error {
@@ -709,6 +719,7 @@ func validateJWT(manager hcm.HttpConnectionManager, params ListenerParams) error
 		pathFound := false
 		domainFound := false
 		methodsFound := false
+		matchedEntries := 0
 		for _, rule := range jwtConfig.Rules {
 			switch reflect.TypeOf(rule.Match.PathSpecifier).String() {
 			case "*route.RouteMatch_Prefix":
@@ -733,7 +744,15 @@ func validateJWT(manager hcm.HttpConnectionManager, params ListenerParams) error
 						methodsFound = true
 					}
 				}
+				if domainFound && methodsFound {
+					matchedEntries++
+				}
 			}
+		}
+		logger.Debugf("matched entries: %d", matchedEntries)
+
+		if matchedEntries > 1 {
+			return fmt.Errorf("Duplicate entry found")
 		}
 
 		if params.Conditions.Path == "" && !prefixFound {
