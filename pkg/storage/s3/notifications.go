@@ -118,10 +118,14 @@ func (n *Notifications) RunSQSQueue(queueURL string) {
 					}
 				}
 			}
-			logger.Debugf("SendNotificationToPeers: %+v", req.NotificationItem)
-			err = n.SendNotificationToPeers(req, n.lookupPeers(), 5)
-			if err != nil {
-				notificationLogger.Errorf("SendNotificationToPeers error: %s", err)
+			if len(req.NotificationItem) > 0 {
+				logger.Debugf("SendNotificationToPeers: %+v", req.NotificationItem)
+				err = n.SendNotificationToPeers(req, n.lookupPeers(), 5)
+				if err != nil {
+					notificationLogger.Errorf("SendNotificationToPeers error: %s", err)
+				}
+			} else {
+				logger.Debugf("No notifications to send to peers")
 			}
 		}
 	}
