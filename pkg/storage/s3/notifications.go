@@ -3,9 +3,9 @@ package s3
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"time"
-	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -27,6 +27,7 @@ type Notifications struct {
 	queueName string
 	sqsSvc    *sqs.SQS
 	peers     map[Peer]pbN.NotificationClient
+	eTags     map[string]string
 }
 
 type Peer struct {
@@ -40,6 +41,7 @@ func newNotifications(config Config) *Notifications {
 		config:    config,
 		queueName: config.Bucket + "-notifications",
 		peers:     make(map[Peer]pbN.NotificationClient),
+		eTags:     make(map[string]string),
 	}
 }
 
@@ -104,10 +106,16 @@ func (n *Notifications) RunSQSQueue(queueURL string) {
 				// relay message using body.s3.object.key
 				// using second grpc interface (possible with service to service communication + service discovery)
 				if len(body.Records) > 0 {
-					req.NotificationItem = append(req.NotificationItem, &pbN.NotificationRequest_NotificationItem{
-						Filename:  body.Records[0].S3.Object.Key,
-						EventName: body.Records[0].EventName,
-					})
+					// check eTag
+					if !n.eTagMatches(body.Records[0].S3.Object.Key, body.Records[0].S3.Object.ETag) {
+						req.NotificationItem = append(req.NotificationItem, &pbN.NotificationRequest_NotificationItem{
+							Filename:  body.Records[0].S3.Object.Key,
+							EventName: body.Records[0].EventName,
+						})
+						n.eTags[body.Records[0].S3.Object.Key] = body.Records[0].S3.Object.ETag
+					} else {
+						logger.Debugf("eTag of s3 object %s is the same: skipping notification", body.Records[0].S3.Object.Key)
+					}
 				}
 			}
 			logger.Debugf("SendNotificationToPeers: %+v", req.NotificationItem)
@@ -117,6 +125,16 @@ func (n *Notifications) RunSQSQueue(queueURL string) {
 			}
 		}
 	}
+}
+
+func (n *Notifications) eTagMatches(key, eTag string) bool {
+	if _, ok := n.eTags[key]; !ok {
+		return false
+	}
+	if n.eTags[key] == eTag {
+		return true
+	}
+	return false
 }
 
 func (n *Notifications) SendNotificationToPeers(req pbN.NotificationRequest, peerAddresses []Peer, timeout int) error {
