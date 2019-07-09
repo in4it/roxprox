@@ -31,6 +31,26 @@ resource "aws_lb_listener" "lb-https" {
     type             = "forward"
   }
 }
+resource "aws_lb_listener_rule" "lb-https-redirect" {
+  count        = var.loadbalancer_https_forwarding ? 1 : 0
+  listener_arn = aws_alb_listener.lb-http.arn
+  priority     = 1
+
+  action {
+    type = "redirect"
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
+  }
+
+  condition {
+    field  = "path-pattern"
+    values = ["/"]
+  }
+}
+
 
 # lb listener (http)
 resource "aws_lb_listener" "lb-http" {
@@ -39,11 +59,8 @@ resource "aws_lb_listener" "lb-http" {
   protocol          = var.loadbalancer == "alb" ? "HTTP" : "TCP"
 
   default_action {
-    target_group_arn = var.loadbalancer_https_forwarding ? "" : aws_lb_target_group.envoy-proxy-http.id
-    type             = var.loadbalancer_https_forwarding ? "redirect" : "forward"
-    port             = var.loadbalancer_https_forwarding ? "443" : ""
-    protocol         = var.loadbalancer_https_forwarding ? "HTTPS" : ""
-    status_code      = var.loadbalancer_https_forwarding ? "HTTP_301" : ""
+    target_group_arn = aws_lb_target_group.envoy-proxy-http.id
+    type             = "forward"
   }
 }
 
