@@ -33,7 +33,7 @@ resource "aws_lb_listener" "lb-https" {
 }
 resource "aws_lb_listener_rule" "lb-https-redirect" {
   count        = var.loadbalancer_https_forwarding ? 1 : 0
-  listener_arn = aws_alb_listener.lb-http.arn
+  listener_arn = aws_lb_listener.lb-http.arn
   priority     = 1
 
   action {
