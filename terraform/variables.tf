@@ -50,6 +50,14 @@ variable "loadbalancer_alb_cert" {
   description = "loadbalancer alb certificate to use"
   default     = ""
 }
+variable "loadbalancer_ssl_policy" {
+  description = "ssl policy for the https listener to use"
+  default     = "ELBSecurityPolicy-2016-08"
+}
+variable "loadbalancer_https_forwarding" {
+  description = "if true, redirect all http traffic to https"
+  default     = false
+}
 
 variable "tls_listener" {
   description = "run a service for a tls (https) listener (true/false)"
