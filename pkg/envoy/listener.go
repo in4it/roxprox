@@ -275,6 +275,13 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 			},
 			Headers: headers,
 		}
+	} else if matchType == "regex" {
+		match = route.RouteMatch{
+			PathSpecifier: &route.RouteMatch_Regex{
+				Regex: targetPrefix,
+			},
+			Headers: headers,
+		}
 	}
 
 	routes := []route.Route{
@@ -361,6 +368,13 @@ func (l *Listener) getJwtRule(conditions Conditions, clusterName string, jwtProv
 		match = &route.RouteMatch{
 			PathSpecifier: &route.RouteMatch_Path{
 				Path: conditions.Path,
+			},
+			Headers: headers,
+		}
+	} else if matchType == "regex" {
+		match = &route.RouteMatch{
+			PathSpecifier: &route.RouteMatch_Regex{
+				Regex: conditions.Regex,
 			},
 			Headers: headers,
 		}
@@ -615,8 +629,13 @@ func (l *Listener) getListenerAttributes(params ListenerParams, paramsTLS TLSPar
 		matchType = "path"
 		targetPrefix = params.Conditions.Path
 	}
+	if params.Conditions.Regex != "" {
+		matchType = "regex"
+		targetPrefix = params.Conditions.Regex
+	}
 
-	if params.Conditions.Prefix == "" && params.Conditions.Path == "" {
+	// default to prefix if path/prefix/regex is not defined
+	if params.Conditions.Prefix == "" && params.Conditions.Path == "" && params.Conditions.Regex == "" {
 		matchType = "prefix"
 		targetPrefix = "/"
 	}
@@ -898,6 +917,10 @@ func (l *Listener) cmpMatch(a *route.RouteMatch, b *route.RouteMatch) bool {
 	if a.GetPrefix() != b.GetPrefix() {
 		return false
 	}
+	if a.GetPrefix() != b.GetPrefix() {
+		return false
+	}
+
 	aHeaders := a.GetHeaders()
 	bHeaders := b.GetHeaders()
 

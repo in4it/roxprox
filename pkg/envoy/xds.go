@@ -134,6 +134,7 @@ func (x *XDS) RemoveRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 						Hostname: condition.Hostname,
 						Prefix:   condition.Prefix,
 						Path:     condition.Path,
+						Regex:    condition.Regex,
 						Methods:  condition.Methods,
 					},
 				},
@@ -150,7 +151,7 @@ func (x *XDS) RemoveRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 			}
 			workQueueItems = append(workQueueItems, newWorkQueueItem)
 		} else {
-			logger.Debugf("Not removing rule with conditions %s %s%s (is identical to other condition in other rule)", condition.Hostname, condition.Prefix, condition.Path)
+			logger.Debugf("Not removing rule with conditions %s %s%s%s (is identical to other condition in other rule)", condition.Hostname, condition.Prefix, condition.Path, condition.Regex)
 		}
 	}
 	// delete cluster (has the same name as the rule)
@@ -242,6 +243,7 @@ func (x *XDS) getRuleDeletions(cachedObject *pkgApi.Object, conditions []pkgApi.
 						Hostname: cachedCondition.Hostname,
 						Prefix:   cachedCondition.Prefix,
 						Path:     cachedCondition.Path,
+						Regex:    cachedCondition.Regex,
 						Methods:  cachedCondition.Methods,
 					},
 				},
@@ -298,7 +300,7 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 				return []WorkQueueItem{}, fmt.Errorf("Validation error: rule with certificate, but without a hostname condition - ignoring rule")
 
 			}
-			if condition.Hostname != "" || condition.Prefix != "" || condition.Path != "" {
+			if condition.Hostname != "" || condition.Prefix != "" || condition.Path != "" || condition.Regex != "" {
 				workQueueItem := WorkQueueItem{
 					Action: "createListener",
 					ListenerParams: ListenerParams{
@@ -308,6 +310,7 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 							Hostname: condition.Hostname,
 							Prefix:   condition.Prefix,
 							Path:     condition.Path,
+							Regex:    condition.Regex,
 							Methods:  condition.Methods,
 						},
 					},
