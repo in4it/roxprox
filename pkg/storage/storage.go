@@ -16,7 +16,7 @@ type Config struct {
 type Storage interface {
 	GetError(name string) error
 	ListObjects() ([]api.Object, error)
-	GetObject(name string) (api.Object, error)
+	GetObject(name string) ([]api.Object, error)
 	ListCerts() (map[string]string, error)
 	GetCert(name string) (string, error)
 	GetCertBundle(name string) (string, error)
@@ -29,7 +29,7 @@ type Storage interface {
 	GetPrivateKey(name string) (*rsa.PrivateKey, error)
 	GetPrivateKeyPem(name string) (string, error)
 	WriteChallenge(name string, data []byte) error
-	GetCachedObjectName(filename string) (*api.Object, error)
+	GetCachedObjectName(filename string) ([]*api.Object, error)
 	DeleteCachedObject(filename string) error
 	CountCachedObjectByCondition(condition api.RuleConditions) int
 	GetCachedRule(name string) *api.Object

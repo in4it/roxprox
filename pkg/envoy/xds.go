@@ -481,41 +481,45 @@ func (x *XDS) receiveFromQueue(queue chan []*n.NotificationRequest_NotificationI
 	}
 }
 func (x *XDS) putObject(filename string) ([]WorkQueueItem, error) {
-	object, err := x.s.GetObject(filename)
+	objects, err := x.s.GetObject(filename)
 	if err != nil {
 		return []WorkQueueItem{}, fmt.Errorf("Couldn't get new rule from storage: %s", err)
 	}
-	if object.Kind == "rule" {
-		rule := object.Data.(pkgApi.Rule)
-		newItems, err := x.ImportRule(rule)
-		if err != nil {
-			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
+	for _, object := range objects {
+		if object.Kind == "rule" {
+			rule := object.Data.(pkgApi.Rule)
+			newItems, err := x.ImportRule(rule)
+			if err != nil {
+				return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
+			}
+			return newItems, nil
 		}
-		return newItems, nil
-	}
-	if object.Kind == "jwtProvider" {
-		newItems, err := x.ImportObject(object)
-		if err != nil {
-			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new object: %s", err)
+		if object.Kind == "jwtProvider" {
+			newItems, err := x.ImportObject(object)
+			if err != nil {
+				return []WorkQueueItem{}, fmt.Errorf("Couldn't import new object: %s", err)
+			}
+			return newItems, nil
 		}
-		return newItems, nil
 	}
 	return []WorkQueueItem{}, nil
 }
 func (x *XDS) deleteObject(filename string) ([]WorkQueueItem, error) {
-	object, err := x.s.GetCachedObjectName(filename)
+	objects, err := x.s.GetCachedObjectName(filename)
 	if err != nil {
 		return []WorkQueueItem{}, fmt.Errorf("Couldn't get new rule from storage cache: %s", err)
 	}
-	if object.Kind == "rule" {
-		rule := object.Data.(pkgApi.Rule)
-		newItems, err := x.RemoveRule(rule)
-		if err != nil {
-			return []WorkQueueItem{}, fmt.Errorf("Couldn't remove rule: %s", err)
+	for _, object := range objects {
+		if object.Kind == "rule" {
+			rule := object.Data.(pkgApi.Rule)
+			newItems, err := x.RemoveRule(rule)
+			if err != nil {
+				return []WorkQueueItem{}, fmt.Errorf("Couldn't remove rule: %s", err)
+			}
+			// delete cache entry
+			x.s.DeleteCachedObject(filename)
+			return newItems, nil
 		}
-		// delete cache entry
-		x.s.DeleteCachedObject(filename)
-		return newItems, nil
 	}
 	return []WorkQueueItem{}, nil
 
