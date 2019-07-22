@@ -267,6 +267,16 @@ func TestUpdateListener(t *testing.T) {
 			RemoteJwks:  "https://remotejwks3.example.com",
 		},
 	}
+	params8 := ListenerParams{
+		Name:           "test_8",
+		Protocol:       "http",
+		TargetHostname: "www.test.inv",
+		Conditions: Conditions{
+			Hostname: "hostname1.example.com",
+			Regex:    "/test8/(.*)",
+			Methods:  []string{"POST", "DELETE"},
+		},
+	}
 
 	listener := l.createListener(params1, paramsTLS1)
 	cache.listeners = append(cache.listeners, listener)
@@ -394,6 +404,16 @@ func TestUpdateListener(t *testing.T) {
 	}
 	// validate domain 7
 	if err := validateDomain(cache.listeners, params7); err != nil {
+		t.Errorf("Validation failed: %s", err)
+		return
+	}
+	// add domain 8 (regex support)
+	if err := l.updateListener(&cache, params8, paramsTLS1); err != nil {
+		t.Errorf("Error: %s", err)
+		return
+	}
+	// validate domain 8
+	if err := validateDomain(cache.listeners, params8); err != nil {
 		t.Errorf("Validation failed: %s", err)
 		return
 	}
@@ -552,6 +572,7 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 	domainFound := false
 	prefixFound := false
 	pathFound := false
+	regexFound := false
 	methodsFound := false
 
 	if params.Conditions.Hostname == "" {
@@ -576,6 +597,10 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 						if r.Match.PathSpecifier.(*route.RouteMatch_Path).Path == params.Conditions.Path {
 							pathFound = true
 						}
+					case "*route.RouteMatch_Regex":
+						if r.Match.PathSpecifier.(*route.RouteMatch_Regex).Regex == params.Conditions.Regex {
+							regexFound = true
+						}
 					default:
 						return fmt.Errorf("Match PathSpecifier unknown type %s", reflect.TypeOf(r.Match.PathSpecifier).String())
 					}
@@ -594,7 +619,7 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 	}
 	logger.Debugf("Domain found: %s", params.Conditions.Hostname)
 
-	if params.Conditions.Path == "" && prefixFound != true {
+	if params.Conditions.Path == "" && params.Conditions.Regex == "" && prefixFound != true {
 		return fmt.Errorf("Prefix not found: %s", params.Conditions.Prefix)
 	}
 	logger.Debugf("Prefix found: %s", params.Conditions.Prefix)
@@ -603,6 +628,11 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 		return fmt.Errorf("Path not found: %s", params.Conditions.Path)
 	}
 	logger.Debugf("Path found: %s", params.Conditions.Path)
+
+	if params.Conditions.Regex != "" && regexFound != true {
+		return fmt.Errorf("Regex not found: %s", params.Conditions.Regex)
+	}
+	logger.Debugf("Regex found: %s", params.Conditions.Regex)
 
 	if len(params.Conditions.Methods) > 0 && !methodsFound {
 		return fmt.Errorf("Methods not found: %s", strings.Join(params.Conditions.Methods, ","))
@@ -717,6 +747,7 @@ func validateJWT(manager hcm.HttpConnectionManager, params ListenerParams) error
 
 		prefixFound := false
 		pathFound := false
+		regexFound := false
 		domainFound := false
 		methodsFound := false
 		matchedEntries := 0
@@ -730,10 +761,14 @@ func validateJWT(manager hcm.HttpConnectionManager, params ListenerParams) error
 				if rule.Match.PathSpecifier.(*route.RouteMatch_Path).Path == params.Conditions.Path {
 					pathFound = true
 				}
+			case "*route.RouteMatch_Regex":
+				if rule.Match.PathSpecifier.(*route.RouteMatch_Regex).Regex == params.Conditions.Regex {
+					regexFound = true
+				}
 			default:
 				return fmt.Errorf("Match PathSpecifier unknown type %s", reflect.TypeOf(rule.Match.PathSpecifier).String())
 			}
-			if prefixFound || pathFound {
+			if prefixFound || pathFound || regexFound {
 				for _, header := range rule.Match.Headers {
 					if header.Name == ":authority" && header.HeaderMatchSpecifier.(*route.HeaderMatcher_ExactMatch).ExactMatch == params.Conditions.Hostname {
 						domainFound = true

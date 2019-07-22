@@ -64,6 +64,7 @@ type Conditions struct {
 	Hostname string
 	Prefix   string
 	Path     string
+	Regex    string
 	Methods  []string
 }
 type Auth struct {
