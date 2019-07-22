@@ -59,30 +59,4 @@ resource "aws_ecs_service" "roxprox" {
   }
 }
 
-# service if type is alb
-#resource "aws_ecs_service" "roxprox_alb" {
-#  count    = var.loadbalancer == "alb" ? 1 : 0
-#  name = "roxprox"
-#  cluster = aws_ecs_cluster.roxprox.id
-#  desired_count = var.control_plane_count
-#  task_definition = aws_ecs_task_definition.roxprox.arn
-#  launch_type = "FARGATE"
-#
-#  network_configuration {
-#    subnets = var.subnets
-#    security_groups = [aws_security_group.roxprox.id]
-#    assign_public_ip = false
-#  }
-#
-#  service_registries {
-#    registry_arn = aws_service_discovery_service.roxprox.arn
-#  }
-#
-#  load_balancer {
-#    target_group_arn = "${aws_lb_target_group.ecs-service.id}"
-#    container_name   = "roxprox"
-#    container_port   = "8080"
-#  }
-#}
-
 
