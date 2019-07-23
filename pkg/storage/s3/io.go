@@ -121,31 +121,33 @@ func (s *S3Storage) GetObject(filename string) ([]api.Object, error) {
 		return objects, err
 	}
 	for _, contentsSplitted := range strings.Split(string(contents.Bytes()), "---") {
-		var object api.Object
-		err = yaml.Unmarshal([]byte(contentsSplitted), &object)
-		if err != nil {
-			return objects, err
-		}
-		switch object.Kind {
-		case "rule":
-			var rule api.Rule
-			err = yaml.Unmarshal([]byte(contentsSplitted), &rule)
+		if strings.TrimSpace(contentsSplitted) != "" {
+			var object api.Object
+			err = yaml.Unmarshal([]byte(contentsSplitted), &object)
 			if err != nil {
 				return objects, err
 			}
-			object.Data = rule
-		case "jwtProvider":
-			var jwtProvider api.JwtProvider
-			err = yaml.Unmarshal([]byte(contentsSplitted), &jwtProvider)
-			if err != nil {
-				return objects, err
+			switch object.Kind {
+			case "rule":
+				var rule api.Rule
+				err = yaml.Unmarshal([]byte(contentsSplitted), &rule)
+				if err != nil {
+					return objects, err
+				}
+				object.Data = rule
+			case "jwtProvider":
+				var jwtProvider api.JwtProvider
+				err = yaml.Unmarshal([]byte(contentsSplitted), &jwtProvider)
+				if err != nil {
+					return objects, err
+				}
+				object.Data = jwtProvider
+			default:
+				return objects, errors.New("Object in wrong format")
 			}
-			object.Data = jwtProvider
-		default:
-			return objects, errors.New("Object in wrong format")
+			objectsP = append(objectsP, &object)
+			objects = append(objects, object)
 		}
-		objectsP = append(objectsP, &object)
-		objects = append(objects, object)
 	}
 	// keep a cache of filename -> rule name matching
 	s.cache[filename] = objectsP

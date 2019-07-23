@@ -1,6 +1,7 @@
 package envoy
 
 import (
+	"strings"
 	"testing"
 
 	pkgApi "github.com/in4it/roxprox/pkg/api"
@@ -40,11 +41,13 @@ func TestPutObject(t *testing.T) {
 		return
 	}
 	for _, filename := range ObjectFileNames {
-		if obj, err := x.s.GetCachedObjectName(filename); err != nil {
+		if objs, err := x.s.GetCachedObjectName(filename); err != nil {
 			t.Errorf("Error while getting cache: %s", err)
 		} else {
-			if obj.Kind != "rule" && obj.Kind != "jwtProvider" {
-				t.Errorf("Object in cache of unknown format: %s", obj.Kind)
+			for _, obj := range objs {
+				if obj.Kind != "rule" && obj.Kind != "jwtProvider" {
+					t.Errorf("Object in cache of unknown format: %s", obj.Kind)
+				}
 			}
 		}
 	}
@@ -136,22 +139,84 @@ func TestChange(t *testing.T) {
 		return
 	}
 
-	newObject, err := x.s.GetObject("test1-change.yaml")
+	newObjects, err := x.s.GetObject("test1-change.yaml")
 	if err != nil {
 		t.Errorf("Couldn't get new rule from storage: %s", err)
 		return
 	}
 
-	rule := newObject.Data.(pkgApi.Rule)
-	newItems, err := x.ImportRule(rule)
+	for _, newObject := range newObjects {
+		rule := newObject.Data.(pkgApi.Rule)
+		newItems, err := x.ImportRule(rule)
+		if err != nil {
+			t.Errorf("Couldn't import new rule: %s", err)
+			return
+		}
+		deleteRouteFound := false
+		for _, v := range newItems {
+			if v.Action == "deleteRoute" {
+				deleteRouteFound = true
+			}
+		}
+		if !deleteRouteFound {
+			t.Errorf("Delete route not found")
+			return
+		}
+
+		logger.Debugf("Delete route found")
+
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+}
+func TestMultipleRulesChange(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	workQueueItems := []WorkQueueItem{}
+	s, err := initStorage()
 	if err != nil {
-		t.Errorf("Couldn't import new rule: %s", err)
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+
+	workQueueItems, err = x.putObject("test-multiplerules.yaml")
+	if err != nil {
+		t.Errorf("PutObject failed: %s", err)
+		return
+	}
+
+	elementsFound := 0
+	for _, item := range workQueueItems {
+		if strings.HasPrefix(item.ListenerParams.Name, "test-multiplerules-") {
+			elementsFound++
+		}
+	}
+
+	if elementsFound != 6 {
+		t.Errorf("Should have found 6 Listener elements (one for every match) in workQueueItems (found %d)", elementsFound)
+		return
+
+	}
+
+	_, err = x.workQueue.Submit(workQueueItems)
+	if err != nil {
+		t.Errorf("WorkQueue error: %s", err)
+		return
+	}
+
+	// set storage config to new directory. (TODO)
+	newItems, err := x.putObject("test-multiplerules-change.yaml")
+	if err != nil {
+		t.Errorf("putObject error: %s", err)
 		return
 	}
 
 	deleteRouteFound := false
 	for _, v := range newItems {
-		if v.Action == "deleteRoute" {
+		if v.Action == "deleteRoute" && v.ListenerParams.Conditions.Hostname == "test-multiplerules-2.example.com" {
 			deleteRouteFound = true
 		}
 	}
@@ -162,10 +227,10 @@ func TestChange(t *testing.T) {
 
 	logger.Debugf("Delete route found")
 
-	_, err = x.workQueue.Submit(newItems)
+	/*_, err = x.workQueue.Submit(newItems)
 	if err != nil {
 		t.Errorf("WorkQueue error: %s", err)
 		return
-	}
+	}*/
 
 }

@@ -86,31 +86,33 @@ func (l *LocalStorage) GetObject(name string) ([]api.Object, error) {
 		return objects, err
 	}
 	for _, contentsSplitted := range strings.Split(string(contents), "---") {
-		var object api.Object
-		err = yaml.Unmarshal([]byte(contentsSplitted), &object)
-		if err != nil {
-			return objects, err
-		}
-		switch object.Kind {
-		case "rule":
-			var rule api.Rule
-			err = yaml.Unmarshal([]byte(contentsSplitted), &rule)
+		if strings.TrimSpace(contentsSplitted) != "" {
+			var object api.Object
+			err = yaml.Unmarshal([]byte(contentsSplitted), &object)
 			if err != nil {
 				return objects, err
 			}
-			object.Data = rule
-		case "jwtProvider":
-			var jwtProvider api.JwtProvider
-			err = yaml.Unmarshal([]byte(contentsSplitted), &jwtProvider)
-			if err != nil {
-				return objects, err
+			switch object.Kind {
+			case "rule":
+				var rule api.Rule
+				err = yaml.Unmarshal([]byte(contentsSplitted), &rule)
+				if err != nil {
+					return objects, err
+				}
+				object.Data = rule
+			case "jwtProvider":
+				var jwtProvider api.JwtProvider
+				err = yaml.Unmarshal([]byte(contentsSplitted), &jwtProvider)
+				if err != nil {
+					return objects, err
+				}
+				object.Data = jwtProvider
+			default:
+				return objects, errors.New("Rule in wrong format")
 			}
-			object.Data = jwtProvider
-		default:
-			return objects, errors.New("Rule in wrong format")
+			objects = append(objects, object)
+			objectsP = append(objectsP, &object)
 		}
-		objects = append(objects, object)
-		objectsP = append(objectsP, &object)
 	}
 	// keep a cache of filename -> rule name matching
 	l.cache[name] = objectsP

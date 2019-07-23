@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/url"
 	"strconv"
+	"strings"
 
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
@@ -228,13 +229,27 @@ func (x *XDS) getRuleDeletions(cachedObject *pkgApi.Object, conditions []pkgApi.
 	cachedConditions := cachedRule.Spec.Conditions
 	for _, cachedCondition := range cachedConditions {
 		conditionFound := false
-		for _, condition := range conditions {
+		conditionKey := -1
+		for k, condition := range conditions {
 			if cmp.Equal(condition, cachedCondition) {
 				conditionFound = true
+				conditionKey = k
 			}
 		}
-		if !conditionFound {
-			logger.Debugf("Condition found in cache and not in new version, submitting removal")
+		if conditionFound {
+			logger.Debugf("Condition found in cache and in new version (hostname: %s prefix: %s path: %s regex: %s methods: %s)",
+				conditions[conditionKey].Hostname,
+				conditions[conditionKey].Prefix,
+				conditions[conditionKey].Path,
+				conditions[conditionKey].Regex,
+				strings.Join(conditions[conditionKey].Methods, ","))
+		} else {
+			logger.Debugf("Condition found in cache and not in new version, submitting removal of hostname: %s prefix: %s path: %s regex: %s methods: %s",
+				cachedCondition.Hostname,
+				cachedCondition.Prefix,
+				cachedCondition.Path,
+				cachedCondition.Regex,
+				strings.Join(cachedCondition.Methods, ","))
 			newWorkQueueItem := WorkQueueItem{
 				Action: "deleteRoute",
 				ListenerParams: ListenerParams{
@@ -480,29 +495,45 @@ func (x *XDS) receiveFromQueue(queue chan []*n.NotificationRequest_NotificationI
 		}
 	}
 }
+
 func (x *XDS) putObject(filename string) ([]WorkQueueItem, error) {
+	var workQueueItems []WorkQueueItem
+
+	// retrieve cached version
+	cachedObjects, err := x.s.GetCachedObjectName(filename)
+	if err != nil {
+		logger.Errorf("Couldn't find old object in cache (filename: %s)", filename)
+	}
+
 	objects, err := x.s.GetObject(filename)
 	if err != nil {
-		return []WorkQueueItem{}, fmt.Errorf("Couldn't get new rule from storage: %s", err)
+		return workQueueItems, fmt.Errorf("Couldn't get new rule from storage: %s", err)
 	}
+
+	// compare new file with what's in cache, schedule cachedObjects that are not in the new object for deletion
+	if cachedObjects != nil {
+		workQueueItems = append(workQueueItems, x.getWorkingItemsForRemovedObjects(objects, cachedObjects)...)
+	}
+
+	// add new items
 	for _, object := range objects {
 		if object.Kind == "rule" {
 			rule := object.Data.(pkgApi.Rule)
 			newItems, err := x.ImportRule(rule)
 			if err != nil {
-				return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
+				return workQueueItems, fmt.Errorf("Couldn't import new rule: %s", err)
 			}
-			return newItems, nil
+			workQueueItems = append(workQueueItems, newItems...)
 		}
 		if object.Kind == "jwtProvider" {
 			newItems, err := x.ImportObject(object)
 			if err != nil {
-				return []WorkQueueItem{}, fmt.Errorf("Couldn't import new object: %s", err)
+				return workQueueItems, fmt.Errorf("Couldn't import new object: %s", err)
 			}
-			return newItems, nil
+			workQueueItems = append(workQueueItems, newItems...)
 		}
 	}
-	return []WorkQueueItem{}, nil
+	return workQueueItems, nil
 }
 func (x *XDS) deleteObject(filename string) ([]WorkQueueItem, error) {
 	objects, err := x.s.GetCachedObjectName(filename)
@@ -523,4 +554,30 @@ func (x *XDS) deleteObject(filename string) ([]WorkQueueItem, error) {
 	}
 	return []WorkQueueItem{}, nil
 
+}
+
+func (x *XDS) getWorkingItemsForRemovedObjects(objects []pkgApi.Object, cachedObjects []*pkgApi.Object) []WorkQueueItem {
+	var workQueueItems []WorkQueueItem
+	for _, cachedObject := range cachedObjects {
+		objectFound := false
+		for _, object := range objects {
+			if object.Metadata.Name == cachedObject.Metadata.Name {
+				objectFound = true
+			}
+		}
+		if !objectFound {
+			if cachedObject.Kind == "rule" {
+				rule := cachedObject.Data.(pkgApi.Rule)
+				newItems, err := x.RemoveRule(rule)
+				if err != nil {
+					logger.Errorf("Couldn't remove rule: %s", err)
+				} else {
+					logger.Debugf("Adding work item to delete rule with name %s", cachedObject.Metadata.Name)
+					workQueueItems = append(workQueueItems, newItems...)
+				}
+			}
+
+		}
+	}
+	return workQueueItems
 }
