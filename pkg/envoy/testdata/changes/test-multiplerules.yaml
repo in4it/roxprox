@@ -1,0 +1,26 @@
+---
+api: proxy.in4it.io/v1
+kind: rule
+metadata:
+  name: test-multiplerules-1
+spec:
+  conditions:
+    - hostname: test-multiplerules-1.example.com
+  actions:
+    - proxy:
+        hostname: target-example.com
+        port: 443
+---
+api: proxy.in4it.io/v1
+kind: rule
+metadata:
+  name: test-multiplerules-2
+spec:
+  conditions:
+    - hostname: test-multiplerules-3.example.com
+    - hostname: test-multiplerules-4.example.com
+      path: /test-multiplerules-2
+  actions:
+    - proxy:
+        hostname: target-example.com
+        port: 443
