@@ -69,6 +69,19 @@ func NewS3Storage(config Config) (*S3Storage, error) {
 	return &S3Storage{config: config, svc: svc, sess: sess, cache: make(map[string][]*api.Object)}, nil
 }
 
+func (l *S3Storage) SetLogLevel(loglevel string) {
+	if loglevel == "debug" {
+		logger.SetLogLevel(loggo.DEBUG)
+	}
+}
+
+/*
+ * SetStoragePath allows you to set a new path
+ */
+func (l *S3Storage) SetStoragePath(prefix string) {
+	l.config.Prefix = prefix
+}
+
 func (s *S3Storage) GetError(name string) error {
 	if name == "errNotExist" {
 		return errNotExist

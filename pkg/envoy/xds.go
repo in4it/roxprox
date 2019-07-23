@@ -122,11 +122,21 @@ func (x *XDS) ImportObjects() error {
 	return nil
 }
 
-func (x *XDS) RemoveRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
+func (x *XDS) RemoveRule(rule pkgApi.Rule, ruleStillPresent bool) ([]WorkQueueItem, error) {
+	// A s3 delete notification might happen after an add, so we're not removing the rule if there is an exact match
+	var expectedRules int
+	if ruleStillPresent {
+		expectedRules = 1
+	} else {
+		expectedRules = 0
+	}
 	// check if matching is in use
 	var workQueueItems []WorkQueueItem
 	for _, condition := range rule.Spec.Conditions {
-		if x.s.CountCachedObjectByCondition(condition) > 1 {
+		if x.s.CountCachedObjectByCondition(condition) > expectedRules {
+			// If there is only 1 match, then we're not going to remove the rule condition
+			logger.Debugf("Not removing rule with conditions %s %s%s%s (is identical to other condition in other rule)", condition.Hostname, condition.Prefix, condition.Path, condition.Regex)
+		} else {
 			newWorkQueueItem := WorkQueueItem{
 				Action: "deleteRoute",
 				ListenerParams: ListenerParams{
@@ -151,8 +161,6 @@ func (x *XDS) RemoveRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 				}
 			}
 			workQueueItems = append(workQueueItems, newWorkQueueItem)
-		} else {
-			logger.Debugf("Not removing rule with conditions %s %s%s%s (is identical to other condition in other rule)", condition.Hostname, condition.Prefix, condition.Path, condition.Regex)
 		}
 	}
 	// delete cluster (has the same name as the rule)
@@ -237,14 +245,14 @@ func (x *XDS) getRuleDeletions(cachedObject *pkgApi.Object, conditions []pkgApi.
 			}
 		}
 		if conditionFound {
-			logger.Debugf("Condition found in cache and in new version (hostname: %s prefix: %s path: %s regex: %s methods: %s)",
+			logger.Debugf("Condition present (hostname: %s prefix: %s path: %s regex: %s methods: %s)",
 				conditions[conditionKey].Hostname,
 				conditions[conditionKey].Prefix,
 				conditions[conditionKey].Path,
 				conditions[conditionKey].Regex,
 				strings.Join(conditions[conditionKey].Methods, ","))
 		} else {
-			logger.Debugf("Condition found in cache and not in new version, submitting removal of hostname: %s prefix: %s path: %s regex: %s methods: %s",
+			logger.Debugf("Condition not present in new version, submitting removal of hostname: %s prefix: %s path: %s regex: %s methods: %s",
 				cachedCondition.Hostname,
 				cachedCondition.Prefix,
 				cachedCondition.Path,
@@ -301,11 +309,6 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 			}
 			workQueueItems = append(workQueueItems, workQueueItem)
 		}
-	}
-	if cachedObject := x.s.GetCachedRule(rule.Metadata.Name); cachedObject != nil {
-		workQueueItems = append(workQueueItems, x.getRuleDeletions(cachedObject, rule.Spec.Conditions)...)
-	} else {
-		logger.Debugf("No cached object found, this is a new object")
 	}
 	if targetHostname != "" {
 		// create listener that proxies to targetHostname
@@ -502,7 +505,7 @@ func (x *XDS) putObject(filename string) ([]WorkQueueItem, error) {
 	// retrieve cached version
 	cachedObjects, err := x.s.GetCachedObjectName(filename)
 	if err != nil {
-		logger.Errorf("Couldn't find old object in cache (filename: %s)", filename)
+		logger.Infof("Couldn't find old object in cache (filename: %s)", filename)
 	}
 
 	objects, err := x.s.GetObject(filename)
@@ -519,6 +522,7 @@ func (x *XDS) putObject(filename string) ([]WorkQueueItem, error) {
 	for _, object := range objects {
 		if object.Kind == "rule" {
 			rule := object.Data.(pkgApi.Rule)
+			// add new rules
 			newItems, err := x.ImportRule(rule)
 			if err != nil {
 				return workQueueItems, fmt.Errorf("Couldn't import new rule: %s", err)
@@ -543,7 +547,7 @@ func (x *XDS) deleteObject(filename string) ([]WorkQueueItem, error) {
 	for _, object := range objects {
 		if object.Kind == "rule" {
 			rule := object.Data.(pkgApi.Rule)
-			newItems, err := x.RemoveRule(rule)
+			newItems, err := x.RemoveRule(rule, true /* rule still present? */)
 			if err != nil {
 				return []WorkQueueItem{}, fmt.Errorf("Couldn't remove rule: %s", err)
 			}
@@ -557,6 +561,8 @@ func (x *XDS) deleteObject(filename string) ([]WorkQueueItem, error) {
 }
 
 func (x *XDS) getWorkingItemsForRemovedObjects(objects []pkgApi.Object, cachedObjects []*pkgApi.Object) []WorkQueueItem {
+
+	// 1. check whether we need to remove full objects
 	var workQueueItems []WorkQueueItem
 	for _, cachedObject := range cachedObjects {
 		objectFound := false
@@ -568,7 +574,7 @@ func (x *XDS) getWorkingItemsForRemovedObjects(objects []pkgApi.Object, cachedOb
 		if !objectFound {
 			if cachedObject.Kind == "rule" {
 				rule := cachedObject.Data.(pkgApi.Rule)
-				newItems, err := x.RemoveRule(rule)
+				newItems, err := x.RemoveRule(rule, false /* cache is already updated and rule is not present */)
 				if err != nil {
 					logger.Errorf("Couldn't remove rule: %s", err)
 				} else {
@@ -577,6 +583,16 @@ func (x *XDS) getWorkingItemsForRemovedObjects(objects []pkgApi.Object, cachedOb
 				}
 			}
 
+		}
+	}
+
+	// 2. check whether we need to remove rules within objects
+	for _, cachedObject := range cachedObjects {
+		for _, object := range objects {
+			if object.Metadata.Name == cachedObject.Metadata.Name {
+				rule := object.Data.(pkgApi.Rule)
+				workQueueItems = append(workQueueItems, x.getRuleDeletions(cachedObject, rule.Spec.Conditions)...)
+			}
 		}
 	}
 	return workQueueItems

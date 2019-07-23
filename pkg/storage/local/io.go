@@ -48,6 +48,25 @@ func (l *LocalStorage) GetError(name string) error {
 	return nil
 }
 
+func (l *LocalStorage) SetLogLevel(loglevel string) {
+	if loglevel == "debug" {
+		logger.SetLogLevel(loggo.DEBUG)
+	}
+}
+
+/*
+ * SetStoragePath allows you to set a new path
+ */
+func (l *LocalStorage) SetStoragePath(path string) {
+	wd, err := os.Getwd()
+	if err == nil {
+		l.dir = wd + "/" + path
+	} else {
+		l.dir = path
+	}
+	l.config.Path = path
+}
+
 /*
  * ListObjects read directory contents and converts contents into rules
  */
@@ -115,6 +134,7 @@ func (l *LocalStorage) GetObject(name string) ([]api.Object, error) {
 		}
 	}
 	// keep a cache of filename -> rule name matching
+	logger.Debugf("Updating cache for %s (%d objects)", name, len(objectsP))
 	l.cache[name] = objectsP
 	return objects, nil
 }

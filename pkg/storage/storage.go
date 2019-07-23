@@ -14,6 +14,8 @@ type Config struct {
 }
 
 type Storage interface {
+	SetLogLevel(loglevel string)
+	SetStoragePath(path string)
 	GetError(name string) error
 	ListObjects() ([]api.Object, error)
 	GetObject(name string) ([]api.Object, error)

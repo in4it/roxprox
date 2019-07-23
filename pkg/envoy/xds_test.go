@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	pkgApi "github.com/in4it/roxprox/pkg/api"
 	"github.com/in4it/roxprox/pkg/storage"
 	localStorage "github.com/in4it/roxprox/pkg/storage/local"
 	"github.com/juju/loggo"
@@ -93,8 +92,8 @@ func TestDeleteObject(t *testing.T) {
 		t.Errorf("expected 2 work queue items")
 		return
 	}
-	if workQueueItems[0].ListenerParams.Conditions.Hostname != "test1-1.example.com" {
-		t.Errorf("Expected test1-1.example.com to be deleted")
+	if workQueueItems[0].ListenerParams.Conditions.Hostname != "test1-2.example.com" {
+		t.Errorf("Expected test1-2.example.com to be deleted")
 		return
 	}
 	if workQueueItems[1].Action != "deleteCluster" {
@@ -139,38 +138,43 @@ func TestChange(t *testing.T) {
 		return
 	}
 
-	newObjects, err := x.s.GetObject("test1-change.yaml")
+	x.s.SetStoragePath("testdata/changes")
+	newItems, err := x.putObject("test1.yaml")
 	if err != nil {
-		t.Errorf("Couldn't get new rule from storage: %s", err)
+		t.Errorf("putObject error: %s", err)
 		return
 	}
 
-	for _, newObject := range newObjects {
-		rule := newObject.Data.(pkgApi.Rule)
-		newItems, err := x.ImportRule(rule)
-		if err != nil {
-			t.Errorf("Couldn't import new rule: %s", err)
-			return
+	deleteRouteFound := false
+	additionFound := false
+	for _, v := range newItems {
+		if v.Action == "deleteRoute" && v.ListenerParams.Conditions.Hostname == "test1-1.example.com" {
+			deleteRouteFound = true
 		}
-		deleteRouteFound := false
-		for _, v := range newItems {
-			if v.Action == "deleteRoute" {
-				deleteRouteFound = true
-			}
+		if v.Action == "createListener" && v.ListenerParams.Conditions.Hostname == "test1-3.example.com" {
+			additionFound = true
 		}
-		if !deleteRouteFound {
-			t.Errorf("Delete route not found")
-			return
-		}
-
-		logger.Debugf("Delete route found")
-
-		_, err = x.workQueue.Submit(newItems)
-		if err != nil {
-			t.Errorf("WorkQueue error: %s", err)
-			return
+		if v.Action == "deleteRoute" && v.ListenerParams.Conditions.Hostname == "test1-2.example.com" {
+			t.Errorf("Found deleteRoute for test1-2.example.com (Found: %+v)", v)
 		}
 	}
+	if !deleteRouteFound {
+		t.Errorf("Delete route not found")
+		return
+	}
+	if !additionFound {
+		t.Errorf("additional condition not found")
+		return
+	}
+
+	logger.Debugf("Delete route found, additional condition found")
+
+	_, err = x.workQueue.Submit(newItems)
+	if err != nil {
+		t.Errorf("WorkQueue error: %s", err)
+		return
+	}
+
 }
 func TestMultipleRulesChange(t *testing.T) {
 	logger.SetLogLevel(loggo.DEBUG)
@@ -207,30 +211,46 @@ func TestMultipleRulesChange(t *testing.T) {
 		return
 	}
 
-	// set storage config to new directory. (TODO)
-	newItems, err := x.putObject("test-multiplerules-change.yaml")
+	x.s.SetStoragePath("testdata/changes")
+	newItems, err := x.putObject("test-multiplerules.yaml")
 	if err != nil {
 		t.Errorf("putObject error: %s", err)
 		return
 	}
 
-	deleteRouteFound := false
+	deleteRoute1Found := false
+	deleteRoute2Found := false
+	deleteRoute3Found := false
 	for _, v := range newItems {
 		if v.Action == "deleteRoute" && v.ListenerParams.Conditions.Hostname == "test-multiplerules-2.example.com" {
-			deleteRouteFound = true
+			deleteRoute1Found = true
+		}
+		if v.Action == "deleteRoute" && v.ListenerParams.Conditions.Hostname == "test-multiplerules-5.example.com" {
+			deleteRoute2Found = true
+		}
+		if v.Action == "deleteRoute" && v.ListenerParams.Conditions.Hostname == "test-multiplerules-6.example.com" {
+			deleteRoute3Found = true
 		}
 	}
-	if !deleteRouteFound {
-		t.Errorf("Delete route not found")
+	if !deleteRoute1Found {
+		t.Errorf("Delete route for test-multiplerules-2.example.com not found")
+		return
+	}
+	if !deleteRoute2Found {
+		t.Errorf("Delete route for test-multiplerules-5.example.com not found")
+		return
+	}
+	if !deleteRoute3Found {
+		t.Errorf("Delete route for test-multiplerules-6.example.com not found")
 		return
 	}
 
-	logger.Debugf("Delete route found")
+	logger.Debugf("Delete routes found")
 
-	/*_, err = x.workQueue.Submit(newItems)
+	_, err = x.workQueue.Submit(newItems)
 	if err != nil {
 		t.Errorf("WorkQueue error: %s", err)
 		return
-	}*/
+	}
 
 }
