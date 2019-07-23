@@ -28,7 +28,7 @@ type S3Storage struct {
 	config Config
 	svc    *s3.S3
 	sess   *session.Session
-	cache  map[string]*api.Object
+	cache  map[string][]*api.Object
 }
 
 func NewS3Storage(config Config) (*S3Storage, error) {
@@ -66,7 +66,20 @@ func NewS3Storage(config Config) (*S3Storage, error) {
 		return nil, err
 	}
 
-	return &S3Storage{config: config, svc: svc, sess: sess, cache: make(map[string]*api.Object)}, nil
+	return &S3Storage{config: config, svc: svc, sess: sess, cache: make(map[string][]*api.Object)}, nil
+}
+
+func (l *S3Storage) SetLogLevel(loglevel string) {
+	if loglevel == "debug" {
+		logger.SetLogLevel(loggo.DEBUG)
+	}
+}
+
+/*
+ * SetStoragePath allows you to set a new path
+ */
+func (l *S3Storage) SetStoragePath(prefix string) {
+	l.config.Prefix = prefix
 }
 
 func (s *S3Storage) GetError(name string) error {
@@ -94,7 +107,7 @@ func (s *S3Storage) ListObjects() ([]api.Object, error) {
 					if err != nil {
 						logger.Errorf("error while getting rule: %s", err)
 					}
-					objects = append(objects, object)
+					objects = append(objects, object...)
 				}
 
 			}
@@ -106,8 +119,9 @@ func (s *S3Storage) ListObjects() ([]api.Object, error) {
 	}
 	return objects, nil
 }
-func (s *S3Storage) GetObject(filename string) (api.Object, error) {
-	var object api.Object
+func (s *S3Storage) GetObject(filename string) ([]api.Object, error) {
+	var objects []api.Object
+	var objectsP []*api.Object
 	contents := aws.NewWriteAtBuffer([]byte{})
 	downloader := s3manager.NewDownloader(s.sess)
 	logger.Debugf("GetObject: %s", filename)
@@ -117,34 +131,40 @@ func (s *S3Storage) GetObject(filename string) (api.Object, error) {
 			Key:    aws.String(filename),
 		})
 	if err != nil {
-		return object, err
+		return objects, err
 	}
-	err = yaml.Unmarshal(contents.Bytes(), &object)
-	if err != nil {
-		return object, err
-	}
-	switch object.Kind {
-	case "rule":
-		var rule api.Rule
-		err = yaml.Unmarshal(contents.Bytes(), &rule)
-		if err != nil {
-			return object, err
+	for _, contentsSplitted := range strings.Split(string(contents.Bytes()), "---") {
+		if strings.TrimSpace(contentsSplitted) != "" {
+			var object api.Object
+			err = yaml.Unmarshal([]byte(contentsSplitted), &object)
+			if err != nil {
+				return objects, err
+			}
+			switch object.Kind {
+			case "rule":
+				var rule api.Rule
+				err = yaml.Unmarshal([]byte(contentsSplitted), &rule)
+				if err != nil {
+					return objects, err
+				}
+				object.Data = rule
+			case "jwtProvider":
+				var jwtProvider api.JwtProvider
+				err = yaml.Unmarshal([]byte(contentsSplitted), &jwtProvider)
+				if err != nil {
+					return objects, err
+				}
+				object.Data = jwtProvider
+			default:
+				return objects, errors.New("Object in wrong format")
+			}
+			objectsP = append(objectsP, &object)
+			objects = append(objects, object)
 		}
-		object.Data = rule
-	case "jwtProvider":
-		var jwtProvider api.JwtProvider
-		err = yaml.Unmarshal(contents.Bytes(), &jwtProvider)
-		if err != nil {
-			return object, err
-		}
-		object.Data = jwtProvider
-	default:
-		return object, errors.New("Object in wrong format")
 	}
 	// keep a cache of filename -> rule name matching
-	s.cache[filename] = &object
-	return object, nil
-
+	s.cache[filename] = objectsP
+	return objects, nil
 }
 func (s *S3Storage) ListCerts() (map[string]string, error) {
 	var err error
@@ -371,7 +391,7 @@ func (s *S3Storage) createKey(privateKeyPath, publicKeyPath string) error {
 	return nil
 }
 
-func (s *S3Storage) GetCachedObjectName(filename string) (*api.Object, error) {
+func (s *S3Storage) GetCachedObjectName(filename string) ([]*api.Object, error) {
 	if s.config.Prefix == "" {
 		filename = "/" + filename
 	}
@@ -395,20 +415,24 @@ func (s *S3Storage) DeleteCachedObject(filename string) error {
 }
 func (s *S3Storage) CountCachedObjectByCondition(condition api.RuleConditions) int {
 	count := 0
-	for _, object := range s.cache {
-		if object.Kind == "rule" {
-			rule := object.Data.(api.Rule)
-			if util.ConditionExists(rule.Spec.Conditions, condition) {
-				count++
+	for _, objects := range s.cache {
+		for _, object := range objects {
+			if object.Kind == "rule" {
+				rule := object.Data.(api.Rule)
+				if util.ConditionExists(rule.Spec.Conditions, condition) {
+					count++
+				}
 			}
 		}
 	}
 	return count
 }
 func (s *S3Storage) GetCachedRule(name string) *api.Object {
-	for _, object := range s.cache {
-		if object.Kind == "rule" && object.Metadata.Name == name {
-			return object
+	for _, objects := range s.cache {
+		for _, object := range objects {
+			if object.Kind == "rule" && object.Metadata.Name == name {
+				return object
+			}
 		}
 	}
 	return nil

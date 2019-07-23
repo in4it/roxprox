@@ -1,9 +1,9 @@
 package envoy
 
 import (
+	"strings"
 	"testing"
 
-	pkgApi "github.com/in4it/roxprox/pkg/api"
 	"github.com/in4it/roxprox/pkg/storage"
 	localStorage "github.com/in4it/roxprox/pkg/storage/local"
 	"github.com/juju/loggo"
@@ -40,11 +40,13 @@ func TestPutObject(t *testing.T) {
 		return
 	}
 	for _, filename := range ObjectFileNames {
-		if obj, err := x.s.GetCachedObjectName(filename); err != nil {
+		if objs, err := x.s.GetCachedObjectName(filename); err != nil {
 			t.Errorf("Error while getting cache: %s", err)
 		} else {
-			if obj.Kind != "rule" && obj.Kind != "jwtProvider" {
-				t.Errorf("Object in cache of unknown format: %s", obj.Kind)
+			for _, obj := range objs {
+				if obj.Kind != "rule" && obj.Kind != "jwtProvider" {
+					t.Errorf("Object in cache of unknown format: %s", obj.Kind)
+				}
 			}
 		}
 	}
@@ -90,8 +92,8 @@ func TestDeleteObject(t *testing.T) {
 		t.Errorf("expected 2 work queue items")
 		return
 	}
-	if workQueueItems[0].ListenerParams.Conditions.Hostname != "test1-1.example.com" {
-		t.Errorf("Expected test1-1.example.com to be deleted")
+	if workQueueItems[0].ListenerParams.Conditions.Hostname != "test1-2.example.com" {
+		t.Errorf("Expected test1-2.example.com to be deleted")
 		return
 	}
 	if workQueueItems[1].Action != "deleteCluster" {
@@ -136,31 +138,114 @@ func TestChange(t *testing.T) {
 		return
 	}
 
-	newObject, err := x.s.GetObject("test1-change.yaml")
+	x.s.SetStoragePath("testdata/changes")
+	newItems, err := x.putObject("test1.yaml")
 	if err != nil {
-		t.Errorf("Couldn't get new rule from storage: %s", err)
-		return
-	}
-
-	rule := newObject.Data.(pkgApi.Rule)
-	newItems, err := x.ImportRule(rule)
-	if err != nil {
-		t.Errorf("Couldn't import new rule: %s", err)
+		t.Errorf("putObject error: %s", err)
 		return
 	}
 
 	deleteRouteFound := false
+	additionFound := false
 	for _, v := range newItems {
-		if v.Action == "deleteRoute" {
+		if v.Action == "deleteRoute" && v.ListenerParams.Conditions.Hostname == "test1-1.example.com" {
 			deleteRouteFound = true
+		}
+		if v.Action == "createListener" && v.ListenerParams.Conditions.Hostname == "test1-3.example.com" {
+			additionFound = true
+		}
+		if v.Action == "deleteRoute" && v.ListenerParams.Conditions.Hostname == "test1-2.example.com" {
+			t.Errorf("Found deleteRoute for test1-2.example.com (Found: %+v)", v)
 		}
 	}
 	if !deleteRouteFound {
 		t.Errorf("Delete route not found")
 		return
 	}
+	if !additionFound {
+		t.Errorf("additional condition not found")
+		return
+	}
 
-	logger.Debugf("Delete route found")
+	logger.Debugf("Delete route found, additional condition found")
+
+	_, err = x.workQueue.Submit(newItems)
+	if err != nil {
+		t.Errorf("WorkQueue error: %s", err)
+		return
+	}
+
+}
+func TestMultipleRulesChange(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	workQueueItems := []WorkQueueItem{}
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+
+	workQueueItems, err = x.putObject("test-multiplerules.yaml")
+	if err != nil {
+		t.Errorf("PutObject failed: %s", err)
+		return
+	}
+
+	elementsFound := 0
+	for _, item := range workQueueItems {
+		if strings.HasPrefix(item.ListenerParams.Name, "test-multiplerules-") {
+			elementsFound++
+		}
+	}
+
+	if elementsFound != 6 {
+		t.Errorf("Should have found 6 Listener elements (one for every match) in workQueueItems (found %d)", elementsFound)
+		return
+
+	}
+
+	_, err = x.workQueue.Submit(workQueueItems)
+	if err != nil {
+		t.Errorf("WorkQueue error: %s", err)
+		return
+	}
+
+	x.s.SetStoragePath("testdata/changes")
+	newItems, err := x.putObject("test-multiplerules.yaml")
+	if err != nil {
+		t.Errorf("putObject error: %s", err)
+		return
+	}
+
+	deleteRoute1Found := false
+	deleteRoute2Found := false
+	deleteRoute3Found := false
+	for _, v := range newItems {
+		if v.Action == "deleteRoute" && v.ListenerParams.Conditions.Hostname == "test-multiplerules-2.example.com" {
+			deleteRoute1Found = true
+		}
+		if v.Action == "deleteRoute" && v.ListenerParams.Conditions.Hostname == "test-multiplerules-5.example.com" {
+			deleteRoute2Found = true
+		}
+		if v.Action == "deleteRoute" && v.ListenerParams.Conditions.Hostname == "test-multiplerules-6.example.com" {
+			deleteRoute3Found = true
+		}
+	}
+	if !deleteRoute1Found {
+		t.Errorf("Delete route for test-multiplerules-2.example.com not found")
+		return
+	}
+	if !deleteRoute2Found {
+		t.Errorf("Delete route for test-multiplerules-5.example.com not found")
+		return
+	}
+	if !deleteRoute3Found {
+		t.Errorf("Delete route for test-multiplerules-6.example.com not found")
+		return
+	}
+
+	logger.Debugf("Delete routes found")
 
 	_, err = x.workQueue.Submit(newItems)
 	if err != nil {

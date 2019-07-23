@@ -23,7 +23,7 @@ var (
 type LocalStorage struct {
 	config Config
 	dir    string
-	cache  map[string]*api.Object
+	cache  map[string][]*api.Object
 }
 type Config struct {
 	Path string
@@ -38,7 +38,7 @@ func NewLocalStorage(config Config) (*LocalStorage, error) {
 	} else {
 		dir = config.Path
 	}
-	return &LocalStorage{config: config, dir: dir, cache: make(map[string]*api.Object)}, nil
+	return &LocalStorage{config: config, dir: dir, cache: make(map[string][]*api.Object)}, nil
 }
 
 func (l *LocalStorage) GetError(name string) error {
@@ -46,6 +46,25 @@ func (l *LocalStorage) GetError(name string) error {
 		return errNotExist
 	}
 	return nil
+}
+
+func (l *LocalStorage) SetLogLevel(loglevel string) {
+	if loglevel == "debug" {
+		logger.SetLogLevel(loggo.DEBUG)
+	}
+}
+
+/*
+ * SetStoragePath allows you to set a new path
+ */
+func (l *LocalStorage) SetStoragePath(path string) {
+	wd, err := os.Getwd()
+	if err == nil {
+		l.dir = wd + "/" + path
+	} else {
+		l.dir = path
+	}
+	l.config.Path = path
 }
 
 /*
@@ -68,7 +87,7 @@ func (l *LocalStorage) ListObjects() ([]api.Object, error) {
 			if err != nil {
 				return nil, err
 			}
-			objects = append(objects, object)
+			objects = append(objects, object...)
 		}
 	}
 	return objects, nil
@@ -77,38 +96,47 @@ func (l *LocalStorage) ListObjects() ([]api.Object, error) {
 /*
  * GetObject gets a single rule from storage and converts contents into rules
  */
-func (l *LocalStorage) GetObject(name string) (api.Object, error) {
-	var object api.Object
+func (l *LocalStorage) GetObject(name string) ([]api.Object, error) {
+	var objects []api.Object
+	var objectsP []*api.Object
 	logger.Debugf("Parsing file: %s", l.dir+"/"+name)
 	contents, err := ioutil.ReadFile(l.dir + "/" + name)
 	if err != nil {
-		return object, err
+		return objects, err
 	}
-	err = yaml.Unmarshal(contents, &object)
-	if err != nil {
-		return object, err
-	}
-	switch object.Kind {
-	case "rule":
-		var rule api.Rule
-		err = yaml.Unmarshal(contents, &rule)
-		if err != nil {
-			return object, err
+	for _, contentsSplitted := range strings.Split(string(contents), "---") {
+		if strings.TrimSpace(contentsSplitted) != "" {
+			var object api.Object
+			err = yaml.Unmarshal([]byte(contentsSplitted), &object)
+			if err != nil {
+				return objects, err
+			}
+			switch object.Kind {
+			case "rule":
+				var rule api.Rule
+				err = yaml.Unmarshal([]byte(contentsSplitted), &rule)
+				if err != nil {
+					return objects, err
+				}
+				object.Data = rule
+			case "jwtProvider":
+				var jwtProvider api.JwtProvider
+				err = yaml.Unmarshal([]byte(contentsSplitted), &jwtProvider)
+				if err != nil {
+					return objects, err
+				}
+				object.Data = jwtProvider
+			default:
+				return objects, errors.New("Rule in wrong format")
+			}
+			objects = append(objects, object)
+			objectsP = append(objectsP, &object)
 		}
-		object.Data = rule
-	case "jwtProvider":
-		var jwtProvider api.JwtProvider
-		err = yaml.Unmarshal(contents, &jwtProvider)
-		if err != nil {
-			return object, err
-		}
-		object.Data = jwtProvider
-	default:
-		return object, errors.New("Rule in wrong format")
 	}
 	// keep a cache of filename -> rule name matching
-	l.cache[name] = &object
-	return object, nil
+	logger.Debugf("Updating cache for %s (%d objects)", name, len(objectsP))
+	l.cache[name] = objectsP
+	return objects, nil
 }
 func (l *LocalStorage) ListCerts() (map[string]string, error) {
 	dirname := l.dir + "/pki/certs/"
@@ -277,7 +305,7 @@ func (l *LocalStorage) GetPrivateKeyPem(name string) (string, error) {
 	return string(privateKey), nil
 }
 
-func (l *LocalStorage) GetCachedObjectName(filename string) (*api.Object, error) {
+func (l *LocalStorage) GetCachedObjectName(filename string) ([]*api.Object, error) {
 	if val, ok := l.cache[filename]; ok {
 		return val, nil
 	}
@@ -294,20 +322,24 @@ func (l *LocalStorage) DeleteCachedObject(filename string) error {
 }
 func (l *LocalStorage) CountCachedObjectByCondition(condition api.RuleConditions) int {
 	count := 0
-	for _, object := range l.cache {
-		if object.Kind == "rule" {
-			rule := object.Data.(api.Rule)
-			if util.ConditionExists(rule.Spec.Conditions, condition) {
-				count++
+	for _, objects := range l.cache {
+		for _, object := range objects {
+			if object.Kind == "rule" {
+				rule := object.Data.(api.Rule)
+				if util.ConditionExists(rule.Spec.Conditions, condition) {
+					count++
+				}
 			}
 		}
 	}
 	return count
 }
 func (l *LocalStorage) GetCachedRule(name string) *api.Object {
-	for _, object := range l.cache {
-		if object.Kind == "rule" && object.Metadata.Name == name {
-			return object
+	for _, objects := range l.cache {
+		for _, object := range objects {
+			if object.Kind == "rule" && object.Metadata.Name == name {
+				return object
+			}
 		}
 	}
 	return nil
