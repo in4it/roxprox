@@ -1,6 +1,7 @@
 package envoy
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -51,6 +52,43 @@ func TestPutObject(t *testing.T) {
 		}
 	}
 }
+
+func TestPutObjectWithoutCluster(t *testing.T) {
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	var workQueueItems []WorkQueueItem
+	ObjectFileNames := []string{"test1.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		workQueueItems = append(workQueueItems, newItems...)
+	}
+
+	// delete cluster object
+	workQueueItems = workQueueItems[1:]
+	fmt.Printf("%+v\n", workQueueItems)
+
+	_, err = x.workQueue.Submit(workQueueItems)
+	if err != nil {
+		t.Errorf("WorkQueue error: %s", err)
+		return
+	}
+
+	// no version increment, nothing added, because we removed the cluster
+	if x.workQueue.GetVersion() != 0 {
+		t.Errorf("Expected version to be 0")
+		return
+	}
+
+}
+
 func TestDeleteObject(t *testing.T) {
 	logger.SetLogLevel(loggo.DEBUG)
 	s, err := initStorage()
@@ -174,7 +212,6 @@ func TestChange(t *testing.T) {
 		t.Errorf("WorkQueue error: %s", err)
 		return
 	}
-
 }
 func TestMultipleRulesChange(t *testing.T) {
 	logger.SetLogLevel(loggo.DEBUG)
