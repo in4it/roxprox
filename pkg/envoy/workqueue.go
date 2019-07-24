@@ -87,19 +87,24 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 			}
 			updateXds = true
 		case "createListener":
-			if len(w.cache.listeners) == 0 {
-				w.cache.listeners = append(w.cache.listeners, w.listener.createListener(item.ListenerParams, TLSParams{}))
-				item.state = "finished"
+			if _, err := w.cluster.findClusterByName(w.cache.clusters, item.ListenerParams.Name); err != nil {
+				logger.Errorf("createListener error: cluster not found: %s", item.ListenerParams.Name)
+				item.state = "error"
 			} else {
-				err := w.listener.updateListener(&w.cache, item.ListenerParams, TLSParams{})
-				if err != nil {
-					logger.Errorf("updateListener error: %s", err)
-					item.state = "error"
-				} else {
+				if len(w.cache.listeners) == 0 {
+					w.cache.listeners = append(w.cache.listeners, w.listener.createListener(item.ListenerParams, TLSParams{}))
 					item.state = "finished"
+				} else {
+					err := w.listener.updateListener(&w.cache, item.ListenerParams, TLSParams{})
+					if err != nil {
+						logger.Errorf("updateListener error: %s", err)
+						item.state = "error"
+					} else {
+						item.state = "finished"
+					}
 				}
+				updateXds = true
 			}
-			updateXds = true
 		case "deleteRoute":
 			err := w.listener.DeleteRoute(&w.cache, item.ListenerParams, item.TLSParams)
 			if err != nil {
@@ -111,16 +116,21 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 			}
 			updateXds = true
 		case "createTLSListener":
-			if len(w.cache.listeners) == 1 {
-				w.cache.listeners = append(w.cache.listeners, w.listener.createListener(item.ListenerParams, item.TLSParams))
-				item.state = "finished"
+			if _, err := w.cluster.findClusterByName(w.cache.clusters, item.ListenerParams.Name); err != nil {
+				logger.Errorf("createListener error: cluster not found: %s", item.ListenerParams.Name)
+				item.state = "error"
 			} else {
-				err := w.listener.updateListener(&w.cache, item.ListenerParams, item.TLSParams)
-				if err != nil {
-					logger.Errorf("updateListener error: %s", err)
-					item.state = "error"
-				} else {
+				if len(w.cache.listeners) == 1 {
+					w.cache.listeners = append(w.cache.listeners, w.listener.createListener(item.ListenerParams, item.TLSParams))
 					item.state = "finished"
+				} else {
+					err := w.listener.updateListener(&w.cache, item.ListenerParams, item.TLSParams)
+					if err != nil {
+						logger.Errorf("updateListener error: %s", err)
+						item.state = "error"
+					} else {
+						item.state = "finished"
+					}
 				}
 			}
 			updateXds = true
@@ -347,4 +357,7 @@ func (w *WorkQueue) waitForValidation(id, itemID string, params ChallengeParams)
 		logger.Debugf("Submitting id: %s, state: finished, itemID: %s", id, itemID)
 		w.cs <- WorkQueueSubmissionState{id: id, state: "finished", itemID: itemID}
 	}
+}
+func (w *WorkQueue) GetVersion() int64 {
+	return w.cache.version
 }
