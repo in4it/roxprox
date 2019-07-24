@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/envoyproxy/go-control-plane/pkg/cache"
 	"github.com/google/uuid"
@@ -258,8 +259,9 @@ func InArray(a []string, v string) (ret bool, i int) {
 	return false, -1
 }
 func (w *WorkQueue) updateXds() {
+	now := time.Now().UnixNano()
 	atomic.AddInt64(&w.cache.version, 1)
-	w.latestSnapshot = cache.NewSnapshot(fmt.Sprint(w.cache.version), nil, w.cache.clusters, nil, w.cache.listeners)
+	w.latestSnapshot = cache.NewSnapshot(fmt.Sprint(now)+"-"+fmt.Sprint(w.cache.version), nil, w.cache.clusters, nil, w.cache.listeners)
 	var nodeUpdated []string
 	for _, v := range w.callback.connections {
 		if ret, _ := InArray(nodeUpdated, v.Id); !ret {
