@@ -590,8 +590,10 @@ func (x *XDS) getWorkingItemsForRemovedObjects(objects []pkgApi.Object, cachedOb
 	for _, cachedObject := range cachedObjects {
 		for _, object := range objects {
 			if object.Metadata.Name == cachedObject.Metadata.Name {
-				rule := object.Data.(pkgApi.Rule)
-				workQueueItems = append(workQueueItems, x.getRuleDeletions(cachedObject, rule.Spec.Conditions)...)
+				if object.Kind == "rule" {
+					rule := object.Data.(pkgApi.Rule)
+					workQueueItems = append(workQueueItems, x.getRuleDeletions(cachedObject, rule.Spec.Conditions)...)
+				}
 			}
 		}
 	}
