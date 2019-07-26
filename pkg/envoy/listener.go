@@ -237,7 +237,7 @@ func (l *Listener) getManager(typedConfig *listener.Filter_TypedConfig) (hcm.Htt
 }
 func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, clusterName, virtualHostName string, methods []string, matchType string) route.VirtualHost {
 	var hostRewriteSpecifier *route.RouteAction_HostRewrite
-	var match route.RouteMatch
+	var routes []route.Route
 
 	if hostname == "" {
 		hostname = "*"
@@ -247,6 +247,15 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 		hostRewriteSpecifier = &route.RouteAction_HostRewrite{
 			HostRewrite: targetHostname,
 		}
+	}
+
+	routeAction := &route.Route_Route{
+		Route: &route.RouteAction{
+			HostRewriteSpecifier: hostRewriteSpecifier,
+			ClusterSpecifier: &route.RouteAction_Cluster{
+				Cluster: clusterName,
+			},
+		},
 	}
 
 	var headers []*route.HeaderMatcher
@@ -262,40 +271,74 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 		}
 	}
 	if matchType == "prefix" {
-		match = route.RouteMatch{
-			PathSpecifier: &route.RouteMatch_Prefix{
-				Prefix: targetPrefix,
-			},
-			Headers: headers,
-		}
-	} else if matchType == "path" {
-		match = route.RouteMatch{
-			PathSpecifier: &route.RouteMatch_Path{
-				Path: targetPrefix,
-			},
-			Headers: headers,
-		}
-	} else if matchType == "regex" {
-		match = route.RouteMatch{
-			PathSpecifier: &route.RouteMatch_Regex{
-				Regex: targetPrefix,
-			},
-			Headers: headers,
-		}
-	}
-
-	routes := []route.Route{
-		{
-			Match: match,
-			Action: &route.Route_Route{
-				Route: &route.RouteAction{
-					HostRewriteSpecifier: hostRewriteSpecifier,
-					ClusterSpecifier: &route.RouteAction_Cluster{
-						Cluster: clusterName,
+		if len(headers) == 0 {
+			routes = append(routes, route.Route{
+				Match: route.RouteMatch{
+					PathSpecifier: &route.RouteMatch_Prefix{
+						Prefix: targetPrefix,
 					},
 				},
-			},
-		},
+				Action: routeAction,
+			})
+		} else {
+			for _, header := range headers {
+				routes = append(routes, route.Route{
+					Match: route.RouteMatch{
+						PathSpecifier: &route.RouteMatch_Prefix{
+							Prefix: targetPrefix,
+						},
+						Headers: []*route.HeaderMatcher{header},
+					},
+					Action: routeAction,
+				})
+			}
+		}
+	} else if matchType == "path" {
+		if len(headers) == 0 {
+			routes = append(routes, route.Route{
+				Match: route.RouteMatch{
+					PathSpecifier: &route.RouteMatch_Path{
+						Path: targetPrefix,
+					},
+				},
+				Action: routeAction,
+			})
+		} else {
+			for _, header := range headers {
+				routes = append(routes, route.Route{
+					Match: route.RouteMatch{
+						PathSpecifier: &route.RouteMatch_Path{
+							Path: targetPrefix,
+						},
+						Headers: []*route.HeaderMatcher{header},
+					},
+					Action: routeAction,
+				})
+			}
+		}
+	} else if matchType == "regex" {
+		if len(headers) == 0 {
+			routes = append(routes, route.Route{
+				Match: route.RouteMatch{
+					PathSpecifier: &route.RouteMatch_Regex{
+						Regex: targetPrefix,
+					},
+				},
+				Action: routeAction,
+			})
+		} else {
+			for _, header := range headers {
+				routes = append(routes, route.Route{
+					Match: route.RouteMatch{
+						PathSpecifier: &route.RouteMatch_Regex{
+							Regex: targetPrefix,
+						},
+						Headers: []*route.HeaderMatcher{header},
+					},
+					Action: routeAction,
+				})
+			}
+		}
 	}
 
 	return route.VirtualHost{
@@ -331,15 +374,23 @@ func (l *Listener) getJwtConfig(auth Auth) *jwtAuth.JwtAuthentication {
 	}
 }
 
-func (l *Listener) getJwtRule(conditions Conditions, clusterName string, jwtProvider string, matchType string) *jwtAuth.RequirementRule {
-	var match *route.RouteMatch
+func (l *Listener) getJwtRule(conditions Conditions, clusterName string, jwtProvider string, matchType string) []*jwtAuth.RequirementRule {
+	var rules []*jwtAuth.RequirementRule
 	prefix := "/"
+
+	jwtAuthRequirement := &jwtAuth.JwtRequirement{
+		RequiresType: &jwtAuth.JwtRequirement_ProviderName{
+			ProviderName: jwtProvider,
+		},
+	}
+
 	if conditions.Prefix != "" {
 		prefix = conditions.Prefix
 	}
-	var headers []*route.HeaderMatcher
+	var hostnameHeaders []*route.HeaderMatcher
+	var methodHeaders []*route.HeaderMatcher
 	if conditions.Hostname != "" {
-		headers = append(headers, &route.HeaderMatcher{
+		hostnameHeaders = append(hostnameHeaders, &route.HeaderMatcher{
 			Name: ":authority",
 			HeaderMatchSpecifier: &route.HeaderMatcher_ExactMatch{
 				ExactMatch: conditions.Hostname,
@@ -349,7 +400,7 @@ func (l *Listener) getJwtRule(conditions Conditions, clusterName string, jwtProv
 	if len(conditions.Methods) > 0 {
 		sort.Strings(conditions.Methods)
 		for _, method := range conditions.Methods {
-			headers = append(headers, &route.HeaderMatcher{
+			methodHeaders = append(methodHeaders, &route.HeaderMatcher{
 				Name: ":method",
 				HeaderMatchSpecifier: &route.HeaderMatcher_ExactMatch{
 					ExactMatch: method,
@@ -358,37 +409,80 @@ func (l *Listener) getJwtRule(conditions Conditions, clusterName string, jwtProv
 		}
 	}
 	if matchType == "prefix" {
-		match = &route.RouteMatch{
-			PathSpecifier: &route.RouteMatch_Prefix{
-				Prefix: prefix,
-			},
-			Headers: headers,
+		if len(methodHeaders) == 0 {
+			rules = append(rules, &jwtAuth.RequirementRule{
+				Match: &route.RouteMatch{
+					PathSpecifier: &route.RouteMatch_Prefix{
+						Prefix: prefix,
+					},
+					Headers: hostnameHeaders,
+				},
+				Requires: jwtAuthRequirement,
+			})
+		} else {
+			for _, methodHeader := range methodHeaders {
+				rules = append(rules, &jwtAuth.RequirementRule{
+					Match: &route.RouteMatch{
+						PathSpecifier: &route.RouteMatch_Prefix{
+							Prefix: prefix,
+						},
+						Headers: append(hostnameHeaders, methodHeader),
+					},
+					Requires: jwtAuthRequirement,
+				})
+			}
 		}
 	} else if matchType == "path" {
-		match = &route.RouteMatch{
-			PathSpecifier: &route.RouteMatch_Path{
-				Path: conditions.Path,
-			},
-			Headers: headers,
+		if len(methodHeaders) == 0 {
+			rules = append(rules, &jwtAuth.RequirementRule{
+				Match: &route.RouteMatch{
+					PathSpecifier: &route.RouteMatch_Path{
+						Path: conditions.Path,
+					},
+					Headers: hostnameHeaders,
+				},
+				Requires: jwtAuthRequirement,
+			})
+		} else {
+			for _, methodHeader := range methodHeaders {
+				rules = append(rules, &jwtAuth.RequirementRule{
+					Match: &route.RouteMatch{
+						PathSpecifier: &route.RouteMatch_Path{
+							Path: conditions.Path,
+						},
+						Headers: append(hostnameHeaders, methodHeader),
+					},
+					Requires: jwtAuthRequirement,
+				})
+			}
 		}
 	} else if matchType == "regex" {
-		match = &route.RouteMatch{
-			PathSpecifier: &route.RouteMatch_Regex{
-				Regex: conditions.Regex,
-			},
-			Headers: headers,
+		if len(methodHeaders) == 0 {
+			rules = append(rules, &jwtAuth.RequirementRule{
+				Match: &route.RouteMatch{
+					PathSpecifier: &route.RouteMatch_Regex{
+						Regex: conditions.Regex,
+					},
+					Headers: hostnameHeaders,
+				},
+				Requires: jwtAuthRequirement,
+			})
+		} else {
+			for _, methodHeader := range methodHeaders {
+				rules = append(rules, &jwtAuth.RequirementRule{
+					Match: &route.RouteMatch{
+						PathSpecifier: &route.RouteMatch_Regex{
+							Regex: conditions.Regex,
+						},
+						Headers: append(hostnameHeaders, methodHeader),
+					},
+					Requires: jwtAuthRequirement,
+				})
+			}
 		}
 	}
-	rule := &jwtAuth.RequirementRule{
-		Match: match,
-		Requires: &jwtAuth.JwtRequirement{
-			RequiresType: &jwtAuth.JwtRequirement_ProviderName{
-				ProviderName: jwtProvider,
-			},
-		},
-	}
 
-	return rule
+	return rules
 }
 
 func (l *Listener) newTLSFilter(params ListenerParams, paramsTLS TLSParams, listenerName string) []listener.Filter {
@@ -477,20 +571,18 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	for k, curVirtualHost := range routeSpecifier.RouteConfig.VirtualHosts {
 		if v.Name == curVirtualHost.Name {
 			virtualHostKey = k
-			logger.Debugf("Found existing virtualhost with name %s", v.Name)
 		}
 	}
 
 	if virtualHostKey >= 0 {
-		if len(v.Routes) != 1 {
-			return fmt.Errorf("Routes containes more than 1 route (contains %d elements)", len(v.Routes))
-		}
-		if l.routeExist(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes, v.Routes[0]) {
-			logger.Debugf("Route already exists, not adding route for %s", v.Name)
-		} else {
-			// append new routes to existing virtualhost
-			logger.Debugf("Adding new routes to %s", v.Name)
-			routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes = append(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes, v.Routes[0])
+		for _, newRoute := range v.Routes {
+			if l.routeExist(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes, newRoute) {
+				logger.Debugf("Route already exists, not adding route for %s", v.Name)
+			} else {
+				// append new routes to existing virtualhost
+				logger.Debugf("Adding new routes to %s", v.Name)
+				routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes = append(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes, newRoute)
+			}
 		}
 	} else {
 		routeSpecifier.RouteConfig.VirtualHosts = append(routeSpecifier.RouteConfig.VirtualHosts, v)
@@ -523,11 +615,13 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 		}
 
 		// update routes
-		newJwtRule := l.getJwtRule(params.Conditions, params.Name, params.Auth.JwtProvider, matchType)
-		if l.jwtRuleExist(jwtConfig.Rules, newJwtRule) {
-			logger.Debugf("JWT Rule already exists, not adding route for %s", v.Name)
-		} else {
-			jwtConfig.Rules = append(jwtConfig.Rules, newJwtRule)
+		newJwtRules := l.getJwtRule(params.Conditions, params.Name, params.Auth.JwtProvider, matchType)
+		for _, newJwtRule := range newJwtRules {
+			if l.jwtRuleExist(jwtConfig.Rules, newJwtRule) {
+				logger.Debugf("JWT Rule already exists, not adding route for %s", v.Name)
+			} else {
+				jwtConfig.Rules = append(jwtConfig.Rules, newJwtRule)
+			}
 		}
 		jwtConfigEncoded, err := types.MarshalAny(&jwtConfig)
 		if err != nil {
@@ -707,11 +801,13 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 	jwtConfig := l.getJwtConfig(params.Auth)
 	if params.Auth.JwtProvider != "" {
 		// add rule if there is a jwtprovider
-		newJwtRule := l.getJwtRule(params.Conditions, params.Name, params.Auth.JwtProvider, matchType)
-		if l.jwtRuleExist(jwtConfig.Rules, newJwtRule) {
-			logger.Debugf("JWT Rule already exists, not adding route for %s", v.Name)
-		} else {
-			jwtConfig.Rules = append(jwtConfig.Rules, newJwtRule)
+		newJwtRules := l.getJwtRule(params.Conditions, params.Name, params.Auth.JwtProvider, matchType)
+		for _, newJwtRule := range newJwtRules {
+			if l.jwtRuleExist(jwtConfig.Rules, newJwtRule) {
+				logger.Debugf("JWT Rule already exists, not adding route for %s", v.Name)
+			} else {
+				jwtConfig.Rules = append(jwtConfig.Rules, newJwtRule)
+			}
 		}
 	}
 	jwtAuth, err := types.MarshalAny(jwtConfig)
@@ -864,11 +960,11 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 		}
 		if _, ok := jwtConfig.Providers[params.Auth.JwtProvider]; ok {
 			// update rules
-			rule := l.getJwtRule(params.Conditions, params.Name, params.Auth.JwtProvider, matchType)
-			index := l.requirementRuleIndex(jwtConfig.Rules, rule)
-
-			jwtConfig.Rules = append(jwtConfig.Rules[:index], jwtConfig.Rules[index+1:]...)
-
+			rules := l.getJwtRule(params.Conditions, params.Name, params.Auth.JwtProvider, matchType)
+			for _, rule := range rules {
+				index := l.requirementRuleIndex(jwtConfig.Rules, rule)
+				jwtConfig.Rules = append(jwtConfig.Rules[:index], jwtConfig.Rules[index+1:]...)
+			}
 			jwtConfigEncoded, err := types.MarshalAny(&jwtConfig)
 			if err != nil {
 				panic(err)

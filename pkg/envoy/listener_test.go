@@ -573,7 +573,7 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 	prefixFound := false
 	pathFound := false
 	regexFound := false
-	methodsFound := false
+	methodsFound := make(map[string]bool)
 
 	if params.Conditions.Hostname == "" {
 		params.Conditions.Hostname = "*"
@@ -605,8 +605,12 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 						return fmt.Errorf("Match PathSpecifier unknown type %s", reflect.TypeOf(r.Match.PathSpecifier).String())
 					}
 					if len(params.Conditions.Methods) > 0 {
-						if validateMethods(r.Match.Headers, params.Conditions.Methods) {
-							methodsFound = true
+						for _, v1 := range r.Match.Headers {
+							for _, v2 := range params.Conditions.Methods {
+								if v1.GetName() == ":method" && v1.GetExactMatch() == v2 {
+									methodsFound[v2] = true
+								}
+							}
 						}
 					}
 				}
@@ -634,9 +638,12 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 	}
 	logger.Debugf("Regex found: %s", params.Conditions.Regex)
 
-	if len(params.Conditions.Methods) > 0 && !methodsFound {
-		return fmt.Errorf("Methods not found: %s", strings.Join(params.Conditions.Methods, ","))
-
+	if len(params.Conditions.Methods) > 0 {
+		for _, v := range params.Conditions.Methods {
+			if _, ok := methodsFound[v]; !ok {
+				return fmt.Errorf("Methods not found: %s (expected %s)", v, strings.Join(params.Conditions.Methods, ","))
+			}
+		}
 	}
 	if len(params.Conditions.Methods) > 0 {
 		logger.Debugf("Methods found: %s", strings.Join(params.Conditions.Methods, ","))
@@ -749,7 +756,7 @@ func validateJWT(manager hcm.HttpConnectionManager, params ListenerParams) error
 		pathFound := false
 		regexFound := false
 		domainFound := false
-		methodsFound := false
+		methodsFound := make(map[string]bool)
 		matchedEntries := 0
 		for _, rule := range jwtConfig.Rules {
 			switch reflect.TypeOf(rule.Match.PathSpecifier).String() {
@@ -775,11 +782,15 @@ func validateJWT(manager hcm.HttpConnectionManager, params ListenerParams) error
 					}
 				}
 				if len(params.Conditions.Methods) > 0 {
-					if validateMethods(rule.Match.Headers, params.Conditions.Methods) {
-						methodsFound = true
+					for _, v1 := range rule.Match.Headers {
+						for _, v2 := range params.Conditions.Methods {
+							if v1.GetName() == ":method" && v1.GetExactMatch() == v2 {
+								methodsFound[v2] = true
+							}
+						}
 					}
 				}
-				if domainFound && methodsFound {
+				if domainFound && len(methodsFound) == len(params.Conditions.Methods) {
 					matchedEntries++
 				}
 			}
@@ -799,8 +810,12 @@ func validateJWT(manager hcm.HttpConnectionManager, params ListenerParams) error
 		if params.Conditions.Hostname != "" && !domainFound {
 			return fmt.Errorf("JWT: domain not found")
 		}
-		if len(params.Conditions.Methods) > 0 && !methodsFound {
-			return fmt.Errorf("JWT: Methods not found")
+		if len(params.Conditions.Methods) > 0 {
+			for _, v := range params.Conditions.Methods {
+				if _, ok := methodsFound[v]; !ok {
+					return fmt.Errorf("JWT: Methods not found: %s (expected %s)", v, strings.Join(params.Conditions.Methods, ","))
+				}
+			}
 		}
 
 		logger.Debugf("Prefix, path, methods & domain found")
