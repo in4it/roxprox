@@ -33,6 +33,13 @@ func (c *Cluster) findClusterByName(clusters []cache.Resource, name string) (int
 	}
 	return -1, fmt.Errorf("Cluster not found")
 }
+func (c *Cluster) getAllClusterNames(clusters []cache.Resource) []string {
+	var clusterNames []string
+	for _, v := range clusters {
+		clusterNames = append(clusterNames, v.(*api.Cluster).Name)
+	}
+	return clusterNames
+}
 
 func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 	var tlsContext *auth.UpstreamTlsContext

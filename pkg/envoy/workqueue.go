@@ -249,6 +249,12 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 	}
 
 	if updateXds {
+		validated, err := w.validateCache()
+		if err != nil || !validated {
+			fmt.Errorf("Cache is not valid, not updating snapshot until cache is fixed")
+			return id, err
+		}
+
 		logger.Debugf("UpdateXds with %d clusters and %d listeners", len(w.cache.clusters), len(w.cache.listeners))
 		clusterNames := w.cluster.GetClusterNames(w.cache.clusters)
 		listenerNames := w.listener.GetListenerNames(w.cache.listeners)
@@ -360,4 +366,9 @@ func (w *WorkQueue) waitForValidation(id, itemID string, params ChallengeParams)
 }
 func (w *WorkQueue) GetVersion() int64 {
 	return w.cache.version
+}
+
+func (w *WorkQueue) validateCache() (bool, error) {
+	clusterNames := w.cluster.getAllClusterNames(w.cache.clusters)
+	return w.listener.validateListeners(w.cache.listeners, clusterNames)
 }
