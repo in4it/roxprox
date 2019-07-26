@@ -935,16 +935,15 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 	if virtualHostKey == -1 {
 		return fmt.Errorf("Could not find matching virtualhost")
 	}
-	if len(v.Routes) != 1 {
-		return fmt.Errorf("Expected only 1 route")
+	for _, routeToDelete := range v.Routes {
+		index := l.routeIndex(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes, routeToDelete)
+		if index == -1 {
+			return fmt.Errorf("Route not found")
+		}
+		// delete route
+		routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes = append(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes[:index], routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes[index+1:]...)
+		logger.Debugf("Route deleted")
 	}
-	index := l.routeIndex(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes, v.Routes[0])
-	if index == -1 {
-		return fmt.Errorf("Route not found")
-	}
-	// delete route
-	routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes = append(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes[:index], routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes[index+1:]...)
-	logger.Debugf("Route deleted")
 
 	if len(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes) == 0 {
 		// virtualhost is empty, delete it
