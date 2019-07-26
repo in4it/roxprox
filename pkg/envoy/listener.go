@@ -1043,3 +1043,34 @@ func (l *Listener) cmpMatch(a *route.RouteMatch, b *route.RouteMatch) bool {
 
 	return true
 }
+func (l *Listener) validateListeners(listeners []cache.Resource, clusterNames []string) (bool, error) {
+	logger.Debugf("Validating config...")
+	for listenerKey := range listeners {
+		ll := listeners[listenerKey].(*api.Listener)
+
+		manager, err := l.getListenerHTTPConnectionManager(ll)
+		if err != nil {
+			return false, err
+		}
+		routeSpecifier, err := l.getListenerRouteSpecifier(manager)
+		if err != nil {
+			return false, err
+		}
+		for _, virtualHost := range routeSpecifier.RouteConfig.VirtualHosts {
+			for _, virtualHostRoute := range virtualHost.Routes {
+				clusterFound := false
+				virtualHostRouteClusterName := virtualHostRoute.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
+				for _, clusterName := range clusterNames {
+					if clusterName == virtualHostRouteClusterName {
+						clusterFound = true
+					}
+				}
+				if !clusterFound {
+					return false, fmt.Errorf("Cluster not found: %s", virtualHostRouteClusterName)
+				}
+
+			}
+		}
+	}
+	return true, nil
+}

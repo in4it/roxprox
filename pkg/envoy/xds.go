@@ -132,15 +132,26 @@ func (x *XDS) RemoveRule(rule pkgApi.Rule, ruleStillPresent bool) ([]WorkQueueIt
 	}
 	// check if matching is in use
 	var workQueueItems []WorkQueueItem
+	var conditionsToDelete int
 	for _, condition := range rule.Spec.Conditions {
 		if x.s.CountCachedObjectByCondition(condition) > expectedRules {
 			// If there is only 1 match, then we're not going to remove the rule condition
 			logger.Debugf("Not removing rule with conditions %s %s%s%s (is identical to other condition in other rule)", condition.Hostname, condition.Prefix, condition.Path, condition.Regex)
 		} else {
+			conditionsToDelete++
+
+			// set target hostname
+			targetHostname := ""
+			for _, v := range rule.Spec.Actions {
+				if v.Proxy.Hostname != "" {
+					targetHostname = v.Proxy.Hostname
+				}
+			}
 			newWorkQueueItem := WorkQueueItem{
 				Action: "deleteRoute",
 				ListenerParams: ListenerParams{
-					Name: rule.Metadata.Name,
+					Name:           rule.Metadata.Name,
+					TargetHostname: targetHostname,
 					Conditions: Conditions{
 						Hostname: condition.Hostname,
 						Prefix:   condition.Prefix,
@@ -164,12 +175,14 @@ func (x *XDS) RemoveRule(rule pkgApi.Rule, ruleStillPresent bool) ([]WorkQueueIt
 		}
 	}
 	// delete cluster (has the same name as the rule)
-	workQueueItems = append(workQueueItems, WorkQueueItem{
-		Action: "deleteCluster",
-		ClusterParams: ClusterParams{
-			Name: rule.Metadata.Name,
-		},
-	})
+	if conditionsToDelete == len(rule.Spec.Conditions) {
+		workQueueItems = append(workQueueItems, WorkQueueItem{
+			Action: "deleteCluster",
+			ClusterParams: ClusterParams{
+				Name: rule.Metadata.Name,
+			},
+		})
+	}
 
 	return workQueueItems, nil
 }

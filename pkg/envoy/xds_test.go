@@ -126,18 +126,15 @@ func TestDeleteObject(t *testing.T) {
 		workQueueItems = append(workQueueItems, newItems...)
 	}
 
-	if len(workQueueItems) != 2 {
-		t.Errorf("expected 2 work queue items")
+	if len(workQueueItems) != 1 {
+		t.Errorf("expected 1 work queue item")
 		return
 	}
 	if workQueueItems[0].ListenerParams.Conditions.Hostname != "test1-2.example.com" {
 		t.Errorf("Expected test1-2.example.com to be deleted")
 		return
 	}
-	if workQueueItems[1].Action != "deleteCluster" {
-		t.Errorf("Expected second action to be deleteCluster")
-		return
-	}
+
 	_, err = x.workQueue.Submit(workQueueItems)
 	if err != nil {
 		t.Errorf("WorkQueue error: %s", err)
