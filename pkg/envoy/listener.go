@@ -1027,13 +1027,12 @@ func (l *Listener) cmpMatch(a *route.RouteMatch, b *route.RouteMatch) bool {
 		aa := aHeaders[k]
 		bb := bHeaders[k]
 		if aa.Name != bb.Name {
-			logger.Debugf("mismatch in header name ")
+			logger.Tracef("cmpMatch: mismatch in header name ")
 			return false
 		}
 
 		if aa.HeaderMatchSpecifier.(*route.HeaderMatcher_ExactMatch).ExactMatch != bb.HeaderMatchSpecifier.(*route.HeaderMatcher_ExactMatch).ExactMatch {
-			logger.Debugf("mismatch in header value ")
-
+			logger.Tracef("cmpMatch: mismatch in header value ")
 			return false
 		}
 	}
