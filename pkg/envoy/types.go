@@ -73,3 +73,14 @@ type Auth struct {
 	Forward     bool
 	RemoteJwks  string
 }
+
+type Action struct {
+	RuleName string
+	Type     string
+	Proxy    ActionProxy
+}
+
+type ActionProxy struct {
+	TargetHostname string
+	Port           int64
+}

@@ -140,26 +140,10 @@ func (x *XDS) RemoveRule(rule pkgApi.Rule, ruleStillPresent bool) ([]WorkQueueIt
 		} else {
 			conditionsToDelete++
 
-			// set target hostname
-			targetHostname := ""
-			for _, v := range rule.Spec.Actions {
-				if v.Proxy.Hostname != "" {
-					targetHostname = v.Proxy.Hostname
-				}
-			}
+			action := x.getAction(rule.Metadata.Name, rule.Spec.Actions)
 			newWorkQueueItem := WorkQueueItem{
-				Action: "deleteRoute",
-				ListenerParams: ListenerParams{
-					Name:           rule.Metadata.Name,
-					TargetHostname: targetHostname,
-					Conditions: Conditions{
-						Hostname: condition.Hostname,
-						Prefix:   condition.Prefix,
-						Path:     condition.Path,
-						Regex:    condition.Regex,
-						Methods:  condition.Methods,
-					},
-				},
+				Action:         "deleteRoute",
+				ListenerParams: x.getListenerParams(action, condition),
 			}
 			if rule.Spec.Certificate != "" {
 				newWorkQueueItem.TLSParams = TLSParams{
@@ -222,12 +206,7 @@ func (x *XDS) ImportObject(object pkgApi.Object) ([]WorkQueueItem, error) {
 			{
 				Action: "updateListenerWithJwtProvider",
 				ListenerParams: ListenerParams{
-					Auth: Auth{
-						JwtProvider: jwtProvider.Metadata.Name,
-						Issuer:      jwtProvider.Spec.Issuer,
-						Forward:     jwtProvider.Spec.Forward,
-						RemoteJwks:  jwtProvider.Spec.RemoteJwks,
-					},
+					Auth: x.getAuthParams(jwtProvider.Metadata.Name, jwtProvider),
 				},
 			},
 		}...)
@@ -244,7 +223,7 @@ func (x *XDS) getObject(kind, name string) (pkgApi.Object, error) {
 	return pkgApi.Object{}, fmt.Errorf("object %s/%s not found", kind, name)
 }
 
-func (x *XDS) getRuleDeletions(cachedObject *pkgApi.Object, conditions []pkgApi.RuleConditions) []WorkQueueItem {
+func (x *XDS) getRuleDeletionsWithinObject(cachedObject *pkgApi.Object, conditions []pkgApi.RuleConditions) []WorkQueueItem {
 	var workQueueItems []WorkQueueItem
 	cachedRule := cachedObject.Data.(pkgApi.Rule)
 	cachedConditions := cachedRule.Spec.Conditions
@@ -271,23 +250,10 @@ func (x *XDS) getRuleDeletions(cachedObject *pkgApi.Object, conditions []pkgApi.
 				cachedCondition.Path,
 				cachedCondition.Regex,
 				strings.Join(cachedCondition.Methods, ","))
+			action := x.getAction(cachedRule.Metadata.Name, cachedRule.Spec.Actions)
 			newWorkQueueItem := WorkQueueItem{
-				Action: "deleteRoute",
-				ListenerParams: ListenerParams{
-					Name: cachedRule.Metadata.Name,
-					Conditions: Conditions{
-						Hostname: cachedCondition.Hostname,
-						Prefix:   cachedCondition.Prefix,
-						Path:     cachedCondition.Path,
-						Regex:    cachedCondition.Regex,
-						Methods:  cachedCondition.Methods,
-					},
-				},
-			}
-			for _, action := range cachedRule.Spec.Actions {
-				if action.Proxy.Hostname != "" {
-					newWorkQueueItem.ListenerParams.TargetHostname = action.Proxy.Hostname
-				}
+				Action:         "deleteRoute",
+				ListenerParams: x.getListenerParams(action, cachedCondition),
 			}
 			if cachedRule.Spec.Certificate != "" {
 				newWorkQueueItem.TLSParams = TLSParams{
@@ -306,24 +272,57 @@ func (x *XDS) getRuleDeletions(cachedObject *pkgApi.Object, conditions []pkgApi.
 	return workQueueItems
 }
 
-func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
-	var workQueueItems []WorkQueueItem
-	targetHostname := ""
-	for _, action := range rule.Spec.Actions {
-		if action.Proxy.Hostname != "" {
-			targetHostname = action.Proxy.Hostname
-			workQueueItem := WorkQueueItem{
-				Action: "createCluster",
-				ClusterParams: ClusterParams{
-					Name:           rule.Metadata.Name,
-					TargetHostname: targetHostname,
-					Port:           action.Proxy.Port,
-				},
-			}
-			workQueueItems = append(workQueueItems, workQueueItem)
+func (x *XDS) getAction(ruleName string, actions []pkgApi.RuleActions) Action {
+	var action Action
+	for _, ruleAction := range actions {
+		if ruleAction.Proxy.Hostname != "" {
+			action.Type = "proxy"
+			action.RuleName = ruleName
+			action.Proxy.TargetHostname = ruleAction.Proxy.Hostname
+			action.Proxy.Port = ruleAction.Proxy.Port
 		}
 	}
-	if targetHostname != "" {
+	return action
+}
+func (x *XDS) getListenerParams(action Action, condition pkgApi.RuleConditions) ListenerParams {
+	return ListenerParams{
+		Name:           action.RuleName,
+		TargetHostname: action.Proxy.TargetHostname,
+		Conditions: Conditions{
+			Hostname: condition.Hostname,
+			Prefix:   condition.Prefix,
+			Path:     condition.Path,
+			Regex:    condition.Regex,
+			Methods:  condition.Methods,
+		},
+	}
+}
+func (x *XDS) getClusterParams(action Action) ClusterParams {
+	return ClusterParams{
+		Name:           action.RuleName,
+		TargetHostname: action.Proxy.TargetHostname,
+		Port:           action.Proxy.Port,
+	}
+}
+func (x *XDS) getAuthParams(jwtProviderName string, jwtProvider pkgApi.JwtProvider) Auth {
+	return Auth{
+		JwtProvider: jwtProviderName,
+		Issuer:      jwtProvider.Spec.Issuer,
+		Forward:     jwtProvider.Spec.Forward,
+		RemoteJwks:  jwtProvider.Spec.RemoteJwks,
+	}
+}
+
+func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
+	var workQueueItems []WorkQueueItem
+	action := x.getAction(rule.Metadata.Name, rule.Spec.Actions)
+	if action.Type == "proxy" {
+		// create cluster
+		workQueueItem := WorkQueueItem{
+			Action:        "createCluster",
+			ClusterParams: x.getClusterParams(action),
+		}
+		workQueueItems = append(workQueueItems, workQueueItem)
 		// create listener that proxies to targetHostname
 		for _, condition := range rule.Spec.Conditions {
 			// validation
@@ -333,28 +332,13 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 			}
 			if condition.Hostname != "" || condition.Prefix != "" || condition.Path != "" || condition.Regex != "" {
 				workQueueItem := WorkQueueItem{
-					Action: "createListener",
-					ListenerParams: ListenerParams{
-						Name:           rule.Metadata.Name,
-						TargetHostname: targetHostname,
-						Conditions: Conditions{
-							Hostname: condition.Hostname,
-							Prefix:   condition.Prefix,
-							Path:     condition.Path,
-							Regex:    condition.Regex,
-							Methods:  condition.Methods,
-						},
-					},
+					Action:         "createListener",
+					ListenerParams: x.getListenerParams(action, condition),
 				}
 				// add auth info to parameter
 				if rule.Spec.Auth.JwtProvider != "" {
 					object, err := x.getObject("jwtProvider", rule.Spec.Auth.JwtProvider)
-					workQueueItem.ListenerParams.Auth = Auth{
-						JwtProvider: rule.Spec.Auth.JwtProvider,
-						Issuer:      object.Data.(pkgApi.JwtProvider).Spec.Issuer,
-						Forward:     object.Data.(pkgApi.JwtProvider).Spec.Forward,
-						RemoteJwks:  object.Data.(pkgApi.JwtProvider).Spec.RemoteJwks,
-					}
+					workQueueItem.ListenerParams.Auth = x.getAuthParams(rule.Spec.Auth.JwtProvider, object.Data.(pkgApi.JwtProvider))
 					if err != nil {
 						logger.Infof("Could not set Auth parameters: %s - skipping for now", err)
 					}
@@ -605,7 +589,7 @@ func (x *XDS) getWorkingItemsForRemovedObjects(objects []pkgApi.Object, cachedOb
 			if object.Metadata.Name == cachedObject.Metadata.Name {
 				if object.Kind == "rule" {
 					rule := object.Data.(pkgApi.Rule)
-					workQueueItems = append(workQueueItems, x.getRuleDeletions(cachedObject, rule.Spec.Conditions)...)
+					workQueueItems = append(workQueueItems, x.getRuleDeletionsWithinObject(cachedObject, rule.Spec.Conditions)...)
 				}
 			}
 		}
