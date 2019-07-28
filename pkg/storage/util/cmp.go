@@ -22,3 +22,15 @@ func NameExistsInCache(cache map[string]*api.Object, name string) bool {
 	}
 	return false
 }
+
+func CmpActions(a1, a2 []api.RuleActions) bool {
+	if len(a1) != len(a2) {
+		return false
+	}
+	for k := range a1 {
+		if a1[k] != a2[k] {
+			return false
+		}
+	}
+	return true
+}

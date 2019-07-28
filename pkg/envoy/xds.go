@@ -133,14 +133,14 @@ func (x *XDS) RemoveRule(rule pkgApi.Rule, ruleStillPresent bool) ([]WorkQueueIt
 	// check if matching is in use
 	var workQueueItems []WorkQueueItem
 	var conditionsToDelete int
+	action := x.getAction(rule.Metadata.Name, rule.Spec.Actions)
 	for _, condition := range rule.Spec.Conditions {
-		if x.s.CountCachedObjectByCondition(condition) > expectedRules {
+		if x.s.CountCachedObjectByCondition(condition, rule.Spec.Actions) > expectedRules {
 			// If there is only 1 match, then we're not going to remove the rule condition
 			logger.Debugf("Not removing rule with conditions %s %s%s%s (is identical to other condition in other rule)", condition.Hostname, condition.Prefix, condition.Path, condition.Regex)
 		} else {
 			conditionsToDelete++
 
-			action := x.getAction(rule.Metadata.Name, rule.Spec.Actions)
 			newWorkQueueItem := WorkQueueItem{
 				Action:         "deleteRoute",
 				ListenerParams: x.getListenerParams(action, condition),
@@ -237,7 +237,7 @@ func (x *XDS) getRuleDeletionsWithinObject(cachedObject *pkgApi.Object, conditio
 			}
 		}
 		if conditionFound {
-			logger.Debugf("Condition present (hostname: %s prefix: %s path: %s regex: %s methods: %s)",
+			logger.Tracef("Condition present (hostname: %s prefix: %s path: %s regex: %s methods: %s)",
 				conditions[conditionKey].Hostname,
 				conditions[conditionKey].Prefix,
 				conditions[conditionKey].Path,

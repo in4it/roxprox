@@ -413,13 +413,13 @@ func (s *S3Storage) DeleteCachedObject(filename string) error {
 
 	return fmt.Errorf("Filename %s not found in cache", filename)
 }
-func (s *S3Storage) CountCachedObjectByCondition(condition api.RuleConditions) int {
+func (s *S3Storage) CountCachedObjectByCondition(condition api.RuleConditions, actions []api.RuleActions) int {
 	count := 0
 	for _, objects := range s.cache {
 		for _, object := range objects {
 			if object.Kind == "rule" {
 				rule := object.Data.(api.Rule)
-				if util.ConditionExists(rule.Spec.Conditions, condition) {
+				if util.CmpActions(rule.Spec.Actions, actions) && util.ConditionExists(rule.Spec.Conditions, condition) {
 					count++
 				}
 			}
