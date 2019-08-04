@@ -427,6 +427,22 @@ func (s *S3Storage) CountCachedObjectByCondition(condition api.RuleConditions, a
 	}
 	return count
 }
+
+func (l *S3Storage) CountCachedJwtRulesByCondition(condition api.RuleConditions, jwtProvider string) int {
+	count := 0
+	for _, objects := range l.cache {
+		for _, object := range objects {
+			if object.Kind == "rule" {
+				rule := object.Data.(api.Rule)
+				if rule.Spec.Auth.JwtProvider == jwtProvider && util.ConditionExists(rule.Spec.Conditions, condition) {
+					count++
+				}
+			}
+		}
+	}
+	return count
+}
+
 func (s *S3Storage) GetCachedRule(name string) *api.Object {
 	for _, objects := range s.cache {
 		for _, object := range objects {

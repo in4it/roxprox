@@ -334,6 +334,22 @@ func (l *LocalStorage) CountCachedObjectByCondition(condition api.RuleConditions
 	}
 	return count
 }
+
+func (l *LocalStorage) CountCachedJwtRulesByCondition(condition api.RuleConditions, jwtProvider string) int {
+	count := 0
+	for _, objects := range l.cache {
+		for _, object := range objects {
+			if object.Kind == "rule" {
+				rule := object.Data.(api.Rule)
+				if rule.Spec.Auth.JwtProvider == jwtProvider && util.ConditionExists(rule.Spec.Conditions, condition) {
+					count++
+				}
+			}
+		}
+	}
+	return count
+}
+
 func (l *LocalStorage) GetCachedRule(name string) *api.Object {
 	for _, objects := range l.cache {
 		for _, object := range objects {

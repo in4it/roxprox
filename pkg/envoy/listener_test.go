@@ -412,12 +412,16 @@ func TestUpdateListener(t *testing.T) {
 		t.Errorf("Delete route failed: %s", err)
 		return
 	}
+	if err := j.DeleteJwtRule(&cache, params5, paramsTLS5New); err != nil {
+		t.Errorf("Delete jwt failed: %s", err)
+		return
+	}
 	// validate domain 5 (TLSNew)
 	if err := validateDeleteRoute(cache.listeners, params5, paramsTLS5New); err != nil {
 		t.Errorf("Delete Validation failed: %s", err)
 		return
 	}
-	// delete route for domani 1
+	// delete route for domain 1
 	if err := l.DeleteRoute(&cache, params1, paramsTLS1); err != nil {
 		t.Errorf("Delete route failed: %s", err)
 		return
@@ -497,6 +501,14 @@ func validateDeleteRoute(listeners []cache.Resource, params ListenerParams, tlsP
 	if err == nil {
 		return fmt.Errorf("Expected domain to be deleted, still found")
 	}
+
+	if params.Auth.JwtProvider != "" {
+		err = validateJWT(manager, params)
+		if err == nil {
+			return fmt.Errorf("Expected domain to be deleted, still found JWT Rules")
+		}
+	}
+
 	logger.Debugf("Domain %s with prefix %s not found anymore", params.Conditions.Hostname, params.Conditions.Prefix)
 
 	return nil

@@ -126,11 +126,15 @@ func TestDeleteObject(t *testing.T) {
 		workQueueItems = append(workQueueItems, newItems...)
 	}
 
-	if len(workQueueItems) != 1 {
-		t.Errorf("expected 1 work queue item")
+	if len(workQueueItems) != 2 {
+		t.Errorf("expected 2 work queue items")
 		return
 	}
-	if workQueueItems[0].ListenerParams.Conditions.Hostname != "test1-2.example.com" {
+	if workQueueItems[0].Action != "deleteRule" || workQueueItems[0].ListenerParams.Conditions.Hostname != "test1-2.example.com" {
+		t.Errorf("Expected test1-2.example.com to be deleted")
+		return
+	}
+	if workQueueItems[1].Action != "deleteJwtRule" || workQueueItems[1].ListenerParams.Conditions.Hostname != "test1-2.example.com" {
 		t.Errorf("Expected test1-2.example.com to be deleted")
 		return
 	}
@@ -142,7 +146,7 @@ func TestDeleteObject(t *testing.T) {
 	}
 
 	workQueueItems = []WorkQueueItem{}
-	// try again delete, no deleteRoute actions can be found
+	// try again delete, no deleteRule actions can be found
 
 	_, err = x.deleteObject("test1.yaml")
 	if err == nil {
@@ -180,20 +184,20 @@ func TestChange(t *testing.T) {
 		return
 	}
 
-	deleteRouteFound := false
+	deleteRuleFound := false
 	additionFound := false
 	for _, v := range newItems {
-		if v.Action == "deleteRoute" && v.ListenerParams.Conditions.Hostname == "test1-1.example.com" {
-			deleteRouteFound = true
+		if v.Action == "deleteRule" && v.ListenerParams.Conditions.Hostname == "test1-1.example.com" {
+			deleteRuleFound = true
 		}
 		if v.Action == "createRule" && v.ListenerParams.Conditions.Hostname == "test1-3.example.com" {
 			additionFound = true
 		}
-		if v.Action == "deleteRoute" && v.ListenerParams.Conditions.Hostname == "test1-2.example.com" {
-			t.Errorf("Found deleteRoute for test1-2.example.com (Found: %+v)", v)
+		if v.Action == "deleteRule" && v.ListenerParams.Conditions.Hostname == "test1-2.example.com" {
+			t.Errorf("Found deleteRule for test1-2.example.com (Found: %+v)", v)
 		}
 	}
-	if !deleteRouteFound {
+	if !deleteRuleFound {
 		t.Errorf("Delete route not found")
 		return
 	}
@@ -252,29 +256,29 @@ func TestMultipleRulesChange(t *testing.T) {
 		return
 	}
 
-	deleteRoute1Found := false
-	deleteRoute2Found := false
-	deleteRoute3Found := false
+	deleteRule1Found := false
+	deleteRule2Found := false
+	deleteRule3Found := false
 	for _, v := range newItems {
-		if v.Action == "deleteRoute" && v.ListenerParams.Conditions.Hostname == "test-multiplerules-2.example.com" {
-			deleteRoute1Found = true
+		if v.Action == "deleteRule" && v.ListenerParams.Conditions.Hostname == "test-multiplerules-2.example.com" {
+			deleteRule1Found = true
 		}
-		if v.Action == "deleteRoute" && v.ListenerParams.Conditions.Hostname == "test-multiplerules-5.example.com" {
-			deleteRoute2Found = true
+		if v.Action == "deleteRule" && v.ListenerParams.Conditions.Hostname == "test-multiplerules-5.example.com" {
+			deleteRule2Found = true
 		}
-		if v.Action == "deleteRoute" && v.ListenerParams.Conditions.Hostname == "test-multiplerules-6.example.com" {
-			deleteRoute3Found = true
+		if v.Action == "deleteRule" && v.ListenerParams.Conditions.Hostname == "test-multiplerules-6.example.com" {
+			deleteRule3Found = true
 		}
 	}
-	if !deleteRoute1Found {
+	if !deleteRule1Found {
 		t.Errorf("Delete route for test-multiplerules-2.example.com not found")
 		return
 	}
-	if !deleteRoute2Found {
+	if !deleteRule2Found {
 		t.Errorf("Delete route for test-multiplerules-5.example.com not found")
 		return
 	}
-	if !deleteRoute3Found {
+	if !deleteRule3Found {
 		t.Errorf("Delete route for test-multiplerules-6.example.com not found")
 		return
 	}
@@ -287,4 +291,66 @@ func TestMultipleRulesChange(t *testing.T) {
 		return
 	}
 
+}
+func TestDeleteDuplicateJwtRule(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test-jwtprovider.yaml", "test4.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+
+	// update object (with rule deletion)
+	x.s.SetStoragePath("testdata/changes")
+	newWorkQueueItems, err := x.putObject("test4.yaml")
+	if err != nil {
+		t.Errorf("putObject error: %s", err)
+		return
+	}
+
+	fmt.Printf("+%v", newWorkQueueItems)
+
+	/*_, err = x.workQueue.Submit(workQueueItems)
+	if err != nil {
+		t.Errorf("WorkQueue error: %s", err)
+		return
+	}*/
+}
+
+//TODO: 2019-08-04 20:56:18 ERROR xds workqueue.go:140 updateListenerWithJwtProvider error: HttpFilter for jwt missing
+func TestJwtAndRuleInSingleFile(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test5.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
 }

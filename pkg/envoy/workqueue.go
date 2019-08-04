@@ -113,10 +113,20 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 				item.state = "finished"
 			}
 			updateXds = true
-		case "deleteRoute":
+		case "deleteRule":
 			err := w.listener.DeleteRoute(&w.cache, item.ListenerParams, item.TLSParams)
 			if err != nil {
-				logger.Errorf("deleteRoute error: %s", err)
+				logger.Errorf("deleteRule error: %s", err)
+				logger.Debugf("Params: %+v %+v", item.ListenerParams, item.TLSParams)
+				item.state = "error"
+			} else {
+				item.state = "finished"
+			}
+			updateXds = true
+		case "deleteJwtRule":
+			err := w.jwtProvider.DeleteJwtRule(&w.cache, item.ListenerParams, item.TLSParams)
+			if err != nil {
+				logger.Errorf("deleteJwtRule error: %s", err)
 				logger.Debugf("Params: %+v %+v", item.ListenerParams, item.TLSParams)
 				item.state = "error"
 			} else {
@@ -240,7 +250,7 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 	if updateXds {
 		validated, err := w.validateCache()
 		if err != nil || !validated {
-			fmt.Errorf("Cache is not valid, not updating snapshot until cache is fixed")
+			logger.Errorf("Cache is not valid, not updating snapshot until cache is fixed (error: %s)", err)
 			return id, err
 		}
 

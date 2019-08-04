@@ -1,0 +1,23 @@
+# test dependency of test5 on testJwt
+api: proxy.in4it.io/v1
+kind: rule
+metadata:
+  name: test5
+spec:
+  auth:
+    jwtProvider: "testJwt"
+  conditions:
+    - prefix: /test5-1
+  actions:
+    - proxy:
+        hostname: target-example.com
+        port: 443
+---
+api: proxy.in4it.io/v1
+kind: jwtProvider
+metadata:
+  name: testJwt
+spec:
+  remoteJwks: http://localhost/.well-known/jwks.json
+  issuer: http://localhost/issuer
+  forward: true

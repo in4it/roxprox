@@ -1,0 +1,14 @@
+api: proxy.in4it.io/v1
+kind: rule
+metadata:
+  name: test4
+spec:
+  auth:
+    jwtProvider: "test-jwt"
+  conditions:
+    - prefix: /test4-1
+    - prefix: /test4-1
+  actions:
+    - proxy:
+        hostname: target-example.com
+        port: 443
