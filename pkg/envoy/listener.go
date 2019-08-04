@@ -10,7 +10,6 @@ import (
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
-	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
 	"github.com/envoyproxy/go-control-plane/pkg/cache"
 	"github.com/envoyproxy/go-control-plane/pkg/util"
@@ -254,151 +253,9 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 		Routes: routes,
 	}
 }
-func (l *Listener) getJwtConfig(auth Auth) *jwtAuth.JwtAuthentication {
-	if auth.JwtProvider == "" {
-		return &jwtAuth.JwtAuthentication{
-			Providers: map[string]*jwtAuth.JwtProvider{},
-		}
-	}
-	return &jwtAuth.JwtAuthentication{
-		Providers: map[string]*jwtAuth.JwtProvider{
-			auth.JwtProvider: &jwtAuth.JwtProvider{
-				Issuer:  auth.Issuer,
-				Forward: auth.Forward,
-				JwksSourceSpecifier: &jwtAuth.JwtProvider_RemoteJwks{
-					RemoteJwks: &jwtAuth.RemoteJwks{
-						HttpUri: &core.HttpUri{
-							Uri: auth.RemoteJwks,
-							HttpUpstreamType: &core.HttpUri_Cluster{
-								Cluster: "jwtProvider_" + auth.JwtProvider,
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func (l *Listener) getJwtRule(conditions Conditions, clusterName string, jwtProvider string, matchType string) []*jwtAuth.RequirementRule {
-	var rules []*jwtAuth.RequirementRule
-	prefix := "/"
-
-	jwtAuthRequirement := &jwtAuth.JwtRequirement{
-		RequiresType: &jwtAuth.JwtRequirement_ProviderName{
-			ProviderName: jwtProvider,
-		},
-	}
-
-	if conditions.Prefix != "" {
-		prefix = conditions.Prefix
-	}
-	var hostnameHeaders []*route.HeaderMatcher
-	var methodHeaders []*route.HeaderMatcher
-	if conditions.Hostname != "" {
-		hostnameHeaders = append(hostnameHeaders, &route.HeaderMatcher{
-			Name: ":authority",
-			HeaderMatchSpecifier: &route.HeaderMatcher_ExactMatch{
-				ExactMatch: conditions.Hostname,
-			},
-		})
-	}
-	if len(conditions.Methods) > 0 {
-		sort.Strings(conditions.Methods)
-		for _, method := range conditions.Methods {
-			methodHeaders = append(methodHeaders, &route.HeaderMatcher{
-				Name: ":method",
-				HeaderMatchSpecifier: &route.HeaderMatcher_ExactMatch{
-					ExactMatch: method,
-				},
-			})
-		}
-	}
-	if matchType == "prefix" {
-		if len(methodHeaders) == 0 {
-			rules = append(rules, &jwtAuth.RequirementRule{
-				Match: &route.RouteMatch{
-					PathSpecifier: &route.RouteMatch_Prefix{
-						Prefix: prefix,
-					},
-					Headers: hostnameHeaders,
-				},
-				Requires: jwtAuthRequirement,
-			})
-		} else {
-			for _, methodHeader := range methodHeaders {
-				rules = append(rules, &jwtAuth.RequirementRule{
-					Match: &route.RouteMatch{
-						PathSpecifier: &route.RouteMatch_Prefix{
-							Prefix: prefix,
-						},
-						Headers: append(hostnameHeaders, methodHeader),
-					},
-					Requires: jwtAuthRequirement,
-				})
-			}
-		}
-	} else if matchType == "path" {
-		if len(methodHeaders) == 0 {
-			rules = append(rules, &jwtAuth.RequirementRule{
-				Match: &route.RouteMatch{
-					PathSpecifier: &route.RouteMatch_Path{
-						Path: conditions.Path,
-					},
-					Headers: hostnameHeaders,
-				},
-				Requires: jwtAuthRequirement,
-			})
-		} else {
-			for _, methodHeader := range methodHeaders {
-				rules = append(rules, &jwtAuth.RequirementRule{
-					Match: &route.RouteMatch{
-						PathSpecifier: &route.RouteMatch_Path{
-							Path: conditions.Path,
-						},
-						Headers: append(hostnameHeaders, methodHeader),
-					},
-					Requires: jwtAuthRequirement,
-				})
-			}
-		}
-	} else if matchType == "regex" {
-		if len(methodHeaders) == 0 {
-			rules = append(rules, &jwtAuth.RequirementRule{
-				Match: &route.RouteMatch{
-					PathSpecifier: &route.RouteMatch_Regex{
-						Regex: conditions.Regex,
-					},
-					Headers: hostnameHeaders,
-				},
-				Requires: jwtAuthRequirement,
-			})
-		} else {
-			for _, methodHeader := range methodHeaders {
-				rules = append(rules, &jwtAuth.RequirementRule{
-					Match: &route.RouteMatch{
-						PathSpecifier: &route.RouteMatch_Regex{
-							Regex: conditions.Regex,
-						},
-						Headers: append(hostnameHeaders, methodHeader),
-					},
-					Requires: jwtAuthRequirement,
-				})
-			}
-		}
-	}
-
-	return rules
-}
 
 func (l *Listener) newTLSFilter(params ListenerParams, paramsTLS TLSParams, listenerName string) []listener.Filter {
-	// get empty jwt config
-	jwtConfig := l.getJwtConfig(params.Auth)
-	jwtConfigEncoded, err := types.MarshalAny(jwtConfig)
-	if err != nil {
-		panic(err)
-	}
-	httpFilters := newHttpFilter(jwtConfigEncoded)
+	httpFilters := newHttpRouterFilter()
 	newEmptyVirtualHost := route.VirtualHost{
 		Name:    "v_" + params.Conditions.Hostname,
 		Domains: []string{params.Conditions.Hostname},
@@ -523,19 +380,10 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	return nil
 }
 
-func (l *Listener) jwtRuleExist(rules []*jwtAuth.RequirementRule, rule *jwtAuth.RequirementRule) bool {
-	ruleFound := false
-	for _, v := range rules {
-		if v.Match.Equal(rule.Match) && v.Requires.RequiresType.(*jwtAuth.JwtRequirement_ProviderName).ProviderName == rule.Requires.RequiresType.(*jwtAuth.JwtRequirement_ProviderName).ProviderName {
-			ruleFound = true
-		}
-	}
-	return ruleFound
-}
 func (l *Listener) routeExist(routes []route.Route, route route.Route) bool {
 	routeFound := false
 	for _, v := range routes {
-		if l.cmpMatch(&v.Match, &route.Match) && v.Action.Equal(route.Action) {
+		if cmpMatch(&v.Match, &route.Match) && v.Action.Equal(route.Action) {
 			routeFound = true
 		}
 	}
@@ -543,19 +391,11 @@ func (l *Listener) routeExist(routes []route.Route, route route.Route) bool {
 }
 func (l *Listener) routeIndex(routes []route.Route, route route.Route) int {
 	for index, v := range routes {
-		if l.cmpMatch(&v.Match, &route.Match) && v.Action.Equal(route.Action) {
+		if cmpMatch(&v.Match, &route.Match) && v.Action.Equal(route.Action) {
 			return index
 		}
 	}
 	return -1
-}
-
-func (l *Listener) newHttpRouterFilter() []*hcm.HttpFilter {
-	return []*hcm.HttpFilter{
-		{
-			Name: util.Router,
-		},
-	}
 }
 
 func (l *Listener) newManager(routeName string, virtualHosts []route.VirtualHost, httpFilters []*hcm.HttpFilter) *hcm.HttpConnectionManager {
@@ -579,7 +419,7 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 
 	logger.Infof("Creating listener " + listenerName)
 
-	httpFilters := l.newHttpRouterFilter()
+	httpFilters := newHttpRouterFilter()
 	manager := l.newManager(strings.Replace(listenerName, "l_", "r_", 1), []route.VirtualHost{}, httpFilters)
 
 	pbst, err := types.MarshalAny(manager)
@@ -715,31 +555,6 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 		logger.Debugf("Virtualhost was empty, deleted")
 	}
 
-	// delete jwt rule if necessary
-	if params.Auth.JwtProvider != "" {
-		jwtConfig, err := getListenerHTTPFilter(manager.HttpFilters)
-		if err != nil {
-			return err
-		}
-		if _, ok := jwtConfig.Providers[params.Auth.JwtProvider]; ok {
-			// update rules
-			rules := l.getJwtRule(params.Conditions, params.Name, params.Auth.JwtProvider, matchType)
-			for _, rule := range rules {
-				index := l.requirementRuleIndex(jwtConfig.Rules, rule)
-				jwtConfig.Rules = append(jwtConfig.Rules[:index], jwtConfig.Rules[index+1:]...)
-			}
-			jwtConfigEncoded, err := types.MarshalAny(&jwtConfig)
-			if err != nil {
-				panic(err)
-			}
-
-			manager.HttpFilters = newHttpFilter(jwtConfigEncoded)
-		} else {
-			logger.Debugf("Couldn't find jwt provider %s during deleteRoute", params.Auth.JwtProvider)
-		}
-
-	}
-
 	manager.RouteSpecifier = routeSpecifier
 	pbst, err := types.MarshalAny(&manager)
 	if err != nil {
@@ -760,52 +575,6 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 	return nil
 }
 
-func (l *Listener) requirementRuleIndex(rules []*jwtAuth.RequirementRule, rule *jwtAuth.RequirementRule) int {
-	for index, v := range rules {
-		if l.cmpMatch(v.Match, rule.Match) && v.Requires.RequiresType.(*jwtAuth.JwtRequirement_ProviderName).ProviderName == rule.Requires.RequiresType.(*jwtAuth.JwtRequirement_ProviderName).ProviderName {
-			return index
-		}
-	}
-	return -1
-}
-
-func (l *Listener) cmpMatch(a *route.RouteMatch, b *route.RouteMatch) bool {
-	if a.GetPath() != b.GetPath() {
-		return false
-	}
-	if a.GetPrefix() != b.GetPrefix() {
-		return false
-	}
-	if a.GetPrefix() != b.GetPrefix() {
-		return false
-	}
-
-	aHeaders := a.GetHeaders()
-	bHeaders := b.GetHeaders()
-
-	if len(aHeaders) != len(bHeaders) {
-		return false
-	}
-	for k := range aHeaders {
-		aa := aHeaders[k]
-		bb := bHeaders[k]
-		if aa.Name != bb.Name {
-			logger.Tracef("cmpMatch: mismatch in header name ")
-			return false
-		}
-
-		if aa.HeaderMatchSpecifier.(*route.HeaderMatcher_ExactMatch).ExactMatch != bb.HeaderMatchSpecifier.(*route.HeaderMatcher_ExactMatch).ExactMatch {
-			logger.Tracef("cmpMatch: mismatch in header value ")
-			return false
-		}
-	}
-
-	if !a.Equal(b) {
-		return false
-	}
-
-	return true
-}
 func (l *Listener) validateListeners(listeners []cache.Resource, clusterNames []string) (bool, error) {
 	logger.Debugf("Validating config...")
 	for listenerKey := range listeners {

@@ -5,6 +5,7 @@ import (
 
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
+	"github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
 	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
 	"github.com/envoyproxy/go-control-plane/pkg/util"
@@ -148,6 +149,51 @@ func newHttpFilter(jwtAuth *types.Any) []*hcm.HttpFilter {
 				TypedConfig: jwtAuth,
 			},
 		},
+		{
+			Name: util.Router,
+		},
+	}
+}
+func cmpMatch(a *route.RouteMatch, b *route.RouteMatch) bool {
+	if a.GetPath() != b.GetPath() {
+		return false
+	}
+	if a.GetPrefix() != b.GetPrefix() {
+		return false
+	}
+	if a.GetPrefix() != b.GetPrefix() {
+		return false
+	}
+
+	aHeaders := a.GetHeaders()
+	bHeaders := b.GetHeaders()
+
+	if len(aHeaders) != len(bHeaders) {
+		return false
+	}
+	for k := range aHeaders {
+		aa := aHeaders[k]
+		bb := bHeaders[k]
+		if aa.Name != bb.Name {
+			logger.Tracef("cmpMatch: mismatch in header name ")
+			return false
+		}
+
+		if aa.HeaderMatchSpecifier.(*route.HeaderMatcher_ExactMatch).ExactMatch != bb.HeaderMatchSpecifier.(*route.HeaderMatcher_ExactMatch).ExactMatch {
+			logger.Tracef("cmpMatch: mismatch in header value ")
+			return false
+		}
+	}
+
+	if !a.Equal(b) {
+		return false
+	}
+
+	return true
+}
+
+func newHttpRouterFilter() []*hcm.HttpFilter {
+	return []*hcm.HttpFilter{
 		{
 			Name: util.Router,
 		},

@@ -310,3 +310,88 @@ func (j *JwtProvider) UpdateJwtRule(cache *WorkQueueCache, params ListenerParams
 	return nil
 
 }
+func (j *JwtProvider) DeleteJwtRule(cache *WorkQueueCache, params ListenerParams, paramsTLS TLSParams) error {
+
+	// TODO: only delete jwt rule
+
+	if params.Auth.JwtProvider == "" {
+		return fmt.Errorf("DeleteJwtRule: no JwtProvider found")
+	}
+
+	tls, _, _, _, _, matchType := getListenerAttributes(params, paramsTLS)
+
+	listenerKeyHTTP := -1
+	listenerKeyTLS := -1
+	for k, listener := range cache.listeners {
+		if (listener.(*api.Listener)).Name == "l_http" {
+			listenerKeyHTTP = k
+		} else if (listener.(*api.Listener)).Name == "l_tls" {
+			listenerKeyTLS = k
+		}
+	}
+
+	// http listener
+	var manager hcm.HttpConnectionManager
+	var err error
+
+	var ll *api.Listener
+	if tls {
+		ll = cache.listeners[listenerKeyTLS].(*api.Listener)
+		manager, err = getListenerHTTPConnectionManagerTLS(ll, params.Conditions.Hostname)
+	} else {
+		ll = cache.listeners[listenerKeyHTTP].(*api.Listener)
+		manager, err = getListenerHTTPConnectionManager(ll)
+		if err != nil {
+			return err
+		}
+	}
+
+	// delete jwt rule if necessary
+	jwtConfig, err := getListenerHTTPFilter(manager.HttpFilters)
+	if err != nil {
+		return err
+	}
+	if _, ok := jwtConfig.Providers[params.Auth.JwtProvider]; ok {
+		// update rules
+		rules := j.getJwtRule(params.Conditions, params.Name, params.Auth.JwtProvider, matchType)
+		for _, rule := range rules {
+			index := j.requirementRuleIndex(jwtConfig.Rules, rule)
+			jwtConfig.Rules = append(jwtConfig.Rules[:index], jwtConfig.Rules[index+1:]...)
+		}
+		jwtConfigEncoded, err := types.MarshalAny(&jwtConfig)
+		if err != nil {
+			panic(err)
+		}
+
+		manager.HttpFilters = newHttpFilter(jwtConfigEncoded)
+	} else {
+		logger.Debugf("Couldn't find jwt provider %s during deleteRoute", params.Auth.JwtProvider)
+	}
+
+	pbst, err := types.MarshalAny(&manager)
+	if err != nil {
+		panic(err)
+	}
+
+	filterId := -1
+	if tls {
+		filterId = getFilterChainId(ll.FilterChains, params.Conditions.Hostname)
+	} else {
+		filterId = 0
+	}
+
+	ll.FilterChains[filterId].Filters[0].ConfigType = &listener.Filter_TypedConfig{
+		TypedConfig: pbst,
+	}
+
+	return nil
+}
+
+func (j *JwtProvider) requirementRuleIndex(rules []*jwtAuth.RequirementRule, rule *jwtAuth.RequirementRule) int {
+	for index, v := range rules {
+		if cmpMatch(v.Match, rule.Match) && v.Requires.RequiresType.(*jwtAuth.JwtRequirement_ProviderName).ProviderName == rule.Requires.RequiresType.(*jwtAuth.JwtRequirement_ProviderName).ProviderName {
+			return index
+		}
+	}
+	return -1
+}
