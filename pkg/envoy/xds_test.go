@@ -186,7 +186,7 @@ func TestChange(t *testing.T) {
 		if v.Action == "deleteRoute" && v.ListenerParams.Conditions.Hostname == "test1-1.example.com" {
 			deleteRouteFound = true
 		}
-		if v.Action == "createListener" && v.ListenerParams.Conditions.Hostname == "test1-3.example.com" {
+		if v.Action == "createRule" && v.ListenerParams.Conditions.Hostname == "test1-3.example.com" {
 			additionFound = true
 		}
 		if v.Action == "deleteRoute" && v.ListenerParams.Conditions.Hostname == "test1-2.example.com" {

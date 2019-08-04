@@ -42,7 +42,17 @@ func TestDomainAlreadyExists(t *testing.T) {
 	paramsTLS1 := TLSParams{}
 	listener := l.createListener(params1, paramsTLS1)
 	cache.listeners = append(cache.listeners, listener)
-	err := l.updateListener(&cache, params2, paramsTLS1)
+
+	err := l.updateListener(&cache, params1, paramsTLS1)
+	if err != nil {
+		t.Errorf("UpdateListener params 1 error: %s", err)
+		return
+	}
+	err = l.updateListener(&cache, params2, paramsTLS1)
+	if err != nil {
+		t.Errorf("UpdateListener params 2 error: %s", err)
+		return
+	}
 
 	if len(cache.listeners) == 0 {
 		t.Errorf("Listener is empty (got %d)", len(cache.listeners))
@@ -54,7 +64,7 @@ func TestDomainAlreadyExists(t *testing.T) {
 		return
 	}
 
-	manager, err := l.getListenerHTTPConnectionManager(cachedListener)
+	manager, err := getListenerHTTPConnectionManager(cachedListener)
 	routeSpecifier, err := l.getListenerRouteSpecifier(manager)
 	if err != nil {
 		t.Errorf("Error: %s", err)
@@ -70,7 +80,7 @@ func TestDomainAlreadyExists(t *testing.T) {
 		return
 	}
 	if routeSpecifier.RouteConfig.VirtualHosts[0].Domains[0] != "hostname1.example.com" {
-		t.Errorf("Only domain in virtualhost should be hostname1.example.com")
+		t.Errorf("Only domain in virtualhost should be hostname1.example.com (got: %+v)", routeSpecifier.RouteConfig.VirtualHosts)
 		return
 	}
 }
@@ -117,7 +127,7 @@ func TestDoubleEntry(t *testing.T) {
 		return
 	}
 
-	manager, err := l.getListenerHTTPConnectionManager(cachedListener)
+	manager, err := getListenerHTTPConnectionManager(cachedListener)
 	if err != nil {
 		t.Errorf("Error: %s", err)
 		return
@@ -153,6 +163,7 @@ func TestUpdateListener(t *testing.T) {
 	// set debug loglevel
 	logger.SetLogLevel(loggo.DEBUG)
 	l := newListener()
+	j := newJwtProvider()
 	var cache WorkQueueCache
 	params1 := ListenerParams{
 		Name:           "test_1",
@@ -281,6 +292,12 @@ func TestUpdateListener(t *testing.T) {
 	listener := l.createListener(params1, paramsTLS1)
 	cache.listeners = append(cache.listeners, listener)
 
+	// update listener with domain 1
+	if err := l.updateListener(&cache, params1, paramsTLS1); err != nil {
+		t.Errorf("Error: %s", err)
+		return
+	}
+
 	// validate domain 1
 	if err := validateDomain(cache.listeners, params1); err != nil {
 		t.Errorf("Validation failed: %s", err)
@@ -288,7 +305,6 @@ func TestUpdateListener(t *testing.T) {
 	}
 
 	// update listener with domain 2
-
 	if err := l.updateListener(&cache, params2, paramsTLS1); err != nil {
 		t.Errorf("Error: %s", err)
 		return
@@ -309,6 +325,12 @@ func TestUpdateListener(t *testing.T) {
 		t.Errorf("Error: %s", err)
 		return
 	}
+	// add domain 3 (jwt)
+	if err := j.UpdateJwtRule(&cache, params3, paramsTLS1); err != nil {
+		t.Errorf("Error: %s", err)
+		return
+	}
+
 	// validate domain 3
 	if err := validateDomain(cache.listeners, params3); err != nil {
 		t.Errorf("Validation failed: %s", err)
@@ -319,6 +341,18 @@ func TestUpdateListener(t *testing.T) {
 	TLSListener := l.createListener(params4, paramsTLS4)
 	cache.listeners = append(cache.listeners, TLSListener)
 
+	// update listener for domain 4 (TLS)
+	if err := l.updateListener(&cache, params4, paramsTLS4); err != nil {
+		t.Errorf("Error: %s", err)
+		return
+	}
+
+	// update listener for domain 4 (jwt)
+	if err := j.UpdateJwtRule(&cache, params4, paramsTLS4); err != nil {
+		t.Errorf("Error: %s", err)
+		return
+	}
+
 	// validate domain 4 (TLS)
 	if err := validateDomainTLS(cache.listeners, params4, paramsTLS4); err != nil {
 		t.Errorf("Validation failed: %s", err)
@@ -327,6 +361,12 @@ func TestUpdateListener(t *testing.T) {
 
 	// add domain 5 (TLS)
 	if err := l.updateListener(&cache, params5, paramsTLS5); err != nil {
+		t.Errorf("Error: %s", err)
+		return
+	}
+
+	// update listener for domain 5 (jwt)
+	if err := j.UpdateJwtRule(&cache, params5, paramsTLS5); err != nil {
 		t.Errorf("Error: %s", err)
 		return
 	}
@@ -350,7 +390,7 @@ func TestUpdateListener(t *testing.T) {
 	}
 
 	// update jwt provider
-	if err := l.updateListenerWithJwtProvider(&cache, params6); err != nil {
+	if err := j.updateListenerWithJwtProvider(&cache, params6); err != nil {
 		t.Errorf("Updating jwt provider failed: %s", err)
 		return
 	}
@@ -392,6 +432,12 @@ func TestUpdateListener(t *testing.T) {
 		t.Errorf("Error: %s", err)
 		return
 	}
+	// update listener for domain 7 (jwt)
+	if err := j.UpdateJwtRule(&cache, params7, paramsTLS1); err != nil {
+		t.Errorf("Error: %s", err)
+		return
+	}
+
 	// validate domain 7
 	if err := validateDomain(cache.listeners, params7); err != nil {
 		t.Errorf("Validation failed: %s", err)
@@ -420,7 +466,6 @@ func TestUpdateListener(t *testing.T) {
 }
 
 func validateDeleteRoute(listeners []cache.Resource, params ListenerParams, tlsParams TLSParams) error {
-	l := newListener()
 	if len(listeners) != 2 {
 		return fmt.Errorf("Expected 2 listeners (l_http and l_tls) (got %d)", len(listeners))
 	}
@@ -436,12 +481,12 @@ func validateDeleteRoute(listeners []cache.Resource, params ListenerParams, tlsP
 	var manager hcm.HttpConnectionManager
 	var err error
 	if tlsParams.Name == "" {
-		manager, err = l.getListenerHTTPConnectionManager(cachedListener)
+		manager, err = getListenerHTTPConnectionManager(cachedListener)
 		if err != nil {
 			return err
 		}
 	} else {
-		manager, err = l.getListenerHTTPConnectionManagerTLS(cachedListenerTLS, params.Conditions.Hostname)
+		manager, err = getListenerHTTPConnectionManagerTLS(cachedListenerTLS, params.Conditions.Hostname)
 		if err != nil {
 			return err
 		}
@@ -467,7 +512,7 @@ func validateChallenge(listeners []cache.Resource, params ChallengeParams) error
 		return fmt.Errorf("Expected l_http (got %s)", cachedListener.Name)
 	}
 
-	manager, err := l.getListenerHTTPConnectionManager(cachedListener)
+	manager, err := getListenerHTTPConnectionManager(cachedListener)
 	if err != nil {
 		return err
 	}
@@ -504,7 +549,6 @@ func validateChallenge(listeners []cache.Resource, params ChallengeParams) error
 }
 
 func validateDomainTLS(listeners []cache.Resource, params ListenerParams, tlsParams TLSParams) error {
-	l := newListener()
 	if len(listeners) == 0 {
 		return fmt.Errorf("Listener is empty (got %d)", len(listeners))
 	}
@@ -513,7 +557,7 @@ func validateDomainTLS(listeners []cache.Resource, params ListenerParams, tlsPar
 		return fmt.Errorf("Expected l_tls (got %s)", cachedListener.Name)
 	}
 
-	manager, err := l.getListenerHTTPConnectionManagerTLS(cachedListener, params.Conditions.Hostname)
+	manager, err := getListenerHTTPConnectionManagerTLS(cachedListener, params.Conditions.Hostname)
 	if err != nil {
 		return err
 	}
@@ -522,7 +566,7 @@ func validateDomainTLS(listeners []cache.Resource, params ListenerParams, tlsPar
 		return err
 	}
 
-	filterId := l.getFilterChainId(cachedListener.FilterChains, params.Conditions.Hostname)
+	filterId := getFilterChainId(cachedListener.FilterChains, params.Conditions.Hostname)
 
 	if filterId == -1 {
 		return fmt.Errorf("Filter not found for domain %s", params.Conditions.Hostname)
@@ -546,7 +590,6 @@ func validateDomainTLS(listeners []cache.Resource, params ListenerParams, tlsPar
 }
 
 func validateDomain(listeners []cache.Resource, params ListenerParams) error {
-	l := newListener()
 	if len(listeners) == 0 {
 		return fmt.Errorf("Listener is empty (got %d)", len(listeners))
 	}
@@ -555,7 +598,7 @@ func validateDomain(listeners []cache.Resource, params ListenerParams) error {
 		return fmt.Errorf("Expected l_http (got %s)", cachedListener.Name)
 	}
 
-	manager, err := l.getListenerHTTPConnectionManager(cachedListener)
+	manager, err := getListenerHTTPConnectionManager(cachedListener)
 	if err != nil {
 		return err
 	}
@@ -669,7 +712,6 @@ func validateMethods(headers []*route.HeaderMatcher, methods []string) bool {
 }
 
 func validateJWTProvider(listeners []cache.Resource, auth Auth) error {
-	l := newListener()
 	if len(listeners) == 0 {
 		return fmt.Errorf("Listener is empty (got %d)", len(listeners))
 	}
@@ -678,11 +720,11 @@ func validateJWTProvider(listeners []cache.Resource, auth Auth) error {
 		cachedListener := cachedListenerResource.(*api.Listener)
 
 		if cachedListener.Name == "l_http" {
-			manager, err := l.getListenerHTTPConnectionManager(cachedListener)
+			manager, err := getListenerHTTPConnectionManager(cachedListener)
 			if err != nil {
 				return err
 			}
-			jwtConfig, err := l.getListenerHTTPFilter(manager.HttpFilters)
+			jwtConfig, err := getListenerHTTPFilter(manager.HttpFilters)
 			if err != nil {
 				return err
 			}
@@ -692,11 +734,11 @@ func validateJWTProvider(listeners []cache.Resource, auth Auth) error {
 				if len(filterChain.Filters) == 0 {
 					return fmt.Errorf("No filters found in listener %s", cachedListener.Name)
 				}
-				manager, err := l.getManager((filterChain.Filters[0].ConfigType).(*listener.Filter_TypedConfig))
+				manager, err := getManager((filterChain.Filters[0].ConfigType).(*listener.Filter_TypedConfig))
 				if err != nil {
 					return fmt.Errorf("Could not extract manager from listener %s", cachedListener.Name)
 				}
-				jwtConfig, err := l.getListenerHTTPFilter(manager.HttpFilters)
+				jwtConfig, err := getListenerHTTPFilter(manager.HttpFilters)
 				if err != nil {
 					return err
 				}
@@ -734,10 +776,9 @@ func validateJWTProviderWithJWTConfig(jwtConfig jwtAuth.JwtAuthentication, auth 
 }
 
 func validateJWT(manager hcm.HttpConnectionManager, params ListenerParams) error {
-	l := newListener()
 	// validate jwt
 	if params.Auth.JwtProvider != "" {
-		jwtConfig, err := l.getListenerHTTPFilter(manager.HttpFilters)
+		jwtConfig, err := getListenerHTTPFilter(manager.HttpFilters)
 		if err != nil {
 			return err
 		}

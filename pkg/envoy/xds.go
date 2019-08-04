@@ -331,19 +331,36 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 
 			}
 			if condition.Hostname != "" || condition.Prefix != "" || condition.Path != "" || condition.Regex != "" {
-				workQueueItem := WorkQueueItem{
-					Action:         "createListener",
-					ListenerParams: x.getListenerParams(action, condition),
-				}
-				// add auth info to parameter
+				listenerParams := x.getListenerParams(action, condition)
 				if rule.Spec.Auth.JwtProvider != "" {
 					object, err := x.getObject("jwtProvider", rule.Spec.Auth.JwtProvider)
-					workQueueItem.ListenerParams.Auth = x.getAuthParams(rule.Spec.Auth.JwtProvider, object.Data.(pkgApi.JwtProvider))
+					listenerParams.Auth = x.getAuthParams(rule.Spec.Auth.JwtProvider, object.Data.(pkgApi.JwtProvider))
 					if err != nil {
 						logger.Infof("Could not set Auth parameters: %s - skipping for now", err)
 					}
+					workQueueItems = append(workQueueItems, []WorkQueueItem{
+						{
+							Action:         "createRule",
+							ListenerParams: listenerParams,
+							TLSParams:      TLSParams{},
+						},
+						{
+							Action:         "updateListenerWithJwtProvider",
+							ListenerParams: listenerParams,
+						},
+						{
+							Action:         "createJwtRule",
+							ListenerParams: listenerParams,
+							TLSParams:      TLSParams{},
+						},
+					}...)
+				} else {
+					workQueueItems = append(workQueueItems, WorkQueueItem{
+						Action:         "createRule",
+						ListenerParams: listenerParams,
+						TLSParams:      TLSParams{},
+					})
 				}
-				workQueueItems = append(workQueueItems, workQueueItem)
 
 				if rule.Spec.Certificate == "letsencrypt" {
 					// TLS listener
@@ -362,7 +379,7 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 							return workQueueItems, err
 						}
 						workQueueItemTLS := workQueueItem
-						workQueueItemTLS.Action = "createTLSListener"
+						workQueueItemTLS.Action = "createRule"
 						workQueueItemTLS.TLSParams = TLSParams{
 							Name:       rule.Metadata.Name,
 							CertBundle: certBundle,

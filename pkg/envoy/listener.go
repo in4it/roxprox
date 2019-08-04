@@ -25,51 +25,7 @@ type Listener struct{}
 func newListener() *Listener {
 	return &Listener{}
 }
-func (l *Listener) updateListenerWithJwtProvider(cache *WorkQueueCache, params ListenerParams) error {
-	for listenerKey := range cache.listeners {
-		ll := cache.listeners[listenerKey].(*api.Listener)
-		manager, err := l.getListenerHTTPConnectionManager(ll)
-		if err != nil {
-			return err
-		}
-		// add routes to jwtProvider
-		jwtConfig, err := l.getListenerHTTPFilter(manager.HttpFilters)
-		if err != nil {
-			return err
-		}
-		if jwtConfig.Providers == nil {
-			jwtConfig.Providers = make(map[string]*jwtAuth.JwtProvider)
-		}
-		jwtNewConfig := l.getJwtConfig(params.Auth)
-		jwtConfig.Providers[params.Auth.JwtProvider] = jwtNewConfig.Providers[params.Auth.JwtProvider]
-		logger.Debugf("Adding/updating %s to jwt config", params.Auth.JwtProvider)
 
-		jwtConfigEncoded, err := types.MarshalAny(&jwtConfig)
-		if err != nil {
-			panic(err)
-		}
-
-		manager.HttpFilters = []*hcm.HttpFilter{
-			{
-				Name: "envoy.filters.http.jwt_authn",
-				ConfigType: &hcm.HttpFilter_TypedConfig{
-					TypedConfig: jwtConfigEncoded,
-				},
-			},
-			{
-				Name: util.Router,
-			},
-		}
-		pbst, err := types.MarshalAny(&manager)
-		if err != nil {
-			panic(err)
-		}
-		ll.FilterChains[0].Filters[0].ConfigType = &listener.Filter_TypedConfig{
-			TypedConfig: pbst,
-		}
-	}
-	return nil
-}
 func (l *Listener) newTLSFilterChain(params TLSParams) listener.FilterChain {
 	return listener.FilterChain{
 		FilterChainMatch: &listener.FilterChainMatch{
@@ -101,7 +57,7 @@ func (l *Listener) updateListenerWithNewCert(cache *WorkQueueCache, params TLSPa
 		ll := cache.listeners[listenerKey].(*api.Listener)
 		if ll.Name == "l_tls" {
 			listenerFound = true
-			filterId := l.getFilterChainId(ll.FilterChains, params.Domain)
+			filterId := getFilterChainId(ll.FilterChains, params.Domain)
 			if filterId == -1 {
 				logger.Debugf("Updating %s with new filter and certificate for domain %s", ll.Name, params.Domain)
 				ll.FilterChains = append(ll.FilterChains, l.newTLSFilterChain(params))
@@ -144,7 +100,7 @@ func (l *Listener) updateListenerWithChallenge(cache *WorkQueueCache, challenge 
 		ll := cache.listeners[listenerKey].(*api.Listener)
 		if ll.Name == "l_http" {
 			logger.Debugf("Matching listener found, updating: %s", ll.Name)
-			manager, err := l.getListenerHTTPConnectionManager(ll)
+			manager, err := getListenerHTTPConnectionManager(ll)
 			if err != nil {
 				return err
 			}
@@ -152,11 +108,20 @@ func (l *Listener) updateListenerWithChallenge(cache *WorkQueueCache, challenge 
 			if err != nil {
 				return err
 			}
-			// TODO: check whether virtualhost exists for *, or add new
+			routeAdded := false
 			for k, virtualHost := range routeSpecifier.RouteConfig.VirtualHosts {
 				if virtualHost.Name == "v_nodomain" {
 					routeSpecifier.RouteConfig.VirtualHosts[k].Routes = append(newRoute, routeSpecifier.RouteConfig.VirtualHosts[k].Routes...)
+					routeAdded = true
 				}
+			}
+			if !routeAdded {
+				// v_nodomain does not exist, add new virtualhost with the new route
+				routeSpecifier.RouteConfig.VirtualHosts = append(routeSpecifier.RouteConfig.VirtualHosts, route.VirtualHost{
+					Name:    "v_nodomain",
+					Domains: []string{"*"},
+					Routes:  newRoute,
+				})
 			}
 			manager.RouteSpecifier = routeSpecifier
 			pbst, err := types.MarshalAny(&manager)
@@ -173,68 +138,9 @@ func (l *Listener) updateListenerWithChallenge(cache *WorkQueueCache, challenge 
 func (l *Listener) getListenerRouteSpecifier(manager hcm.HttpConnectionManager) (*hcm.HttpConnectionManager_RouteConfig, error) {
 	var routeSpecifier *hcm.HttpConnectionManager_RouteConfig
 	routeSpecifier = manager.RouteSpecifier.(*hcm.HttpConnectionManager_RouteConfig)
-	if len(routeSpecifier.RouteConfig.VirtualHosts) == 0 {
-		return routeSpecifier, fmt.Errorf("No virtualhosts found in routeconfig")
-	}
 	return routeSpecifier, nil
 }
-func (l *Listener) getListenerHTTPConnectionManager(ll *api.Listener) (hcm.HttpConnectionManager, error) {
-	var manager hcm.HttpConnectionManager
-	var err error
-	if len(ll.FilterChains) == 0 {
-		return manager, fmt.Errorf("No filterchains found in listener %s", ll.Name)
-	}
-	if len(ll.FilterChains[0].Filters) == 0 {
-		return manager, fmt.Errorf("No filters found in listener %s", ll.Name)
-	}
-	manager, err = l.getManager((ll.FilterChains[0].Filters[0].ConfigType).(*listener.Filter_TypedConfig))
-	if err != nil {
-		return manager, err
-	}
-	return manager, nil
-}
-func (l *Listener) getFilterChainId(filterChains []listener.FilterChain, hostname string) int {
-	filterId := -1
 
-	for k, filter := range filterChains {
-		for _, serverName := range filter.FilterChainMatch.ServerNames {
-			if serverName == hostname {
-				filterId = k
-			}
-		}
-	}
-	return filterId
-}
-func (l *Listener) getListenerHTTPConnectionManagerTLS(ll *api.Listener, hostname string) (hcm.HttpConnectionManager, error) {
-	var err error
-	var manager hcm.HttpConnectionManager
-
-	filterId := l.getFilterChainId(ll.FilterChains, hostname)
-
-	if filterId == -1 {
-		return manager, fmt.Errorf(Error_NoFilterChainFound)
-	} else {
-		if len(ll.FilterChains[filterId].Filters) == 0 {
-			return manager, fmt.Errorf(Error_NoFilterFound)
-		}
-		manager, err = l.getManager(ll.FilterChains[filterId].Filters[0].ConfigType.(*listener.Filter_TypedConfig))
-		if err != nil {
-			return manager, err
-		}
-	}
-
-	return manager, nil
-}
-func (l *Listener) getManager(typedConfig *listener.Filter_TypedConfig) (hcm.HttpConnectionManager, error) {
-	var manager hcm.HttpConnectionManager
-
-	err := types.UnmarshalAny(typedConfig.TypedConfig, &manager)
-	if err != nil {
-		return manager, err
-	}
-
-	return manager, nil
-}
 func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, clusterName, virtualHostName string, methods []string, matchType string) route.VirtualHost {
 	var hostRewriteSpecifier *route.RouteAction_HostRewrite
 	var routes []route.Route
@@ -492,7 +398,7 @@ func (l *Listener) newTLSFilter(params ListenerParams, paramsTLS TLSParams, list
 	if err != nil {
 		panic(err)
 	}
-	httpFilters := l.newHttpFilter(jwtConfigEncoded)
+	httpFilters := newHttpFilter(jwtConfigEncoded)
 	newEmptyVirtualHost := route.VirtualHost{
 		Name:    "v_" + params.Conditions.Hostname,
 		Domains: []string{params.Conditions.Hostname},
@@ -514,7 +420,7 @@ func (l *Listener) newTLSFilter(params ListenerParams, paramsTLS TLSParams, list
 func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, paramsTLS TLSParams) error {
 	var listenerKey = -1
 
-	tls, targetPrefix, virtualHostname, listenerName, _, matchType := l.getListenerAttributes(params, paramsTLS)
+	tls, targetPrefix, virtualHostname, listenerName, _, matchType := getListenerAttributes(params, paramsTLS)
 
 	logger.Infof("Updating listener " + listenerName)
 
@@ -533,26 +439,30 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 
 	ll := cache.listeners[listenerKey].(*api.Listener)
 	if tls {
-		manager, err = l.getListenerHTTPConnectionManagerTLS(ll, params.Conditions.Hostname)
-		if err.Error() == Error_NoFilterChainFound {
+		manager, err = getListenerHTTPConnectionManagerTLS(ll, params.Conditions.Hostname)
+		if err != nil && err.Error() == Error_NoFilterChainFound {
 			// create newFilterChain with new empty Filter
 			newFilterChain := l.newTLSFilterChain(paramsTLS)
 			newFilterChain.Filters = l.newTLSFilter(params, paramsTLS, listenerName)
 			ll.FilterChains = append(ll.FilterChains, newFilterChain)
-			manager, err = l.getListenerHTTPConnectionManagerTLS(ll, params.Conditions.Hostname)
+			manager, err = getListenerHTTPConnectionManagerTLS(ll, params.Conditions.Hostname)
 			if err != nil {
 				return fmt.Errorf("Created new filter chain, but still error: %s", err)
 			}
-		} else if err.Error() == Error_NoFilterFound {
-			filterId := l.getFilterChainId(ll.FilterChains, params.Conditions.Hostname)
+		} else if err != nil && err.Error() == Error_NoFilterFound {
+			filterId := getFilterChainId(ll.FilterChains, params.Conditions.Hostname)
 			ll.FilterChains[filterId].Filters = l.newTLSFilter(params, paramsTLS, listenerName)
-			manager, err = l.getListenerHTTPConnectionManagerTLS(ll, params.Conditions.Hostname)
+			manager, err = getListenerHTTPConnectionManagerTLS(ll, params.Conditions.Hostname)
 			if err != nil {
 				return fmt.Errorf("Created new filter, but still error: %s", err)
 			}
+		} else if err != nil {
+			if err != nil {
+				return fmt.Errorf("getListenerHTTPConnectionManagerTLS error: %s", err)
+			}
 		}
 	} else {
-		manager, err = l.getListenerHTTPConnectionManager(ll)
+		manager, err = getListenerHTTPConnectionManager(ll)
 		if err != nil {
 			return err
 		}
@@ -588,49 +498,6 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 		routeSpecifier.RouteConfig.VirtualHosts = append(routeSpecifier.RouteConfig.VirtualHosts, v)
 	}
 
-	// add routes to jwtProvider
-	jwtConfig, err := l.getListenerHTTPFilter(manager.HttpFilters)
-	if err != nil {
-		return err
-	}
-
-	// find provider
-	if params.Auth.JwtProvider != "" {
-		providerFound := false
-		if jwtConfig.Providers == nil {
-			jwtConfig.Providers = make(map[string]*jwtAuth.JwtProvider)
-		} else {
-			for k := range jwtConfig.Providers {
-				logger.Debugf("comparing %s with %s", k, params.Auth.JwtProvider)
-				if k == params.Auth.JwtProvider {
-					providerFound = true
-				}
-			}
-		}
-
-		if !providerFound {
-			jwtNewConfig := l.getJwtConfig(params.Auth)
-			jwtConfig.Providers[params.Auth.JwtProvider] = jwtNewConfig.Providers[params.Auth.JwtProvider]
-			logger.Debugf("adding provider %s to jwt config", params.Auth.JwtProvider)
-		}
-
-		// update routes
-		newJwtRules := l.getJwtRule(params.Conditions, params.Name, params.Auth.JwtProvider, matchType)
-		for _, newJwtRule := range newJwtRules {
-			if l.jwtRuleExist(jwtConfig.Rules, newJwtRule) {
-				logger.Debugf("JWT Rule already exists, not adding route for %s", v.Name)
-			} else {
-				jwtConfig.Rules = append(jwtConfig.Rules, newJwtRule)
-			}
-		}
-		jwtConfigEncoded, err := types.MarshalAny(&jwtConfig)
-		if err != nil {
-			panic(err)
-		}
-
-		manager.HttpFilters = l.newHttpFilter(jwtConfigEncoded)
-	}
-
 	manager.RouteSpecifier = routeSpecifier
 	pbst, err := types.MarshalAny(&manager)
 	if err != nil {
@@ -640,7 +507,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	filterId := 0
 	if tls {
 		// tls has multiple filterChains
-		filterId = l.getFilterChainId(ll.FilterChains, params.Conditions.Hostname)
+		filterId = getFilterChainId(ll.FilterChains, params.Conditions.Hostname)
 	}
 	if len(ll.FilterChains[filterId].Filters) == 0 {
 		return fmt.Errorf("Can't modify filterchain: filter does not exist")
@@ -683,88 +550,14 @@ func (l *Listener) routeIndex(routes []route.Route, route route.Route) int {
 	return -1
 }
 
-func (l *Listener) getListenerHTTPFilter(httpFilter []*hcm.HttpFilter) (jwtAuth.JwtAuthentication, error) {
-	var jwtConfig jwtAuth.JwtAuthentication
-	httpFilterPos := -1
-	for k, v := range httpFilter {
-		if v.Name == "envoy.filters.http.jwt_authn" {
-			httpFilterPos = k
-		}
-	}
-	if httpFilterPos == -1 {
-		return jwtConfig, fmt.Errorf("HttpFilter for jwt missing")
-	}
-	err := types.UnmarshalAny(httpFilter[httpFilterPos].GetTypedConfig(), &jwtConfig)
-	if err != nil {
-		return jwtConfig, err
-	}
-	return jwtConfig, nil
-}
-
-func (l *Listener) getListenerAttributes(params ListenerParams, paramsTLS TLSParams) (bool, string, string, string, uint32, string) {
-	var (
-		tls             bool
-		listenerName    string
-		targetPrefix    string
-		matchType       string
-		virtualHostName string
-		listenerPort    uint32
-	)
-
-	if paramsTLS.CertBundle != "" {
-		tls = true
-	}
-
-	if params.Conditions.Prefix != "" {
-		matchType = "prefix"
-		targetPrefix = params.Conditions.Prefix
-	}
-	if params.Conditions.Path != "" {
-		matchType = "path"
-		targetPrefix = params.Conditions.Path
-	}
-	if params.Conditions.Regex != "" {
-		matchType = "regex"
-		targetPrefix = params.Conditions.Regex
-	}
-
-	// default to prefix if path/prefix/regex is not defined
-	if params.Conditions.Prefix == "" && params.Conditions.Path == "" && params.Conditions.Regex == "" {
-		matchType = "prefix"
-		targetPrefix = "/"
-	}
-
-	if params.Conditions.Hostname == "" {
-		virtualHostName = "v_nodomain"
-	} else {
-		virtualHostName = "v_" + params.Conditions.Hostname
-	}
-
-	if tls {
-		listenerPort = 10001
-		listenerName = "l_tls"
-		virtualHostName = virtualHostName + "_tls"
-	} else {
-		listenerPort = 10000
-		listenerName = "l_http"
-	}
-	return tls, targetPrefix, virtualHostName, listenerName, listenerPort, matchType
-}
-
-func (l *Listener) newHttpFilter(jwtAuth *types.Any) []*hcm.HttpFilter {
+func (l *Listener) newHttpRouterFilter() []*hcm.HttpFilter {
 	return []*hcm.HttpFilter{
-		{
-			Name: "envoy.filters.http.jwt_authn",
-			ConfigType: &hcm.HttpFilter_TypedConfig{
-				TypedConfig: jwtAuth,
-			},
-		},
 		{
 			Name: util.Router,
 		},
 	}
-
 }
+
 func (l *Listener) newManager(routeName string, virtualHosts []route.VirtualHost, httpFilters []*hcm.HttpFilter) *hcm.HttpConnectionManager {
 	return &hcm.HttpConnectionManager{
 		CodecType:  hcm.AUTO,
@@ -782,41 +575,12 @@ func (l *Listener) newManager(routeName string, virtualHosts []route.VirtualHost
 func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *api.Listener {
 	var err error
 
-	tls, targetPrefix, virtualHostName, listenerName, listenerPort, matchType := l.getListenerAttributes(params, paramsTLS)
+	tls, _, _, listenerName, listenerPort, _ := getListenerAttributes(params, paramsTLS)
 
-	logger.Debugf("Processing params %+v", params)
 	logger.Infof("Creating listener " + listenerName)
 
-	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostName, params.Conditions.Methods, matchType)
-	virtualHosts := []route.VirtualHost{v}
-
-	if virtualHostName != "v_nodomain" && !tls {
-		virtualHosts = append(virtualHosts, route.VirtualHost{
-			Name:    "v_nodomain",
-			Domains: []string{"*"},
-			Routes:  []route.Route{},
-		})
-	}
-
-	jwtConfig := l.getJwtConfig(params.Auth)
-	if params.Auth.JwtProvider != "" {
-		// add rule if there is a jwtprovider
-		newJwtRules := l.getJwtRule(params.Conditions, params.Name, params.Auth.JwtProvider, matchType)
-		for _, newJwtRule := range newJwtRules {
-			if l.jwtRuleExist(jwtConfig.Rules, newJwtRule) {
-				logger.Debugf("JWT Rule already exists, not adding route for %s", v.Name)
-			} else {
-				jwtConfig.Rules = append(jwtConfig.Rules, newJwtRule)
-			}
-		}
-	}
-	jwtAuth, err := types.MarshalAny(jwtConfig)
-	if err != nil {
-		panic(err)
-	}
-
-	httpFilters := l.newHttpFilter(jwtAuth)
-	manager := l.newManager(strings.Replace(listenerName, "l_", "r_", 1), virtualHosts, httpFilters)
+	httpFilters := l.newHttpRouterFilter()
+	manager := l.newManager(strings.Replace(listenerName, "l_", "r_", 1), []route.VirtualHost{}, httpFilters)
 
 	pbst, err := types.MarshalAny(manager)
 	if err != nil {
@@ -900,7 +664,7 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 		}
 	}
 
-	tls, targetPrefix, virtualHostname, _, _, matchType := l.getListenerAttributes(params, paramsTLS)
+	tls, targetPrefix, virtualHostname, _, _, matchType := getListenerAttributes(params, paramsTLS)
 
 	// http listener
 	var manager hcm.HttpConnectionManager
@@ -909,10 +673,10 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 	var ll *api.Listener
 	if tls {
 		ll = cache.listeners[listenerKeyTLS].(*api.Listener)
-		manager, err = l.getListenerHTTPConnectionManagerTLS(ll, params.Conditions.Hostname)
+		manager, err = getListenerHTTPConnectionManagerTLS(ll, params.Conditions.Hostname)
 	} else {
 		ll = cache.listeners[listenerKeyHTTP].(*api.Listener)
-		manager, err = l.getListenerHTTPConnectionManager(ll)
+		manager, err = getListenerHTTPConnectionManager(ll)
 		if err != nil {
 			return err
 		}
@@ -953,7 +717,7 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 
 	// delete jwt rule if necessary
 	if params.Auth.JwtProvider != "" {
-		jwtConfig, err := l.getListenerHTTPFilter(manager.HttpFilters)
+		jwtConfig, err := getListenerHTTPFilter(manager.HttpFilters)
 		if err != nil {
 			return err
 		}
@@ -969,7 +733,7 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 				panic(err)
 			}
 
-			manager.HttpFilters = l.newHttpFilter(jwtConfigEncoded)
+			manager.HttpFilters = newHttpFilter(jwtConfigEncoded)
 		} else {
 			logger.Debugf("Couldn't find jwt provider %s during deleteRoute", params.Auth.JwtProvider)
 		}
@@ -984,7 +748,7 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 
 	filterId := -1
 	if tls {
-		filterId = l.getFilterChainId(ll.FilterChains, params.Conditions.Hostname)
+		filterId = getFilterChainId(ll.FilterChains, params.Conditions.Hostname)
 	} else {
 		filterId = 0
 	}
@@ -1047,7 +811,7 @@ func (l *Listener) validateListeners(listeners []cache.Resource, clusterNames []
 	for listenerKey := range listeners {
 		ll := listeners[listenerKey].(*api.Listener)
 
-		manager, err := l.getListenerHTTPConnectionManager(ll)
+		manager, err := getListenerHTTPConnectionManager(ll)
 		if err != nil {
 			return false, err
 		}
