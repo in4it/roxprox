@@ -58,7 +58,7 @@ func getListenerHTTPConnectionManagerTLS(ll *api.Listener, hostname string) (hcm
 
 	return manager, nil
 }
-func getFilterChainId(filterChains []listener.FilterChain, hostname string) int {
+func getFilterChainId(filterChains []*listener.FilterChain, hostname string) int {
 	filterId := -1
 
 	for k, filter := range filterChains {

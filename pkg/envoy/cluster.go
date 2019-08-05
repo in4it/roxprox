@@ -53,29 +53,30 @@ func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 
 	address := &core.Address{Address: &core.Address_SocketAddress{
 		SocketAddress: &core.SocketAddress{
-			Address:      params.TargetHostname,
-			Protocol:     core.TCP,
-			ResolverName: "STRICT_DNS",
+			Address:  params.TargetHostname,
+			Protocol: core.TCP,
 			PortSpecifier: &core.SocketAddress_PortValue{
 				PortValue: uint32(params.Port),
 			},
 		},
 	}}
 
+	connectTimeout := 2 * time.Second
+
 	return &api.Cluster{
 		Name: params.Name,
 		ClusterDiscoveryType: &api.Cluster_Type{
 			Type: api.Cluster_STRICT_DNS,
 		},
-		ConnectTimeout:  2 * time.Second,
+		ConnectTimeout:  &connectTimeout,
 		DnsLookupFamily: api.Cluster_V4_ONLY,
 		LbPolicy:        api.Cluster_ROUND_ROBIN,
 		TlsContext:      tlsContext,
 		LoadAssignment: &api.ClusterLoadAssignment{
 			ClusterName: params.Name,
-			Endpoints: []endpoint.LocalityLbEndpoints{
+			Endpoints: []*endpoint.LocalityLbEndpoints{
 				{
-					LbEndpoints: []endpoint.LbEndpoint{
+					LbEndpoints: []*endpoint.LbEndpoint{
 						{
 							HostIdentifier: &endpoint.LbEndpoint_Endpoint{
 								Endpoint: &endpoint.Endpoint{

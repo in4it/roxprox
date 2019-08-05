@@ -4,9 +4,9 @@ go 1.12
 
 require (
 	github.com/aws/aws-sdk-go v1.20.5
-	github.com/envoyproxy/go-control-plane v0.8.0
+	github.com/envoyproxy/go-control-plane v0.8.4
 	github.com/ghodss/yaml v1.0.0
-	github.com/gogo/protobuf v1.2.1
+	github.com/gogo/protobuf v1.2.2-0.20190730201129-28a6bbf47e48
 	github.com/golang/protobuf v1.3.2-0.20190517061210-b285ee9cfc6c
 	github.com/google/go-cmp v0.2.0
 	github.com/google/uuid v1.1.1
