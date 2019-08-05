@@ -33,7 +33,8 @@ type Storage interface {
 	WriteChallenge(name string, data []byte) error
 	GetCachedObjectName(filename string) ([]*api.Object, error)
 	DeleteCachedObject(filename string) error
-	CountCachedObjectByCondition(condition api.RuleConditions) int
+	CountCachedObjectByCondition(condition api.RuleConditions, actions []api.RuleActions) int
+	CountCachedJwtRulesByCondition(condition api.RuleConditions, jwtProvider string) int
 	GetCachedRule(name string) *api.Object
 }
 

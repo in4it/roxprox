@@ -18,6 +18,7 @@ type WorkQueue struct {
 	cache          WorkQueueCache
 	cert           *Cert
 	listener       *Listener
+	jwtProvider    *JwtProvider
 	cluster        *Cluster
 	acmeContact    string
 	latestSnapshot cache.Snapshot
@@ -36,7 +37,7 @@ func NewWorkQueue(s storage.Storage, acmeContact string) (*WorkQueue, error) {
 		}
 	}
 
-	w := &WorkQueue{c: c, cs: cs, cert: cert, listener: newListener(), cluster: newCluster()}
+	w := &WorkQueue{c: c, cs: cs, cert: cert, listener: newListener(), cluster: newCluster(), jwtProvider: newJwtProvider()}
 
 	// run queue to resolve dependencies
 	go w.resolveDependsOn()
@@ -86,56 +87,54 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 				item.state = "finished"
 			}
 			updateXds = true
-		case "createListener":
+		case "createRule":
 			if _, err := w.cluster.findClusterByName(w.cache.clusters, item.ListenerParams.Name); err != nil {
-				logger.Errorf("createListener error: cluster not found: %s", item.ListenerParams.Name)
+				logger.Errorf("createRule error: cluster not found: %s", item.ListenerParams.Name)
 				item.state = "error"
 			} else {
 				if len(w.cache.listeners) == 0 {
-					w.cache.listeners = append(w.cache.listeners, w.listener.createListener(item.ListenerParams, TLSParams{}))
-					item.state = "finished"
+					w.cache.listeners = append(w.cache.listeners, w.listener.createListener(item.ListenerParams, item.TLSParams))
+				}
+				err := w.listener.updateListener(&w.cache, item.ListenerParams, item.TLSParams)
+				if err != nil {
+					logger.Errorf("createRule error: %s", err)
+					item.state = "error"
 				} else {
-					err := w.listener.updateListener(&w.cache, item.ListenerParams, TLSParams{})
-					if err != nil {
-						logger.Errorf("updateListener error: %s", err)
-						item.state = "error"
-					} else {
-						item.state = "finished"
-					}
+					item.state = "finished"
 				}
 				updateXds = true
 			}
-		case "deleteRoute":
+		case "createJwtRule":
+			err := w.jwtProvider.UpdateJwtRule(&w.cache, item.ListenerParams, item.TLSParams)
+			if err != nil {
+				logger.Errorf("createJwtRule error: %s", err)
+				item.state = "error"
+			} else {
+				item.state = "finished"
+			}
+			updateXds = true
+		case "deleteRule":
 			err := w.listener.DeleteRoute(&w.cache, item.ListenerParams, item.TLSParams)
 			if err != nil {
-				logger.Errorf("deleteRoute error: %s", err)
+				logger.Errorf("deleteRule error: %s", err)
 				logger.Debugf("Params: %+v %+v", item.ListenerParams, item.TLSParams)
 				item.state = "error"
 			} else {
 				item.state = "finished"
 			}
 			updateXds = true
-		case "createTLSListener":
-			if _, err := w.cluster.findClusterByName(w.cache.clusters, item.ListenerParams.Name); err != nil {
-				logger.Errorf("createListener error: cluster not found: %s", item.ListenerParams.Name)
+		case "deleteJwtRule":
+			err := w.jwtProvider.DeleteJwtRule(&w.cache, item.ListenerParams, item.TLSParams)
+			if err != nil {
+				logger.Errorf("deleteJwtRule error: %s", err)
+				logger.Debugf("Params: %+v %+v", item.ListenerParams, item.TLSParams)
 				item.state = "error"
 			} else {
-				if len(w.cache.listeners) == 1 {
-					w.cache.listeners = append(w.cache.listeners, w.listener.createListener(item.ListenerParams, item.TLSParams))
-					item.state = "finished"
-				} else {
-					err := w.listener.updateListener(&w.cache, item.ListenerParams, item.TLSParams)
-					if err != nil {
-						logger.Errorf("updateListener error: %s", err)
-						item.state = "error"
-					} else {
-						item.state = "finished"
-					}
-				}
+				item.state = "finished"
 			}
 			updateXds = true
 		case "updateListenerWithJwtProvider":
-			err := w.listener.updateListenerWithJwtProvider(&w.cache, item.ListenerParams)
+			err := w.jwtProvider.updateListenerWithJwtProvider(&w.cache, item.ListenerParams)
 			if err != nil {
 				item.state = "error"
 				logger.Errorf("updateListenerWithJwtProvider error: %s", err)
@@ -251,7 +250,7 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 	if updateXds {
 		validated, err := w.validateCache()
 		if err != nil || !validated {
-			fmt.Errorf("Cache is not valid, not updating snapshot until cache is fixed")
+			logger.Errorf("Cache is not valid, not updating snapshot until cache is fixed (error: %s)", err)
 			return id, err
 		}
 

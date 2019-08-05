@@ -320,13 +320,13 @@ func (l *LocalStorage) DeleteCachedObject(filename string) error {
 
 	return fmt.Errorf("Filename %s not found in cache", filename)
 }
-func (l *LocalStorage) CountCachedObjectByCondition(condition api.RuleConditions) int {
+func (l *LocalStorage) CountCachedObjectByCondition(condition api.RuleConditions, actions []api.RuleActions) int {
 	count := 0
 	for _, objects := range l.cache {
 		for _, object := range objects {
 			if object.Kind == "rule" {
 				rule := object.Data.(api.Rule)
-				if util.ConditionExists(rule.Spec.Conditions, condition) {
+				if util.CmpActions(rule.Spec.Actions, actions) && util.ConditionExists(rule.Spec.Conditions, condition) {
 					count++
 				}
 			}
@@ -334,6 +334,22 @@ func (l *LocalStorage) CountCachedObjectByCondition(condition api.RuleConditions
 	}
 	return count
 }
+
+func (l *LocalStorage) CountCachedJwtRulesByCondition(condition api.RuleConditions, jwtProvider string) int {
+	count := 0
+	for _, objects := range l.cache {
+		for _, object := range objects {
+			if object.Kind == "rule" {
+				rule := object.Data.(api.Rule)
+				if rule.Spec.Auth.JwtProvider == jwtProvider && util.ConditionExists(rule.Spec.Conditions, condition) {
+					count++
+				}
+			}
+		}
+	}
+	return count
+}
+
 func (l *LocalStorage) GetCachedRule(name string) *api.Object {
 	for _, objects := range l.cache {
 		for _, object := range objects {

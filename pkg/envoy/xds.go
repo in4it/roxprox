@@ -23,10 +23,11 @@ import (
 var logger = loggo.GetLogger("xds")
 
 type XDS struct {
-	s           storage.Storage
-	objects     []pkgApi.Object
-	workQueue   *WorkQueue
-	acmeContact string
+	s              storage.Storage
+	objects        []pkgApi.Object
+	objectsPending []pkgApi.Object
+	workQueue      *WorkQueue
+	acmeContact    string
 }
 
 func NewXDS(s storage.Storage, acmeContact, port string) *XDS {
@@ -104,9 +105,8 @@ func (x *XDS) ImportObjects() error {
 	// read rules
 	for _, object := range objects {
 		if object.Kind == "rule" {
-			rule := object.Data.(pkgApi.Rule)
 			x.objects = append(x.objects, object)
-			newitems, err := x.ImportRule(rule)
+			newitems, err := x.ImportObject(object)
 			if err != nil {
 				return err
 			}
@@ -133,45 +133,43 @@ func (x *XDS) RemoveRule(rule pkgApi.Rule, ruleStillPresent bool) ([]WorkQueueIt
 	// check if matching is in use
 	var workQueueItems []WorkQueueItem
 	var conditionsToDelete int
+	action := x.getAction(rule.Metadata.Name, rule.Spec.Actions)
 	for _, condition := range rule.Spec.Conditions {
-		if x.s.CountCachedObjectByCondition(condition) > expectedRules {
+		// get listener parameters
+		listenerParams := x.getListenerParams(action, condition)
+		tlsParams := TLSParams{}
+		if rule.Spec.Certificate != "" {
+			tlsParams = TLSParams{
+				Name: rule.Metadata.Name,
+			}
+		}
+		if rule.Spec.Auth.JwtProvider != "" {
+			listenerParams.Auth = Auth{
+				JwtProvider: rule.Spec.Auth.JwtProvider,
+			}
+		}
+		// check whether we delete the matching rule
+		if x.s.CountCachedObjectByCondition(condition, rule.Spec.Actions) > expectedRules {
 			// If there is only 1 match, then we're not going to remove the rule condition
 			logger.Debugf("Not removing rule with conditions %s %s%s%s (is identical to other condition in other rule)", condition.Hostname, condition.Prefix, condition.Path, condition.Regex)
 		} else {
 			conditionsToDelete++
 
-			// set target hostname
-			targetHostname := ""
-			for _, v := range rule.Spec.Actions {
-				if v.Proxy.Hostname != "" {
-					targetHostname = v.Proxy.Hostname
-				}
-			}
-			newWorkQueueItem := WorkQueueItem{
-				Action: "deleteRoute",
-				ListenerParams: ListenerParams{
-					Name:           rule.Metadata.Name,
-					TargetHostname: targetHostname,
-					Conditions: Conditions{
-						Hostname: condition.Hostname,
-						Prefix:   condition.Prefix,
-						Path:     condition.Path,
-						Regex:    condition.Regex,
-						Methods:  condition.Methods,
-					},
-				},
-			}
-			if rule.Spec.Certificate != "" {
-				newWorkQueueItem.TLSParams = TLSParams{
-					Name: rule.Metadata.Name,
-				}
-			}
-			if rule.Spec.Auth.JwtProvider != "" {
-				newWorkQueueItem.ListenerParams.Auth = Auth{
-					JwtProvider: rule.Spec.Auth.JwtProvider,
-				}
-			}
-			workQueueItems = append(workQueueItems, newWorkQueueItem)
+			workQueueItems = append(workQueueItems, WorkQueueItem{
+				Action:         "deleteRule",
+				ListenerParams: listenerParams,
+				TLSParams:      tlsParams,
+			})
+		}
+		// check whether we delete the JWT rule
+		if x.s.CountCachedJwtRulesByCondition(condition, rule.Spec.Auth.JwtProvider) > expectedRules {
+			logger.Debugf("Not removing JWT rule with provider %s and conditions %s %s%s%s (is identical to other condition in other rule)", rule.Spec.Auth.JwtProvider, condition.Hostname, condition.Prefix, condition.Path, condition.Regex)
+		} else {
+			workQueueItems = append(workQueueItems, WorkQueueItem{
+				Action:         "deleteJwtRule",
+				ListenerParams: listenerParams,
+				TLSParams:      tlsParams,
+			})
 		}
 	}
 	// delete cluster (has the same name as the rule)
@@ -187,52 +185,62 @@ func (x *XDS) RemoveRule(rule pkgApi.Rule, ruleStillPresent bool) ([]WorkQueueIt
 	return workQueueItems, nil
 }
 func (x *XDS) ImportObject(object pkgApi.Object) ([]WorkQueueItem, error) {
-	var workQueueItems []WorkQueueItem
 	switch object.Kind {
+	case "rule":
+		rule := object.Data.(pkgApi.Rule)
+		// add new rules
+		items, err := x.ImportRule(rule)
+		if err != nil {
+			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
+		}
+		return items, nil
 	case "jwtProvider":
 		jwtProvider := object.Data.(pkgApi.JwtProvider)
-		logger.Debugf("Found jwtProvider with name %s and jwksUrl %s", jwtProvider.Metadata.Name, jwtProvider.Spec.RemoteJwks)
-		u, err := url.Parse(jwtProvider.Spec.RemoteJwks)
+		items, err := x.importJwtProvider(jwtProvider)
 		if err != nil {
-			return workQueueItems, err
+			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
 		}
-
-		var port int64
-		if u.Port() != "" {
-			port, err = strconv.ParseInt(u.Port(), 10, 64)
-			if err != nil {
-				return workQueueItems, err
-			}
-		} else {
-			if u.Scheme == "https" {
-				port = 443
-			} else {
-				port = 80
-			}
-		}
-		workQueueItems = append(workQueueItems, []WorkQueueItem{
-			{
-				Action: "createCluster",
-				ClusterParams: ClusterParams{
-					Name:           "jwtProvider_" + jwtProvider.Metadata.Name,
-					TargetHostname: u.Hostname(),
-					Port:           port,
-				},
-			},
-			{
-				Action: "updateListenerWithJwtProvider",
-				ListenerParams: ListenerParams{
-					Auth: Auth{
-						JwtProvider: jwtProvider.Metadata.Name,
-						Issuer:      jwtProvider.Spec.Issuer,
-						Forward:     jwtProvider.Spec.Forward,
-						RemoteJwks:  jwtProvider.Spec.RemoteJwks,
-					},
-				},
-			},
-		}...)
+		return items, nil
 	}
-	return workQueueItems, nil
+	return []WorkQueueItem{}, nil
+}
+
+func (x *XDS) importJwtProvider(jwtProvider pkgApi.JwtProvider) ([]WorkQueueItem, error) {
+	logger.Debugf("Found jwtProvider with name %s and jwksUrl %s", jwtProvider.Metadata.Name, jwtProvider.Spec.RemoteJwks)
+	u, err := url.Parse(jwtProvider.Spec.RemoteJwks)
+	if err != nil {
+		return []WorkQueueItem{}, err
+	}
+
+	var port int64
+	if u.Port() != "" {
+		port, err = strconv.ParseInt(u.Port(), 10, 64)
+		if err != nil {
+			return []WorkQueueItem{}, err
+		}
+	} else {
+		if u.Scheme == "https" {
+			port = 443
+		} else {
+			port = 80
+		}
+	}
+	return []WorkQueueItem{
+		{
+			Action: "createCluster",
+			ClusterParams: ClusterParams{
+				Name:           "jwtProvider_" + jwtProvider.Metadata.Name,
+				TargetHostname: u.Hostname(),
+				Port:           port,
+			},
+		},
+		{
+			Action: "updateListenerWithJwtProvider",
+			ListenerParams: ListenerParams{
+				Auth: x.getAuthParams(jwtProvider.Metadata.Name, jwtProvider),
+			},
+		},
+	}, nil
 }
 
 func (x *XDS) getObject(kind, name string) (pkgApi.Object, error) {
@@ -244,7 +252,7 @@ func (x *XDS) getObject(kind, name string) (pkgApi.Object, error) {
 	return pkgApi.Object{}, fmt.Errorf("object %s/%s not found", kind, name)
 }
 
-func (x *XDS) getRuleDeletions(cachedObject *pkgApi.Object, conditions []pkgApi.RuleConditions) []WorkQueueItem {
+func (x *XDS) getRuleDeletionsWithinObject(cachedObject *pkgApi.Object, conditions []pkgApi.RuleConditions) []WorkQueueItem {
 	var workQueueItems []WorkQueueItem
 	cachedRule := cachedObject.Data.(pkgApi.Rule)
 	cachedConditions := cachedRule.Spec.Conditions
@@ -258,7 +266,7 @@ func (x *XDS) getRuleDeletions(cachedObject *pkgApi.Object, conditions []pkgApi.
 			}
 		}
 		if conditionFound {
-			logger.Debugf("Condition present (hostname: %s prefix: %s path: %s regex: %s methods: %s)",
+			logger.Tracef("Condition present (hostname: %s prefix: %s path: %s regex: %s methods: %s)",
 				conditions[conditionKey].Hostname,
 				conditions[conditionKey].Prefix,
 				conditions[conditionKey].Path,
@@ -271,59 +279,92 @@ func (x *XDS) getRuleDeletions(cachedObject *pkgApi.Object, conditions []pkgApi.
 				cachedCondition.Path,
 				cachedCondition.Regex,
 				strings.Join(cachedCondition.Methods, ","))
-			newWorkQueueItem := WorkQueueItem{
-				Action: "deleteRoute",
-				ListenerParams: ListenerParams{
-					Name: cachedRule.Metadata.Name,
-					Conditions: Conditions{
-						Hostname: cachedCondition.Hostname,
-						Prefix:   cachedCondition.Prefix,
-						Path:     cachedCondition.Path,
-						Regex:    cachedCondition.Regex,
-						Methods:  cachedCondition.Methods,
-					},
-				},
-			}
-			for _, action := range cachedRule.Spec.Actions {
-				if action.Proxy.Hostname != "" {
-					newWorkQueueItem.ListenerParams.TargetHostname = action.Proxy.Hostname
-				}
-			}
+			action := x.getAction(cachedRule.Metadata.Name, cachedRule.Spec.Actions)
+			listenerParams := x.getListenerParams(action, cachedCondition)
+			tlsParams := TLSParams{}
 			if cachedRule.Spec.Certificate != "" {
-				newWorkQueueItem.TLSParams = TLSParams{
+				tlsParams = TLSParams{
 					Name: cachedRule.Metadata.Name,
 				}
 			}
 			if cachedRule.Spec.Auth.JwtProvider != "" {
-				newWorkQueueItem.ListenerParams.Auth = Auth{
+				listenerParams.Auth = Auth{
 					JwtProvider: cachedRule.Spec.Auth.JwtProvider,
 				}
 			}
-			workQueueItems = append(workQueueItems, newWorkQueueItem)
+			// delete matching rule
+			workQueueItems = append(workQueueItems, WorkQueueItem{
+				Action:         "deleteRule",
+				ListenerParams: listenerParams,
+				TLSParams:      tlsParams,
+			})
+			// check whether we delete the JWT rule
+			if x.s.CountCachedJwtRulesByCondition(cachedCondition, cachedRule.Spec.Auth.JwtProvider) > 0 {
+				logger.Debugf("Not removing JWT rule with provider %s (is identical to other condition still active)", cachedRule.Spec.Auth.JwtProvider)
+			} else {
+				workQueueItems = append(workQueueItems, WorkQueueItem{
+					Action:         "deleteJwtRule",
+					ListenerParams: listenerParams,
+					TLSParams:      tlsParams,
+				})
+			}
 		}
 	}
 
 	return workQueueItems
 }
 
-func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
-	var workQueueItems []WorkQueueItem
-	targetHostname := ""
-	for _, action := range rule.Spec.Actions {
-		if action.Proxy.Hostname != "" {
-			targetHostname = action.Proxy.Hostname
-			workQueueItem := WorkQueueItem{
-				Action: "createCluster",
-				ClusterParams: ClusterParams{
-					Name:           rule.Metadata.Name,
-					TargetHostname: targetHostname,
-					Port:           action.Proxy.Port,
-				},
-			}
-			workQueueItems = append(workQueueItems, workQueueItem)
+func (x *XDS) getAction(ruleName string, actions []pkgApi.RuleActions) Action {
+	var action Action
+	for _, ruleAction := range actions {
+		if ruleAction.Proxy.Hostname != "" {
+			action.Type = "proxy"
+			action.RuleName = ruleName
+			action.Proxy.TargetHostname = ruleAction.Proxy.Hostname
+			action.Proxy.Port = ruleAction.Proxy.Port
 		}
 	}
-	if targetHostname != "" {
+	return action
+}
+func (x *XDS) getListenerParams(action Action, condition pkgApi.RuleConditions) ListenerParams {
+	return ListenerParams{
+		Name:           action.RuleName,
+		TargetHostname: action.Proxy.TargetHostname,
+		Conditions: Conditions{
+			Hostname: condition.Hostname,
+			Prefix:   condition.Prefix,
+			Path:     condition.Path,
+			Regex:    condition.Regex,
+			Methods:  condition.Methods,
+		},
+	}
+}
+func (x *XDS) getClusterParams(action Action) ClusterParams {
+	return ClusterParams{
+		Name:           action.RuleName,
+		TargetHostname: action.Proxy.TargetHostname,
+		Port:           action.Proxy.Port,
+	}
+}
+func (x *XDS) getAuthParams(jwtProviderName string, jwtProvider pkgApi.JwtProvider) Auth {
+	return Auth{
+		JwtProvider: jwtProviderName,
+		Issuer:      jwtProvider.Spec.Issuer,
+		Forward:     jwtProvider.Spec.Forward,
+		RemoteJwks:  jwtProvider.Spec.RemoteJwks,
+	}
+}
+
+func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
+	var workQueueItems []WorkQueueItem
+	action := x.getAction(rule.Metadata.Name, rule.Spec.Actions)
+	if action.Type == "proxy" {
+		// create cluster
+		workQueueItem := WorkQueueItem{
+			Action:        "createCluster",
+			ClusterParams: x.getClusterParams(action),
+		}
+		workQueueItems = append(workQueueItems, workQueueItem)
 		// create listener that proxies to targetHostname
 		for _, condition := range rule.Spec.Conditions {
 			// validation
@@ -332,34 +373,38 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 
 			}
 			if condition.Hostname != "" || condition.Prefix != "" || condition.Path != "" || condition.Regex != "" {
-				workQueueItem := WorkQueueItem{
-					Action: "createListener",
-					ListenerParams: ListenerParams{
-						Name:           rule.Metadata.Name,
-						TargetHostname: targetHostname,
-						Conditions: Conditions{
-							Hostname: condition.Hostname,
-							Prefix:   condition.Prefix,
-							Path:     condition.Path,
-							Regex:    condition.Regex,
-							Methods:  condition.Methods,
-						},
-					},
-				}
-				// add auth info to parameter
+				listenerParams := x.getListenerParams(action, condition)
 				if rule.Spec.Auth.JwtProvider != "" {
 					object, err := x.getObject("jwtProvider", rule.Spec.Auth.JwtProvider)
-					workQueueItem.ListenerParams.Auth = Auth{
-						JwtProvider: rule.Spec.Auth.JwtProvider,
-						Issuer:      object.Data.(pkgApi.JwtProvider).Spec.Issuer,
-						Forward:     object.Data.(pkgApi.JwtProvider).Spec.Forward,
-						RemoteJwks:  object.Data.(pkgApi.JwtProvider).Spec.RemoteJwks,
-					}
 					if err != nil {
-						logger.Infof("Could not set Auth parameters: %s - skipping for now", err)
+						logger.Infof("Could not set Auth parameters: jwtprovider not found (error: %s)", err)
+						return workQueueItems, err
+					} else {
+						listenerParams.Auth = x.getAuthParams(rule.Spec.Auth.JwtProvider, object.Data.(pkgApi.JwtProvider))
 					}
+					workQueueItems = append(workQueueItems, []WorkQueueItem{
+						{
+							Action:         "createRule",
+							ListenerParams: listenerParams,
+							TLSParams:      TLSParams{},
+						},
+						{
+							Action:         "updateListenerWithJwtProvider",
+							ListenerParams: listenerParams,
+						},
+						{
+							Action:         "createJwtRule",
+							ListenerParams: listenerParams,
+							TLSParams:      TLSParams{},
+						},
+					}...)
+				} else {
+					workQueueItems = append(workQueueItems, WorkQueueItem{
+						Action:         "createRule",
+						ListenerParams: listenerParams,
+						TLSParams:      TLSParams{},
+					})
 				}
-				workQueueItems = append(workQueueItems, workQueueItem)
 
 				if rule.Spec.Certificate == "letsencrypt" {
 					// TLS listener
@@ -378,7 +423,7 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 							return workQueueItems, err
 						}
 						workQueueItemTLS := workQueueItem
-						workQueueItemTLS.Action = "createTLSListener"
+						workQueueItemTLS.Action = "createRule"
 						workQueueItemTLS.TLSParams = TLSParams{
 							Name:       rule.Metadata.Name,
 							CertBundle: certBundle,
@@ -532,17 +577,35 @@ func (x *XDS) putObject(filename string) ([]WorkQueueItem, error) {
 	}
 
 	// add new items
-	for _, object := range objects {
-		if object.Kind == "rule" {
-			rule := object.Data.(pkgApi.Rule)
-			// add new rules
-			newItems, err := x.ImportRule(rule)
+	x.addObjects(objects)
+
+	// check pending objects (whether a dependency is now resolved)
+	objectsPending := x.objectsPending
+	for k, object := range objectsPending {
+		unresolvedDependencies := x.getObjectUnresolvedDependencies(object)
+		if len(unresolvedDependencies) == 0 {
+			logger.Debugf("Dependency is now resolved for: %s", object.Metadata.Name)
+			newItems, err := x.ImportObject(object)
 			if err != nil {
-				return workQueueItems, fmt.Errorf("Couldn't import new rule: %s", err)
+				return workQueueItems, fmt.Errorf("Couldn't import new object: %s", err)
 			}
 			workQueueItems = append(workQueueItems, newItems...)
+			// delete object from objectsPending
+			if len(x.objectsPending) == 1 {
+				x.objectsPending = []pkgApi.Object{}
+			} else {
+				x.objectsPending = append(x.objectsPending[:k], x.objectsPending[k+1:]...)
+			}
 		}
-		if object.Kind == "jwtProvider" {
+	}
+
+	// add new objects
+	for _, object := range objects {
+		unresolvedDependencies := x.getObjectUnresolvedDependencies(object)
+		if len(unresolvedDependencies) != 0 {
+			logger.Debugf("Unresolved dependency for %s (moving to pending queue)", object.Metadata.Name)
+			x.objectsPending = append(x.objectsPending, object)
+		} else {
 			newItems, err := x.ImportObject(object)
 			if err != nil {
 				return workQueueItems, fmt.Errorf("Couldn't import new object: %s", err)
@@ -557,6 +620,7 @@ func (x *XDS) deleteObject(filename string) ([]WorkQueueItem, error) {
 	if err != nil {
 		return []WorkQueueItem{}, fmt.Errorf("Couldn't get new rule from storage cache: %s", err)
 	}
+	x.deleteObjects(x.objectToValue(objects))
 	for _, object := range objects {
 		if object.Kind == "rule" {
 			rule := object.Data.(pkgApi.Rule)
@@ -605,10 +669,55 @@ func (x *XDS) getWorkingItemsForRemovedObjects(objects []pkgApi.Object, cachedOb
 			if object.Metadata.Name == cachedObject.Metadata.Name {
 				if object.Kind == "rule" {
 					rule := object.Data.(pkgApi.Rule)
-					workQueueItems = append(workQueueItems, x.getRuleDeletions(cachedObject, rule.Spec.Conditions)...)
+					workQueueItems = append(workQueueItems, x.getRuleDeletionsWithinObject(cachedObject, rule.Spec.Conditions)...)
 				}
 			}
 		}
 	}
 	return workQueueItems
+}
+func (x *XDS) objectToValue(objects []*pkgApi.Object) []pkgApi.Object {
+	var objectsVal []pkgApi.Object
+	for _, object := range objects {
+		objectsVal = append(objectsVal, *object)
+	}
+	return objectsVal
+}
+func (x *XDS) addObjects(objects []pkgApi.Object) {
+	x.deleteObjects(objects)
+	x.objects = append(x.objects, objects...)
+}
+func (x *XDS) deleteObjects(objects []pkgApi.Object) {
+	for _, object := range objects {
+		deleteObject := -1
+		for k, curObject := range x.objects {
+			if object.Metadata.Name == curObject.Metadata.Name {
+				deleteObject = k
+			}
+		}
+		if deleteObject != -1 {
+			logger.Tracef("Deleting object from objects list: %s", x.objects[deleteObject].Metadata.Name)
+			if len(x.objects) == 1 {
+				x.objects = []pkgApi.Object{}
+			} else {
+				x.objects = append(x.objects[:deleteObject], x.objects[deleteObject+1:]...)
+			}
+		}
+	}
+}
+func (x *XDS) getObjectUnresolvedDependencies(object pkgApi.Object) []ObjectDependency {
+	var dependencies []ObjectDependency
+	if object.Kind == "rule" {
+		rule := object.Data.(pkgApi.Rule)
+		if rule.Spec.Auth.JwtProvider != "" {
+			_, err := x.getObject("jwtProvider", rule.Spec.Auth.JwtProvider)
+			if err != nil {
+				dependencies = append(dependencies, ObjectDependency{
+					Type: "jwtProvider",
+					Name: rule.Spec.Auth.JwtProvider,
+				})
+			}
+		}
+	}
+	return dependencies
 }
