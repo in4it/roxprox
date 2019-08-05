@@ -25,8 +25,8 @@ func newListener() *Listener {
 	return &Listener{}
 }
 
-func (l *Listener) newTLSFilterChain(params TLSParams) listener.FilterChain {
-	return listener.FilterChain{
+func (l *Listener) newTLSFilterChain(params TLSParams) *listener.FilterChain {
+	return &listener.FilterChain{
 		FilterChainMatch: &listener.FilterChainMatch{
 			ServerNames: []string{params.Domain},
 		},
@@ -76,9 +76,9 @@ func (l *Listener) updateListenerWithNewCert(cache *WorkQueueCache, params TLSPa
 func (l *Listener) updateListenerWithChallenge(cache *WorkQueueCache, challenge ChallengeParams) error {
 	clusterName := challenge.Name
 	logger.Debugf("Update listener with challenge for: %s", clusterName)
-	newRoute := []route.Route{
+	newRoute := []*route.Route{
 		{
-			Match: route.RouteMatch{
+			Match: &route.RouteMatch{
 				PathSpecifier: &route.RouteMatch_Path{
 					Path: "/.well-known/acme-challenge/" + challenge.Token,
 				},
@@ -116,7 +116,7 @@ func (l *Listener) updateListenerWithChallenge(cache *WorkQueueCache, challenge 
 			}
 			if !routeAdded {
 				// v_nodomain does not exist, add new virtualhost with the new route
-				routeSpecifier.RouteConfig.VirtualHosts = append(routeSpecifier.RouteConfig.VirtualHosts, route.VirtualHost{
+				routeSpecifier.RouteConfig.VirtualHosts = append(routeSpecifier.RouteConfig.VirtualHosts, &route.VirtualHost{
 					Name:    "v_nodomain",
 					Domains: []string{"*"},
 					Routes:  newRoute,
@@ -140,9 +140,9 @@ func (l *Listener) getListenerRouteSpecifier(manager hcm.HttpConnectionManager) 
 	return routeSpecifier, nil
 }
 
-func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, clusterName, virtualHostName string, methods []string, matchType string) route.VirtualHost {
+func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, clusterName, virtualHostName string, methods []string, matchType string) *route.VirtualHost {
 	var hostRewriteSpecifier *route.RouteAction_HostRewrite
-	var routes []route.Route
+	var routes []*route.Route
 
 	if hostname == "" {
 		hostname = "*"
@@ -177,8 +177,8 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 	}
 	if matchType == "prefix" {
 		if len(headers) == 0 {
-			routes = append(routes, route.Route{
-				Match: route.RouteMatch{
+			routes = append(routes, &route.Route{
+				Match: &route.RouteMatch{
 					PathSpecifier: &route.RouteMatch_Prefix{
 						Prefix: targetPrefix,
 					},
@@ -187,8 +187,8 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 			})
 		} else {
 			for _, header := range headers {
-				routes = append(routes, route.Route{
-					Match: route.RouteMatch{
+				routes = append(routes, &route.Route{
+					Match: &route.RouteMatch{
 						PathSpecifier: &route.RouteMatch_Prefix{
 							Prefix: targetPrefix,
 						},
@@ -200,8 +200,8 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 		}
 	} else if matchType == "path" {
 		if len(headers) == 0 {
-			routes = append(routes, route.Route{
-				Match: route.RouteMatch{
+			routes = append(routes, &route.Route{
+				Match: &route.RouteMatch{
 					PathSpecifier: &route.RouteMatch_Path{
 						Path: targetPrefix,
 					},
@@ -210,8 +210,8 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 			})
 		} else {
 			for _, header := range headers {
-				routes = append(routes, route.Route{
-					Match: route.RouteMatch{
+				routes = append(routes, &route.Route{
+					Match: &route.RouteMatch{
 						PathSpecifier: &route.RouteMatch_Path{
 							Path: targetPrefix,
 						},
@@ -223,8 +223,8 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 		}
 	} else if matchType == "regex" {
 		if len(headers) == 0 {
-			routes = append(routes, route.Route{
-				Match: route.RouteMatch{
+			routes = append(routes, &route.Route{
+				Match: &route.RouteMatch{
 					PathSpecifier: &route.RouteMatch_Regex{
 						Regex: targetPrefix,
 					},
@@ -233,8 +233,8 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 			})
 		} else {
 			for _, header := range headers {
-				routes = append(routes, route.Route{
-					Match: route.RouteMatch{
+				routes = append(routes, &route.Route{
+					Match: &route.RouteMatch{
 						PathSpecifier: &route.RouteMatch_Regex{
 							Regex: targetPrefix,
 						},
@@ -246,7 +246,7 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 		}
 	}
 
-	return route.VirtualHost{
+	return &route.VirtualHost{
 		Name:    virtualHostName,
 		Domains: []string{hostname},
 
@@ -254,19 +254,19 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 	}
 }
 
-func (l *Listener) newTLSFilter(params ListenerParams, paramsTLS TLSParams, listenerName string) []listener.Filter {
+func (l *Listener) newTLSFilter(params ListenerParams, paramsTLS TLSParams, listenerName string) []*listener.Filter {
 	httpFilters := newHttpRouterFilter()
-	newEmptyVirtualHost := route.VirtualHost{
+	newEmptyVirtualHost := &route.VirtualHost{
 		Name:    "v_" + params.Conditions.Hostname,
 		Domains: []string{params.Conditions.Hostname},
-		Routes:  []route.Route{},
+		Routes:  []*route.Route{},
 	}
-	manager := l.newManager(strings.Replace(listenerName, "l_", "r_", 1), []route.VirtualHost{newEmptyVirtualHost}, httpFilters)
+	manager := l.newManager(strings.Replace(listenerName, "l_", "r_", 1), []*route.VirtualHost{newEmptyVirtualHost}, httpFilters)
 	pbst, err := types.MarshalAny(manager)
 	if err != nil {
 		panic(err)
 	}
-	return []listener.Filter{{
+	return []*listener.Filter{{
 		Name: util.HTTPConnectionManager,
 		ConfigType: &listener.Filter_TypedConfig{
 			TypedConfig: pbst,
@@ -380,25 +380,25 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	return nil
 }
 
-func (l *Listener) routeExist(routes []route.Route, route route.Route) bool {
+func (l *Listener) routeExist(routes []*route.Route, route *route.Route) bool {
 	routeFound := false
 	for _, v := range routes {
-		if cmpMatch(&v.Match, &route.Match) && v.Action.Equal(route.Action) {
+		if cmpMatch(v.Match, route.Match) && v.Action.Equal(route.Action) {
 			routeFound = true
 		}
 	}
 	return routeFound
 }
-func (l *Listener) routeIndex(routes []route.Route, route route.Route) int {
+func (l *Listener) routeIndex(routes []*route.Route, route *route.Route) int {
 	for index, v := range routes {
-		if cmpMatch(&v.Match, &route.Match) && v.Action.Equal(route.Action) {
+		if cmpMatch(v.Match, route.Match) && v.Action.Equal(route.Action) {
 			return index
 		}
 	}
 	return -1
 }
 
-func (l *Listener) newManager(routeName string, virtualHosts []route.VirtualHost, httpFilters []*hcm.HttpFilter) *hcm.HttpConnectionManager {
+func (l *Listener) newManager(routeName string, virtualHosts []*route.VirtualHost, httpFilters []*hcm.HttpFilter) *hcm.HttpConnectionManager {
 	return &hcm.HttpConnectionManager{
 		CodecType:  hcm.AUTO,
 		StatPrefix: "ingress_http",
@@ -420,7 +420,7 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 	logger.Infof("Creating listener " + listenerName)
 
 	httpFilters := newHttpRouterFilter()
-	manager := l.newManager(strings.Replace(listenerName, "l_", "r_", 1), []route.VirtualHost{}, httpFilters)
+	manager := l.newManager(strings.Replace(listenerName, "l_", "r_", 1), []*route.VirtualHost{}, httpFilters)
 
 	pbst, err := types.MarshalAny(manager)
 	if err != nil {
@@ -429,7 +429,7 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 
 	newListener := &api.Listener{
 		Name: listenerName,
-		Address: core.Address{
+		Address: &core.Address{
 			Address: &core.Address_SocketAddress{
 				SocketAddress: &core.SocketAddress{
 					Protocol: core.TCP,
@@ -440,8 +440,8 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 				},
 			},
 		},
-		FilterChains: []listener.FilterChain{{
-			Filters: []listener.Filter{{
+		FilterChains: []*listener.FilterChain{{
+			Filters: []*listener.Filter{{
 				Name: util.HTTPConnectionManager,
 				ConfigType: &listener.Filter_TypedConfig{
 					TypedConfig: pbst,
@@ -454,7 +454,7 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 		if params.Conditions.Hostname == "" {
 			panic("This should never happen: tls enabled and no hostname set (earlier validation must have failed)")
 		}
-		newListener.ListenerFilters = []listener.ListenerFilter{
+		newListener.ListenerFilters = []*listener.ListenerFilter{
 			{
 				Name: "envoy.listener.tls_inspector",
 			},
