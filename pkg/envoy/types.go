@@ -84,3 +84,7 @@ type ActionProxy struct {
 	TargetHostname string
 	Port           int64
 }
+type ObjectDependency struct {
+	Type string
+	Name string
+}

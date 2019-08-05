@@ -23,10 +23,11 @@ import (
 var logger = loggo.GetLogger("xds")
 
 type XDS struct {
-	s           storage.Storage
-	objects     []pkgApi.Object
-	workQueue   *WorkQueue
-	acmeContact string
+	s              storage.Storage
+	objects        []pkgApi.Object
+	objectsPending []pkgApi.Object
+	workQueue      *WorkQueue
+	acmeContact    string
 }
 
 func NewXDS(s storage.Storage, acmeContact, port string) *XDS {
@@ -104,9 +105,8 @@ func (x *XDS) ImportObjects() error {
 	// read rules
 	for _, object := range objects {
 		if object.Kind == "rule" {
-			rule := object.Data.(pkgApi.Rule)
 			x.objects = append(x.objects, object)
-			newitems, err := x.ImportRule(rule)
+			newitems, err := x.ImportObject(object)
 			if err != nil {
 				return err
 			}
@@ -185,47 +185,62 @@ func (x *XDS) RemoveRule(rule pkgApi.Rule, ruleStillPresent bool) ([]WorkQueueIt
 	return workQueueItems, nil
 }
 func (x *XDS) ImportObject(object pkgApi.Object) ([]WorkQueueItem, error) {
-	var workQueueItems []WorkQueueItem
 	switch object.Kind {
+	case "rule":
+		rule := object.Data.(pkgApi.Rule)
+		// add new rules
+		items, err := x.ImportRule(rule)
+		if err != nil {
+			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
+		}
+		return items, nil
 	case "jwtProvider":
 		jwtProvider := object.Data.(pkgApi.JwtProvider)
-		logger.Debugf("Found jwtProvider with name %s and jwksUrl %s", jwtProvider.Metadata.Name, jwtProvider.Spec.RemoteJwks)
-		u, err := url.Parse(jwtProvider.Spec.RemoteJwks)
+		items, err := x.importJwtProvider(jwtProvider)
 		if err != nil {
-			return workQueueItems, err
+			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
 		}
-
-		var port int64
-		if u.Port() != "" {
-			port, err = strconv.ParseInt(u.Port(), 10, 64)
-			if err != nil {
-				return workQueueItems, err
-			}
-		} else {
-			if u.Scheme == "https" {
-				port = 443
-			} else {
-				port = 80
-			}
-		}
-		workQueueItems = append(workQueueItems, []WorkQueueItem{
-			{
-				Action: "createCluster",
-				ClusterParams: ClusterParams{
-					Name:           "jwtProvider_" + jwtProvider.Metadata.Name,
-					TargetHostname: u.Hostname(),
-					Port:           port,
-				},
-			},
-			{
-				Action: "updateListenerWithJwtProvider",
-				ListenerParams: ListenerParams{
-					Auth: x.getAuthParams(jwtProvider.Metadata.Name, jwtProvider),
-				},
-			},
-		}...)
+		return items, nil
 	}
-	return workQueueItems, nil
+	return []WorkQueueItem{}, nil
+}
+
+func (x *XDS) importJwtProvider(jwtProvider pkgApi.JwtProvider) ([]WorkQueueItem, error) {
+	logger.Debugf("Found jwtProvider with name %s and jwksUrl %s", jwtProvider.Metadata.Name, jwtProvider.Spec.RemoteJwks)
+	u, err := url.Parse(jwtProvider.Spec.RemoteJwks)
+	if err != nil {
+		return []WorkQueueItem{}, err
+	}
+
+	var port int64
+	if u.Port() != "" {
+		port, err = strconv.ParseInt(u.Port(), 10, 64)
+		if err != nil {
+			return []WorkQueueItem{}, err
+		}
+	} else {
+		if u.Scheme == "https" {
+			port = 443
+		} else {
+			port = 80
+		}
+	}
+	return []WorkQueueItem{
+		{
+			Action: "createCluster",
+			ClusterParams: ClusterParams{
+				Name:           "jwtProvider_" + jwtProvider.Metadata.Name,
+				TargetHostname: u.Hostname(),
+				Port:           port,
+			},
+		},
+		{
+			Action: "updateListenerWithJwtProvider",
+			ListenerParams: ListenerParams{
+				Auth: x.getAuthParams(jwtProvider.Metadata.Name, jwtProvider),
+			},
+		},
+	}, nil
 }
 
 func (x *XDS) getObject(kind, name string) (pkgApi.Object, error) {
@@ -362,7 +377,8 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 				if rule.Spec.Auth.JwtProvider != "" {
 					object, err := x.getObject("jwtProvider", rule.Spec.Auth.JwtProvider)
 					if err != nil {
-						logger.Infof("Could not set Auth parameters: %s - skipping for now", err)
+						logger.Infof("Could not set Auth parameters: jwtprovider not found (error: %s)", err)
+						return workQueueItems, err
 					} else {
 						listenerParams.Auth = x.getAuthParams(rule.Spec.Auth.JwtProvider, object.Data.(pkgApi.JwtProvider))
 					}
@@ -562,17 +578,34 @@ func (x *XDS) putObject(filename string) ([]WorkQueueItem, error) {
 
 	// add new items
 	x.addObjects(objects)
-	for _, object := range objects {
-		if object.Kind == "rule" {
-			rule := object.Data.(pkgApi.Rule)
-			// add new rules
-			newItems, err := x.ImportRule(rule)
+
+	// check pending objects (whether a dependency is now resolved)
+	objectsPending := x.objectsPending
+	for k, object := range objectsPending {
+		unresolvedDependencies := x.getObjectUnresolvedDependencies(object)
+		if len(unresolvedDependencies) == 0 {
+			logger.Debugf("Dependency is now resolved for: %s", object.Metadata.Name)
+			newItems, err := x.ImportObject(object)
 			if err != nil {
-				return workQueueItems, fmt.Errorf("Couldn't import new rule: %s", err)
+				return workQueueItems, fmt.Errorf("Couldn't import new object: %s", err)
 			}
 			workQueueItems = append(workQueueItems, newItems...)
+			// delete object from objectsPending
+			if len(x.objectsPending) == 1 {
+				x.objectsPending = []pkgApi.Object{}
+			} else {
+				x.objectsPending = append(x.objectsPending[:k], x.objectsPending[k+1:]...)
+			}
 		}
-		if object.Kind == "jwtProvider" {
+	}
+
+	// add new objects
+	for _, object := range objects {
+		unresolvedDependencies := x.getObjectUnresolvedDependencies(object)
+		if len(unresolvedDependencies) != 0 {
+			logger.Debugf("Unresolved dependency for %s (moving to pending queue)", object.Metadata.Name)
+			x.objectsPending = append(x.objectsPending, object)
+		} else {
 			newItems, err := x.ImportObject(object)
 			if err != nil {
 				return workQueueItems, fmt.Errorf("Couldn't import new object: %s", err)
@@ -663,8 +696,28 @@ func (x *XDS) deleteObjects(objects []pkgApi.Object) {
 			}
 		}
 		if deleteObject != -1 {
-			logger.Debugf("Deleting object from objects list: %s", x.objects[deleteObject].Metadata.Name)
-			x.objects = append(x.objects[:deleteObject], x.objects[deleteObject+1:]...)
+			logger.Tracef("Deleting object from objects list: %s", x.objects[deleteObject].Metadata.Name)
+			if len(x.objects) == 1 {
+				x.objects = []pkgApi.Object{}
+			} else {
+				x.objects = append(x.objects[:deleteObject], x.objects[deleteObject+1:]...)
+			}
 		}
 	}
+}
+func (x *XDS) getObjectUnresolvedDependencies(object pkgApi.Object) []ObjectDependency {
+	var dependencies []ObjectDependency
+	if object.Kind == "rule" {
+		rule := object.Data.(pkgApi.Rule)
+		if rule.Spec.Auth.JwtProvider != "" {
+			_, err := x.getObject("jwtProvider", rule.Spec.Auth.JwtProvider)
+			if err != nil {
+				dependencies = append(dependencies, ObjectDependency{
+					Type: "jwtProvider",
+					Name: rule.Spec.Auth.JwtProvider,
+				})
+			}
+		}
+	}
+	return dependencies
 }
