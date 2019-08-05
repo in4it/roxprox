@@ -322,16 +322,20 @@ func TestDeleteDuplicateJwtRule(t *testing.T) {
 		return
 	}
 
-	fmt.Printf("+%v", newWorkQueueItems)
+	for _, item := range newWorkQueueItems {
+		if item.Action == "deleteJwtRule" {
+			t.Errorf("Found deleteJwtRule in WorkQueueActions. Jwt rule shouldn't be deleted, as there is still a condition for this exact rule")
+			return
+		}
+	}
 
-	/*_, err = x.workQueue.Submit(workQueueItems)
+	_, err = x.workQueue.Submit(newWorkQueueItems)
 	if err != nil {
 		t.Errorf("WorkQueue error: %s", err)
 		return
-	}*/
+	}
 }
 
-//TODO: 2019-08-04 20:56:18 ERROR xds workqueue.go:140 updateListenerWithJwtProvider error: HttpFilter for jwt missing
 func TestJwtAndRuleInSingleFile(t *testing.T) {
 	logger.SetLogLevel(loggo.DEBUG)
 	s, err := initStorage()

@@ -10,7 +10,6 @@ import (
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
 	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
-	"github.com/envoyproxy/go-control-plane/pkg/util"
 	"github.com/gogo/protobuf/types"
 )
 
@@ -173,9 +172,12 @@ func (j *JwtProvider) updateListenerWithJwtProvider(cache *WorkQueueCache, param
 			return err
 		}
 		// add routes to jwtProvider
-		jwtConfig, err := getListenerHTTPFilter(manager.HttpFilters)
-		if err != nil {
-			return err
+		var jwtConfig jwtAuth.JwtAuthentication
+		if getListenerHTTPFilterIndex("envoy.filters.http.jwt_authn", manager.HttpFilters) != -1 {
+			jwtConfig, err = getListenerHTTPFilter(manager.HttpFilters)
+			if err != nil {
+				return err
+			}
 		}
 		if jwtConfig.Providers == nil {
 			jwtConfig.Providers = make(map[string]*jwtAuth.JwtProvider)
@@ -189,17 +191,8 @@ func (j *JwtProvider) updateListenerWithJwtProvider(cache *WorkQueueCache, param
 			panic(err)
 		}
 
-		manager.HttpFilters = []*hcm.HttpFilter{
-			{
-				Name: "envoy.filters.http.jwt_authn",
-				ConfigType: &hcm.HttpFilter_TypedConfig{
-					TypedConfig: jwtConfigEncoded,
-				},
-			},
-			{
-				Name: util.Router,
-			},
-		}
+		manager.HttpFilters = newHttpFilter(jwtConfigEncoded)
+
 		pbst, err := types.MarshalAny(&manager)
 		if err != nil {
 			panic(err)

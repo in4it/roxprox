@@ -561,7 +561,7 @@ func (x *XDS) putObject(filename string) ([]WorkQueueItem, error) {
 	}
 
 	// add new items
-	x.objects = append(x.objects, objects...)
+	x.addObjects(objects)
 	for _, object := range objects {
 		if object.Kind == "rule" {
 			rule := object.Data.(pkgApi.Rule)
@@ -587,6 +587,7 @@ func (x *XDS) deleteObject(filename string) ([]WorkQueueItem, error) {
 	if err != nil {
 		return []WorkQueueItem{}, fmt.Errorf("Couldn't get new rule from storage cache: %s", err)
 	}
+	x.deleteObjects(x.objectToValue(objects))
 	for _, object := range objects {
 		if object.Kind == "rule" {
 			rule := object.Data.(pkgApi.Rule)
@@ -641,4 +642,29 @@ func (x *XDS) getWorkingItemsForRemovedObjects(objects []pkgApi.Object, cachedOb
 		}
 	}
 	return workQueueItems
+}
+func (x *XDS) objectToValue(objects []*pkgApi.Object) []pkgApi.Object {
+	var objectsVal []pkgApi.Object
+	for _, object := range objects {
+		objectsVal = append(objectsVal, *object)
+	}
+	return objectsVal
+}
+func (x *XDS) addObjects(objects []pkgApi.Object) {
+	x.deleteObjects(objects)
+	x.objects = append(x.objects, objects...)
+}
+func (x *XDS) deleteObjects(objects []pkgApi.Object) {
+	for _, object := range objects {
+		deleteObject := -1
+		for k, curObject := range x.objects {
+			if object.Metadata.Name == curObject.Metadata.Name {
+				deleteObject = k
+			}
+		}
+		if deleteObject != -1 {
+			logger.Debugf("Deleting object from objects list: %s", x.objects[deleteObject].Metadata.Name)
+			x.objects = append(x.objects[:deleteObject], x.objects[deleteObject+1:]...)
+		}
+	}
 }

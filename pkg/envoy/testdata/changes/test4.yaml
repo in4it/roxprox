@@ -1,22 +1,14 @@
 api: proxy.in4it.io/v1
 kind: rule
 metadata:
-  name: test4
+  name: test4-1
 spec:
   auth:
-    jwtProvider: "testJwt"
+    jwtProvider: "test-jwt"
   conditions:
     - prefix: /test4-1
   actions:
     - proxy:
         hostname: target-example.com
         port: 443
----
-api: proxy.in4it.io/v1
-kind: jwtProvider
-metadata:
-  name: testJwt
-spec:
-  remoteJwks: http://localhost/.well-known/jwks.json
-  issuer: http://localhost/issuer
-  forward: true
+
