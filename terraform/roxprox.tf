@@ -7,7 +7,7 @@ data "template_file" "roxprox" {
 
   vars = {
     AWS_REGION            = data.aws_region.current.name
-    ENVOY_RELEASE         = var.envoy_release        
+    ROXPROX_RELEASE       = var.release        
     LOGLEVEL              = var.envoy_autocert_loglevel
     ACME_CONTACT          = var.acme_contact
     S3_BUCKET             = var.s3_bucket
