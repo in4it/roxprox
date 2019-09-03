@@ -31,7 +31,7 @@ data "template_file" "envoy-proxy" {
 }
 
 resource "aws_ecs_task_definition" "envoy-proxy" {
-  count                    = enable_appmesh ? 1 : 0
+  count                    = var.enable_appmesh ? 1 : 0
   family                   = "envoy-proxy"
   execution_role_arn       = aws_iam_role.roxprox-ecs-task-execution-role.arn
   cpu                      = 256 
@@ -42,7 +42,7 @@ resource "aws_ecs_task_definition" "envoy-proxy" {
 }
 
 resource "aws_ecs_task_definition" "envoy-proxy-appmesh" {
-  count                    = enable_appmesh ? 1 : 0
+  count                    = var.enable_appmesh ? 1 : 0
   family                   = "envoy-proxy"
   execution_role_arn       = aws_iam_role.roxprox-ecs-task-execution-role.arn
   cpu                      = 512
@@ -68,7 +68,7 @@ resource "aws_ecs_service" "envoy-proxy" {
   name = "envoy-proxy"
   cluster = aws_ecs_cluster.roxprox.id
   desired_count = var.envoy_proxy_count
-  task_definition = enable_appmesh ? aws_ecs_task_definition.envoy-proxy-appmesh[0].arn : aws_ecs_task_definition.envoy-proxy[0].arn
+  task_definition = var.enable_appmesh ? aws_ecs_task_definition.envoy-proxy-appmesh[0].arn : aws_ecs_task_definition.envoy-proxy[0].arn
 
   launch_type = "FARGATE"
 
@@ -104,6 +104,7 @@ data "template_file" "envoy-config-https" {
 }
 
 data "template_file" "envoy-proxy-https" {
+  count = var.tls_listener ? 1 : 0
   template =  var.enable_appmesh ? file("${path.module}/templates/envoy-appmesh.json") : file("${path.module}/templates/envoy.json")
 
   vars = {
@@ -141,7 +142,7 @@ resource "aws_ecs_task_definition" "envoy-proxy-https-appmesh" {
   memory                   = 1024
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  container_definitions = data.template_file.envoy-proxy-https[0].rendered
+  container_definitions    = data.template_file.envoy-proxy-https[0].rendered
 
   proxy_configuration {
     type           = "APPMESH"
@@ -161,7 +162,7 @@ resource "aws_ecs_service" "envoy-proxy-https" {
   name            = "envoy-proxy-https"
   cluster         = aws_ecs_cluster.roxprox.id
   desired_count   = var.envoy_proxy_count
-  task_definition = enable_appmesh ? aws_ecs_task_definition.envoy-proxy-https-appmesh[0].arn : aws_ecs_task_definition.envoy-proxy-https[0].arn
+  task_definition = var.enable_appmesh ? aws_ecs_task_definition.envoy-proxy-https-appmesh[0].arn : aws_ecs_task_definition.envoy-proxy-https[0].arn
   launch_type     = "FARGATE"
   
   network_configuration {
