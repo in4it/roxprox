@@ -34,6 +34,14 @@
               "value" : "mesh/${APPMESH_NAME}/virtualNode/roxprox"
           }
         ],
+        "logConfiguration": { 
+          "logDriver": "awslogs",
+          "options": { 
+             "awslogs-group" : "roxprox",
+             "awslogs-region": "${AWS_REGION}",
+             "awslogs-stream-prefix": "roxprox-sidecar"
+          }
+        },
         "healthCheck" : {
           "command" : [
               "CMD-SHELL",

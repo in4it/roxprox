@@ -47,6 +47,14 @@
               "value" : "mesh/${APPMESH_NAME}/virtualNode/envoy"
           }
         ],
+        "logConfiguration": { 
+          "logDriver": "awslogs",
+          "options": { 
+             "awslogs-group" : "roxprox",
+             "awslogs-region": "${AWS_REGION}",
+             "awslogs-stream-prefix": "envoy-proxy-sidecar"
+          }
+        },
         "healthCheck" : {
           "command" : [
               "CMD-SHELL",
