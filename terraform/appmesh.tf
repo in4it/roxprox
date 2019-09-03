@@ -4,12 +4,6 @@ resource "aws_appmesh_virtual_node" "envoy" {
   mesh_name = "${var.appmesh_name}"
 
   spec {
-    backend {
-      virtual_service {
-        virtual_service_name = "envoy"
-      }
-    }
-
     listener {
       port_mapping {
         port     = 10000
@@ -54,12 +48,6 @@ resource "aws_appmesh_virtual_node" "roxprox" {
   mesh_name = "${var.appmesh_name}"
 
   spec {
-    backend {
-      virtual_service {
-        virtual_service_name = "roxprox"
-      }
-    }
-
     listener {
       port_mapping {
         port     = 8080
