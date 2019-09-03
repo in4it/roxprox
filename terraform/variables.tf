@@ -82,5 +82,5 @@ variable "appmesh_name" {
 }
 variable "appmesh_envoy_release" {
   description = "tag of appmesh envoy release"
-  value       = "v1.11.1.1-prod"
+  default     = "v1.11.1.1-prod"
 }
