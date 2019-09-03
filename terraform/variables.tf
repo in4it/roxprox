@@ -69,3 +69,18 @@ variable "management_access_sg" {
   type        = list
   default     = []
 }
+
+variable "enable_appmesh" {
+  description = "enable app mesh"
+  type        = bool
+  default     = false
+}
+
+variable "appmesh_name" {
+  description = "name of the app mesh"
+  default     = ""
+}
+variable "appmesh_envoy_release" {
+  description = "tag of appmesh envoy release"
+  default     = "v1.11.1.1-prod"
+}
