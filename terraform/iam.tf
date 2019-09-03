@@ -36,6 +36,22 @@ resource "aws_iam_role_policy" "roxprox-ecs-task-execution-role" {
         "ssm:GetParameter"
       ],
       "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetAuthorizationToken"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage"
+      ],
+      "Resource": "arn:aws:ecr:${data.aws_region.current.name}:111345817488:repository/aws-appmesh-envoy"
     }
   ]
 }
