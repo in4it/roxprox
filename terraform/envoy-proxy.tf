@@ -34,6 +34,7 @@ resource "aws_ecs_task_definition" "envoy-proxy" {
   count                    = var.enable_appmesh ? 0 : 1
   family                   = "envoy-proxy"
   execution_role_arn       = aws_iam_role.roxprox-ecs-task-execution-role.arn
+  task_role_arn            = aws_iam_role.roxprox-envoy-proxy-task-role.arn
   cpu                      = "256" 
   memory                   = "512"
   network_mode             = "awsvpc"
@@ -45,6 +46,7 @@ resource "aws_ecs_task_definition" "envoy-proxy-appmesh" {
   count                    = var.enable_appmesh ? 1 : 0
   family                   = "envoy-proxy"
   execution_role_arn       = aws_iam_role.roxprox-ecs-task-execution-role.arn
+  task_role_arn            = aws_iam_role.roxprox-envoy-proxy-task-role.arn
   cpu                      = "512"
   memory                   = "1024"
   network_mode             = "awsvpc"
@@ -127,6 +129,7 @@ resource "aws_ecs_task_definition" "envoy-proxy-https" {
   count                    = var.tls_listener ? 1 : 0
   family                   = "envoy-proxy-https"
   execution_role_arn       = aws_iam_role.roxprox-ecs-task-execution-role.arn
+  task_role_arn            = aws_iam_role.roxprox-envoy-proxy-task-role.arn
   cpu                      = "256"
   memory                   = "512"
   network_mode             = "awsvpc"
@@ -138,6 +141,7 @@ resource "aws_ecs_task_definition" "envoy-proxy-https-appmesh" {
   count                    = var.tls_listener ? 1 : 0
   family                   = "envoy-proxy-https"
   execution_role_arn       = aws_iam_role.roxprox-ecs-task-execution-role.arn
+  task_role_arn            = aws_iam_role.roxprox-envoy-proxy-task-role.arn
   cpu                      = "512"
   memory                   = "1024"
   network_mode             = "awsvpc"
