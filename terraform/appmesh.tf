@@ -1,4 +1,5 @@
 resource "aws_appmesh_virtual_node" "envoy" {
+  count     = var.enable_appmesh ? 1 : 0
   name      = "envoy"
   mesh_name = "${var.appmesh_name}"
 
@@ -33,13 +34,14 @@ resource "aws_appmesh_virtual_node" "envoy" {
 }
 
 resource "aws_appmesh_virtual_service" "envoy" {
+  count     = var.enable_appmesh ? 1 : 0
   name      = "envoy.roxprox.local"
   mesh_name = "${var.appmesh_name}"
 
   spec {
     provider {
       virtual_node {
-        virtual_node_name = "${aws_appmesh_virtual_node.envoy.name}"
+        virtual_node_name = "${aws_appmesh_virtual_node.envoy[0].name}"
       }
     }
   }
