@@ -65,9 +65,9 @@ resource "aws_ecs_task_definition" "envoy-proxy-appmesh" {
 }
 
 resource "aws_ecs_service" "envoy-proxy" {
-  name = "envoy-proxy"
-  cluster = aws_ecs_cluster.roxprox.id
-  desired_count = var.envoy_proxy_count
+  name            = "envoy-proxy"
+  cluster         = aws_ecs_cluster.roxprox.id
+  desired_count   = var.envoy_proxy_count
   task_definition = var.enable_appmesh ? aws_ecs_task_definition.envoy-proxy-appmesh[0].arn : aws_ecs_task_definition.envoy-proxy[0].arn
 
   launch_type = "FARGATE"
