@@ -34,8 +34,8 @@ resource "aws_ecs_task_definition" "envoy-proxy" {
   count                    = var.enable_appmesh ? 1 : 0
   family                   = "envoy-proxy"
   execution_role_arn       = aws_iam_role.roxprox-ecs-task-execution-role.arn
-  cpu                      = 256 
-  memory                   = 512
+  cpu                      = "256" 
+  memory                   = "512"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
   container_definitions = data.template_file.envoy-proxy.rendered
@@ -45,8 +45,8 @@ resource "aws_ecs_task_definition" "envoy-proxy-appmesh" {
   count                    = var.enable_appmesh ? 1 : 0
   family                   = "envoy-proxy"
   execution_role_arn       = aws_iam_role.roxprox-ecs-task-execution-role.arn
-  cpu                      = 512
-  memory                   = 1024
+  cpu                      = "512"
+  memory                   = "1024"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
   container_definitions    = data.template_file.envoy-proxy.rendered
@@ -127,8 +127,8 @@ resource "aws_ecs_task_definition" "envoy-proxy-https" {
   count                    = var.tls_listener ? 1 : 0
   family                   = "envoy-proxy-https"
   execution_role_arn       = aws_iam_role.roxprox-ecs-task-execution-role.arn
-  cpu                      = 256
-  memory                   = 512
+  cpu                      = "256"
+  memory                   = "512"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
   container_definitions = data.template_file.envoy-proxy-https[0].rendered
@@ -138,8 +138,8 @@ resource "aws_ecs_task_definition" "envoy-proxy-https-appmesh" {
   count                    = var.tls_listener ? 1 : 0
   family                   = "envoy-proxy-https"
   execution_role_arn       = aws_iam_role.roxprox-ecs-task-execution-role.arn
-  cpu                      = 512
-  memory                   = 1024
+  cpu                      = "512"
+  memory                   = "1024"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
   container_definitions    = data.template_file.envoy-proxy-https[0].rendered
