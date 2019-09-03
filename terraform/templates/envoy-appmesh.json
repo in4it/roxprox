@@ -32,7 +32,6 @@
           }
        ],
        "memory" : 512,
-       "user" : "1338",
        "dependsOn": [{
         "containerName": "envoy",
         "condition": "HEALTHY"
