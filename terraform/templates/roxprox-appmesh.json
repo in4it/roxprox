@@ -18,7 +18,11 @@
              "hostPort": 8080,
              "protocol": "tcp"
           }
-       ]
+       ],
+       "dependsOn": [{
+        "containerName": "envoy",
+        "condition": "HEALTHY"
+      }]
     },
     {         
         "name" : "envoy",
