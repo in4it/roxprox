@@ -17,59 +17,59 @@ resource "aws_ssm_parameter" "envoy-config-http" {
   value = base64encode(trimspace(data.template_file.envoy-config-http.rendered))
 }
 
+
+data "template_file" "envoy-proxy" {
+  template =  var.enable_appmesh ? file("${path.module}/templates/envoy-appmesh.json") : file("${path.module}/templates/envoy.json")
+
+  vars = {
+    AWS_REGION            = data.aws_region.current.name
+    ENVOY_RELEASE         = var.envoy_release
+    ENVOY_CONFIG          = aws_ssm_parameter.envoy-config-http.arn
+    APPMESH_NAME          = var.appmesh_name
+    APPMESH_ENVOY_RELEASE = var.appmesh_envoy_release
+  }
+}
+
 resource "aws_ecs_task_definition" "envoy-proxy" {
+  count                    = enable_appmesh ? 1 : 0
   family                   = "envoy-proxy"
   execution_role_arn       = aws_iam_role.roxprox-ecs-task-execution-role.arn
-  cpu                      = 256
+  cpu                      = 256 
   memory                   = 512
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
+  container_definitions = data.template_file.envoy-proxy.rendered
+}
 
-  container_definitions = <<DEFINITION
-[
-  {
-    "essential": true,
-    "image": "envoyproxy/envoy:${var.envoy_release}",
-    "name": "envoy-proxy",
-    "entryPoint": ["bash"],
-    "command": ["-c", "echo 'IyEvYmluL2Jhc2gKcHJpbnRmICIlcyIgJEVOVk9ZX0NPTkZJRyB8YmFzZTY0IC0tZGVjb2RlID4gL2V0Yy9lbnZveS9lbnZveS55YW1sCmVudm95IC0tY29uZmlnLXBhdGggL2V0Yy9lbnZveS9lbnZveS55YW1sCg==' |base64 --decode |bash"],
-    "logConfiguration": { 
-            "logDriver": "awslogs",
-            "options": { 
-               "awslogs-group" : "roxprox",
-               "awslogs-region": "${data.aws_region.current.name}",
-               "awslogs-stream-prefix": "envoy-proxy"
-            }
-     },
-		 "secrets": [
-       { 
-         "name": "ENVOY_CONFIG", 
-         "valueFrom": "${aws_ssm_parameter.envoy-config-http.arn}"
-       }
-     ],
-     "portMappings": [ 
-        { 
-           "containerPort": 10000,
-           "hostPort": 10000,
-           "protocol": "tcp"
-        },
-        { 
-           "containerPort": 10001,
-           "hostPort": 10001,
-           "protocol": "tcp"
-        }
-     ]
+resource "aws_ecs_task_definition" "envoy-proxy-appmesh" {
+  count                    = enable_appmesh ? 1 : 0
+  family                   = "envoy-proxy"
+  execution_role_arn       = aws_iam_role.roxprox-ecs-task-execution-role.arn
+  cpu                      = 512
+  memory                   = 1024
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  container_definitions    = data.template_file.envoy-proxy.rendered
+
+  proxy_configuration {
+    type           = "APPMESH"
+    container_name = "envoy"
+    properties = {
+      AppPorts         = "10000"
+      EgressIgnoredIPs = "169.254.170.2,169.254.169.254"
+      IgnoredUID       = "1337"
+      ProxyEgressPort  = 15001
+      ProxyIngressPort = 15000
+    }
   }
-]
-DEFINITION
-
 }
 
 resource "aws_ecs_service" "envoy-proxy" {
   name = "envoy-proxy"
   cluster = aws_ecs_cluster.roxprox.id
   desired_count = var.envoy_proxy_count
-  task_definition = aws_ecs_task_definition.envoy-proxy.arn
+  task_definition = enable_appmesh ? aws_ecs_task_definition.envoy-proxy-appmesh[0].arn : aws_ecs_task_definition.envoy-proxy[0].arn
+
   launch_type = "FARGATE"
 
   network_configuration {
@@ -103,6 +103,18 @@ data "template_file" "envoy-config-https" {
   }
 }
 
+data "template_file" "envoy-proxy-https" {
+  template =  var.enable_appmesh ? file("${path.module}/templates/envoy-appmesh.json") : file("${path.module}/templates/envoy.json")
+
+  vars = {
+    AWS_REGION            = data.aws_region.current.name
+    ENVOY_RELEASE         = var.envoy_release
+    ENVOY_CONFIG          = aws_ssm_parameter.envoy-config-https[0].arn
+    APPMESH_NAME          = var.appmesh_name
+    APPMESH_ENVOY_RELEASE = var.appmesh_envoy_release
+  }
+}
+
 resource "aws_ssm_parameter" "envoy-config-https" {
   count = var.tls_listener ? 1 : 0
   name = "/roxprox/envoy-https.yaml"
@@ -111,52 +123,37 @@ resource "aws_ssm_parameter" "envoy-config-https" {
 }
 
 resource "aws_ecs_task_definition" "envoy-proxy-https" {
-  count = var.tls_listener ? 1 : 0
-  family = "envoy-proxy-https"
-  execution_role_arn = aws_iam_role.roxprox-ecs-task-execution-role.arn
-  cpu = 256
-  memory = 512
-  network_mode = "awsvpc"
+  count                    = var.tls_listener ? 1 : 0
+  family                   = "envoy-proxy-https"
+  execution_role_arn       = aws_iam_role.roxprox-ecs-task-execution-role.arn
+  cpu                      = 256
+  memory                   = 512
+  network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
+  container_definitions = data.template_file.envoy-proxy-https[0].rendered
+}
 
-  container_definitions = <<DEFINITION
-[
-  {
-    "essential": true,
-    "image": "envoyproxy/envoy:${var.envoy_release}",
-    "name": "envoy-proxy-https",
-    "entryPoint": ["bash"],
-    "command": ["-c", "echo 'IyEvYmluL2Jhc2gKcHJpbnRmICIlcyIgJEVOVk9ZX0NPTkZJRyB8YmFzZTY0IC0tZGVjb2RlID4gL2V0Yy9lbnZveS9lbnZveS55YW1sCmVudm95IC0tY29uZmlnLXBhdGggL2V0Yy9lbnZveS9lbnZveS55YW1sCg==' |base64 --decode |bash"],
-    "logConfiguration": { 
-            "logDriver": "awslogs",
-            "options": { 
-               "awslogs-group" : "roxprox",
-               "awslogs-region": "${data.aws_region.current.name}",
-               "awslogs-stream-prefix": "envoy-proxy-https"
-            }
-     },
-		 "secrets": [
-       { 
-         "name": "ENVOY_CONFIG", 
-         "valueFrom": "${aws_ssm_parameter.envoy-config-https[0].arn}"
-       }
-     ],
-     "portMappings": [ 
-        { 
-           "containerPort": 10000,
-           "hostPort": 10000,
-           "protocol": "tcp"
-        },
-        { 
-           "containerPort": 10001,
-           "hostPort": 10001,
-           "protocol": "tcp"
-        }
-     ]
+resource "aws_ecs_task_definition" "envoy-proxy-https-appmesh" {
+  count                    = var.tls_listener ? 1 : 0
+  family                   = "envoy-proxy-https"
+  execution_role_arn       = aws_iam_role.roxprox-ecs-task-execution-role.arn
+  cpu                      = 512
+  memory                   = 1024
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  container_definitions = data.template_file.envoy-proxy-https[0].rendered
+
+  proxy_configuration {
+    type           = "APPMESH"
+    container_name = "envoy"
+    properties = {
+      AppPorts         = "10000"
+      EgressIgnoredIPs = "169.254.170.2,169.254.169.254"
+      IgnoredUID       = "1337"
+      ProxyEgressPort  = 15001
+      ProxyIngressPort = 15000
+    }
   }
-]
-DEFINITION
-
 }
 
 resource "aws_ecs_service" "envoy-proxy-https" {
@@ -164,7 +161,7 @@ resource "aws_ecs_service" "envoy-proxy-https" {
   name            = "envoy-proxy-https"
   cluster         = aws_ecs_cluster.roxprox.id
   desired_count   = var.envoy_proxy_count
-  task_definition = aws_ecs_task_definition.envoy-proxy-https[0].arn
+  task_definition = enable_appmesh ? aws_ecs_task_definition.envoy-proxy-https-appmesh[0].arn : aws_ecs_task_definition.envoy-proxy-https[0].arn
   launch_type     = "FARGATE"
   
   network_configuration {
