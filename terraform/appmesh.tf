@@ -83,7 +83,7 @@ resource "aws_appmesh_virtual_node" "roxprox" {
   }
 }
 
-resource "aws_appmesh_virtual_service" "envoy" {
+resource "aws_appmesh_virtual_service" "roxprox" {
   count     = var.enable_appmesh ? 1 : 0
   name      = "roxprox.roxprox.local"
   mesh_name = "${var.appmesh_name}"
