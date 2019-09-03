@@ -31,3 +31,16 @@ resource "aws_appmesh_virtual_node" "envoy" {
     }
   }
 }
+
+resource "aws_appmesh_virtual_service" "envoy" {
+  name      = "envoy.roxprox.local"
+  mesh_name = "${var.appmesh_name}"
+
+  spec {
+    provider {
+      virtual_node {
+        virtual_node_name = "${aws_appmesh_virtual_node.envoy.name}"
+      }
+    }
+  }
+}
