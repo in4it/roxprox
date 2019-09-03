@@ -35,7 +35,7 @@ resource "aws_appmesh_virtual_service" "envoy-proxy" {
   spec {
     provider {
       virtual_node {
-        virtual_node_name = "${aws_appmesh_virtual_node.envoy[0].name}"
+        virtual_node_name = "${aws_appmesh_virtual_node.envoy-proxy[0].name}"
       }
     }
   }
