@@ -31,14 +31,14 @@ data "template_file" "envoy-proxy" {
 }
 
 resource "aws_ecs_task_definition" "envoy-proxy" {
-  count                    = var.enable_appmesh ? 1 : 0
+  count                    = var.enable_appmesh ? 0 : 1
   family                   = "envoy-proxy"
   execution_role_arn       = aws_iam_role.roxprox-ecs-task-execution-role.arn
   cpu                      = "256" 
   memory                   = "512"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  container_definitions = data.template_file.envoy-proxy.rendered
+  container_definitions    = data.template_file.envoy-proxy.rendered
 }
 
 resource "aws_ecs_task_definition" "envoy-proxy-appmesh" {
