@@ -45,6 +45,7 @@ type ListenerParams struct {
 	TargetHostname string
 	Conditions     Conditions
 	Auth           Auth
+	Authz          Authz
 }
 
 type ChallengeParams struct {
@@ -87,4 +88,8 @@ type ActionProxy struct {
 type ObjectDependency struct {
 	Type string
 	Name string
+}
+type Authz struct {
+	Timeout          string
+	FailureModeAllow bool
 }
