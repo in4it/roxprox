@@ -19,10 +19,18 @@ import (
 const Error_NoFilterChainFound = "NoFilterChainFound"
 const Error_NoFilterFound = "NoFilterFound"
 
-type Listener struct{}
+type Listener struct {
+	httpFilter []*hcm.HttpFilter
+}
 
 func newListener() *Listener {
-	return &Listener{}
+	listener := &Listener{}
+	listener.httpFilter = []*hcm.HttpFilter{
+		{
+			Name: util.Router,
+		},
+	}
+	return listener
 }
 
 func (l *Listener) newTLSFilterChain(params TLSParams) *listener.FilterChain {
@@ -255,7 +263,7 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 }
 
 func (l *Listener) newTLSFilter(params ListenerParams, paramsTLS TLSParams, listenerName string) []*listener.Filter {
-	httpFilters := newHttpRouterFilter()
+	httpFilters := l.newHTTPRouterFilter()
 	newEmptyVirtualHost := &route.VirtualHost{
 		Name:    "v_" + params.Conditions.Hostname,
 		Domains: []string{params.Conditions.Hostname},
@@ -419,7 +427,7 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 
 	logger.Infof("Creating listener " + listenerName)
 
-	httpFilters := newHttpRouterFilter()
+	httpFilters := l.newHTTPRouterFilter()
 	manager := l.newManager(strings.Replace(listenerName, "l_", "r_", 1), []*route.VirtualHost{}, httpFilters)
 
 	pbst, err := types.MarshalAny(manager)
@@ -605,4 +613,12 @@ func (l *Listener) validateListeners(listeners []cache.Resource, clusterNames []
 		}
 	}
 	return true, nil
+}
+
+func (l *Listener) updateDefaultHTTPRouterFilter(filterName string, filterConfig *types.Any) {
+	updateHTTPFilterWithConfig(&l.httpFilter, filterName, filterConfig)
+}
+
+func (l *Listener) newHTTPRouterFilter() []*hcm.HttpFilter {
+	return l.httpFilter
 }

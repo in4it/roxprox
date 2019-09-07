@@ -224,7 +224,7 @@ func (x *XDS) importAuthzFilter(authzFilter pkgApi.AuthzFilter) ([]WorkQueueItem
 			},
 		},
 		{
-			Action: "updateListenerWithAuthzFilter",
+			Action: "updateListenersWithAuthzFilter",
 			ListenerParams: ListenerParams{
 				Name: "authzFilter_" + authzFilter.Metadata.Name,
 				Authz: Authz{

@@ -488,6 +488,18 @@ func TestUpdateListener(t *testing.T) {
 		t.Errorf("Validation failed: %s", err)
 		return
 	}
+	// update default HTTP Router filter
+	if authzConfig, err := a.getAuthzFilterEncoded(params9); err != nil {
+		t.Errorf("getAuthzFilterEncoded error: %s", err)
+	} else {
+		l.updateDefaultHTTPRouterFilter("envoy.ext_authz", authzConfig)
+	}
+	// validate new HTTP filters
+	if err := validateNewHTTPRouterFilter(l.newHTTPRouterFilter(), params9); err != nil {
+		t.Errorf("Validation failed: %s", err)
+		return
+
+	}
 }
 
 func validateDeleteRoute(listeners []cache.Resource, params ListenerParams, tlsParams TLSParams) error {
@@ -956,6 +968,15 @@ func validateAuthz(listeners []cache.Resource, params ListenerParams) error {
 		}
 	}
 
+	return nil
+}
+
+func validateNewHTTPRouterFilter(httpFilter []*hcm.HttpFilter, params ListenerParams) error {
+	authzConfig, err := getListenerHTTPFilterAuthz(httpFilter)
+	if err != nil {
+		return err
+	}
+	validateAuthzConfig(authzConfig, params, "newHTTPRouterFilter")
 	return nil
 }
 func validateAuthzConfig(authzConfig extAuthz.ExtAuthz, params ListenerParams, listenerName string) error {

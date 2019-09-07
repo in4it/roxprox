@@ -28,16 +28,10 @@ func (a *AuthzFilter) updateListenersWithAuthzFilter(cache *WorkQueueCache, para
 					return err
 				}
 
-				// config
-				authzConfig, err := a.getAuthzFilter(params)
+				// get authz config config
+				authzConfigEncoded, err := a.getAuthzFilterEncoded(params)
 				if err != nil {
 					return err
-				}
-
-				// encode config
-				authzConfigEncoded, err := types.MarshalAny(authzConfig)
-				if err != nil {
-					panic(err)
 				}
 
 				// update http filter
@@ -46,7 +40,7 @@ func (a *AuthzFilter) updateListenersWithAuthzFilter(cache *WorkQueueCache, para
 				// update manager in cache
 				pbst, err := types.MarshalAny(&manager)
 				if err != nil {
-					panic(err)
+					return err
 				}
 				ll.FilterChains[filterchainID].Filters[filterID].ConfigType = &listener.Filter_TypedConfig{
 					TypedConfig: pbst,
@@ -59,6 +53,17 @@ func (a *AuthzFilter) updateListenersWithAuthzFilter(cache *WorkQueueCache, para
 	}
 
 	return nil
+}
+func (a *AuthzFilter) getAuthzFilterEncoded(params ListenerParams) (*types.Any, error) {
+	authzConfig, err := a.getAuthzFilter(params)
+	if err != nil {
+		return nil, err
+	}
+	authzConfigEncoded, err := types.MarshalAny(authzConfig)
+	if err != nil {
+		return nil, err
+	}
+	return authzConfigEncoded, err
 }
 
 func (a *AuthzFilter) getAuthzFilter(params ListenerParams) (*extAuthz.ExtAuthz, error) {

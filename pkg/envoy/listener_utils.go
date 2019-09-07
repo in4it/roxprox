@@ -9,7 +9,6 @@ import (
 	extAuthz "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/ext_authz/v2"
 	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
-	"github.com/envoyproxy/go-control-plane/pkg/util"
 	"github.com/gogo/protobuf/types"
 )
 
@@ -210,12 +209,4 @@ func cmpMatch(a *route.RouteMatch, b *route.RouteMatch) bool {
 	}
 
 	return true
-}
-
-func newHttpRouterFilter() []*hcm.HttpFilter {
-	return []*hcm.HttpFilter{
-		{
-			Name: util.Router,
-		},
-	}
 }

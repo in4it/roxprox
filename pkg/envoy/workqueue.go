@@ -143,13 +143,22 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 				item.state = "finished"
 			}
 			updateXds = true
-		case "updateListenerWithAuthzFilter":
+		case "updateListenersWithAuthzFilter":
 			err := w.authzFilter.updateListenersWithAuthzFilter(&w.cache, item.ListenerParams)
 			if err != nil {
 				item.state = "error"
 				logger.Errorf("updateListenerWithAuthzFilter error: %s", err)
 			} else {
-				item.state = "finished"
+				// update default httpFilter
+				authzConfig, err := w.authzFilter.getAuthzFilterEncoded(item.ListenerParams)
+				if err != nil {
+					item.state = "error"
+					logger.Errorf("updateListenerWithAuthzFilter error: %s", err)
+				} else {
+					// update default listener route
+					w.listener.updateDefaultHTTPRouterFilter("envoy.ext_authz", authzConfig)
+					item.state = "finished"
+				}
 			}
 			updateXds = true
 		case "updateListenerWithChallenge":
