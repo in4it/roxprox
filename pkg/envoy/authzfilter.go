@@ -43,6 +43,15 @@ func (a *AuthzFilter) updateListenersWithAuthzFilter(cache *WorkQueueCache, para
 				// update http filter
 				updateHTTPFilterWithConfig(&manager.HttpFilters, "envoy.ext_authz", authzConfigEncoded)
 
+				// update manager in cache
+				pbst, err := types.MarshalAny(&manager)
+				if err != nil {
+					panic(err)
+				}
+				ll.FilterChains[filterchainID].Filters[filterID].ConfigType = &listener.Filter_TypedConfig{
+					TypedConfig: pbst,
+				}
+
 			}
 
 		}
@@ -64,7 +73,7 @@ func (a *AuthzFilter) getAuthzFilter(params ListenerParams) (*extAuthz.ExtAuthz,
 				Timeout: types.DurationProto(timeout),
 				TargetSpecifier: &core.GrpcService_EnvoyGrpc_{
 					EnvoyGrpc: &core.GrpcService_EnvoyGrpc{
-						ClusterName: "authz_" + params.Name,
+						ClusterName: params.Name,
 					},
 				},
 			},

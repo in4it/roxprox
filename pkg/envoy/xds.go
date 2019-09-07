@@ -226,6 +226,7 @@ func (x *XDS) importAuthzFilter(authzFilter pkgApi.AuthzFilter) ([]WorkQueueItem
 		{
 			Action: "updateListenerWithAuthzFilter",
 			ListenerParams: ListenerParams{
+				Name: "authzFilter_" + authzFilter.Metadata.Name,
 				Authz: Authz{
 					Timeout:          authzFilter.Spec.Timeout,
 					FailureModeAllow: authzFilter.Spec.FailureModeAllow,
