@@ -38,6 +38,7 @@ type ClusterParams struct {
 	Name           string
 	TargetHostname string
 	Port           int64
+	HTTP2          bool
 }
 type ListenerParams struct {
 	Name           string

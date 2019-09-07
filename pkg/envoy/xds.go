@@ -221,6 +221,7 @@ func (x *XDS) importAuthzFilter(authzFilter pkgApi.AuthzFilter) ([]WorkQueueItem
 				Name:           "authzFilter_" + authzFilter.Metadata.Name,
 				TargetHostname: authzFilter.Spec.Hostname,
 				Port:           authzFilter.Spec.Port,
+				HTTP2:          true,
 			},
 		},
 		{

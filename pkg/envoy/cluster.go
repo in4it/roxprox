@@ -63,7 +63,7 @@ func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 
 	connectTimeout := 2 * time.Second
 
-	return &api.Cluster{
+	cluster := &api.Cluster{
 		Name: params.Name,
 		ClusterDiscoveryType: &api.Cluster_Type{
 			Type: api.Cluster_STRICT_DNS,
@@ -89,6 +89,13 @@ func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 			},
 		},
 	}
+
+	// HTTP2 support
+	if params.HTTP2 {
+		cluster.Http2ProtocolOptions = &core.Http2ProtocolOptions{}
+	}
+
+	return cluster
 
 }
 
