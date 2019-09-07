@@ -144,7 +144,7 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 			}
 			updateXds = true
 		case "updateListenerWithAuthzFilter":
-			err := w.authzFilter.updateListenerWithAuthzFilter(&w.cache, item.ListenerParams)
+			err := w.authzFilter.updateListenersWithAuthzFilter(&w.cache, item.ListenerParams)
 			if err != nil {
 				item.state = "error"
 				logger.Errorf("updateListenerWithAuthzFilter error: %s", err)
