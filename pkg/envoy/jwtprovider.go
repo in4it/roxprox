@@ -191,7 +191,7 @@ func (j *JwtProvider) updateListenerWithJwtProvider(cache *WorkQueueCache, param
 			panic(err)
 		}
 
-		manager.HttpFilters = newHttpFilter(jwtConfigEncoded)
+		updateHTTPFilterWithConfig(&manager.HttpFilters, "envoy.filters.http.jwt_authn", jwtConfigEncoded)
 
 		pbst, err := types.MarshalAny(&manager)
 		if err != nil {
@@ -279,7 +279,7 @@ func (j *JwtProvider) UpdateJwtRule(cache *WorkQueueCache, params ListenerParams
 		panic(err)
 	}
 
-	manager.HttpFilters = newHttpFilter(jwtConfigEncoded)
+	updateHTTPFilterWithConfig(&manager.HttpFilters, "envoy.filters.http.jwt_authn", jwtConfigEncoded)
 
 	pbst, err := types.MarshalAny(&manager)
 	if err != nil {
@@ -356,7 +356,7 @@ func (j *JwtProvider) DeleteJwtRule(cache *WorkQueueCache, params ListenerParams
 			panic(err)
 		}
 
-		manager.HttpFilters = newHttpFilter(jwtConfigEncoded)
+		updateHTTPFilterWithConfig(&manager.HttpFilters, "envoy.filters.http.jwt_authn", jwtConfigEncoded)
 	} else {
 		logger.Debugf("Couldn't find jwt provider %s during deleteRoute", params.Auth.JwtProvider)
 	}

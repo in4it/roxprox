@@ -141,19 +141,25 @@ func getListenerAttributes(params ListenerParams, paramsTLS TLSParams) (bool, st
 	}
 	return tls, targetPrefix, virtualHostName, listenerName, listenerPort, matchType
 }
-func newHttpFilter(jwtAuth *types.Any) []*hcm.HttpFilter {
-	return []*hcm.HttpFilter{
-		{
-			Name: "envoy.filters.http.jwt_authn",
-			ConfigType: &hcm.HttpFilter_TypedConfig{
-				TypedConfig: jwtAuth,
-			},
-		},
-		{
-			Name: util.Router,
-		},
+func updateHTTPFilterWithConfig(httpFilter *[]*hcm.HttpFilter, filterName string, filterConfig *types.Any) {
+	// check whether filter exists
+	httpFilterPos := getListenerHTTPFilterIndex(filterName, *httpFilter)
+
+	if httpFilterPos == -1 {
+		// prepand new httpFilter if jwt_authn is not added yet
+		*httpFilter = append(
+			[]*hcm.HttpFilter{{
+				Name: filterName,
+				ConfigType: &hcm.HttpFilter_TypedConfig{
+					TypedConfig: filterConfig,
+				}},
+			}, *httpFilter...)
+	} else {
+		// filter exists: copy filter and update config of jwt_authn filter
+		(*httpFilter)[httpFilterPos].ConfigType = &hcm.HttpFilter_TypedConfig{TypedConfig: filterConfig}
 	}
 }
+
 func cmpMatch(a *route.RouteMatch, b *route.RouteMatch) bool {
 	if a.GetPath() != b.GetPath() {
 		return false
