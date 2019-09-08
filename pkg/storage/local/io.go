@@ -126,6 +126,13 @@ func (l *LocalStorage) GetObject(name string) ([]api.Object, error) {
 					return objects, err
 				}
 				object.Data = jwtProvider
+			case "authzFilter":
+				var authzFilter api.AuthzFilter
+				err = yaml.Unmarshal([]byte(contentsSplitted), &authzFilter)
+				if err != nil {
+					return objects, err
+				}
+				object.Data = authzFilter
 			default:
 				return objects, errors.New("Rule in wrong format")
 			}

@@ -7,7 +7,6 @@ type AuthzFilter struct {
 	Spec     AuthzFilterSpec `json:"spec" yaml:"spec"`
 }
 type AuthzFilterSpec struct {
-	ClusterName      string `json:"clusterName" yaml:"clusterName"`
 	FailureModeAllow bool   `json:"failureModeAllow" yaml:"failureModeAllow"`
 	Timeout          string `json:"timeout" yaml:"timeout"`
 	Hostname         string `json:"hostname" yaml:"hostname"`
