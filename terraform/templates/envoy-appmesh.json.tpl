@@ -35,7 +35,7 @@
        "dependsOn": [{
         "containerName": "envoy",
         "condition": "HEALTHY"
-      }]
+      }${EXTRA_DEPENDENCY}]
     },
     {         
         "name" : "envoy",
@@ -67,5 +67,5 @@
         },
         "memory" : 512,
         "user" : "1337"
-    }
+    }${EXTRA_CONTAINERS}
   ]
