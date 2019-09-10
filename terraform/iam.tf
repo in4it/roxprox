@@ -20,7 +20,7 @@ EOF
 }
 
 resource "aws_iam_role_policy" "roxprox-ecs-task-execution-role" {
-  count = var.extra_task_execution_policy == "" : 0 : 1
+  count = var.extra_task_execution_policy == "" ? 0 : 1
   name = "roxprox-ecs-extra-task-execution-role"
   role = aws_iam_role.roxprox-ecs-task-execution-role.id
   policy = var.extra_task_execution_policy
