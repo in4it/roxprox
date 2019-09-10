@@ -114,3 +114,8 @@ variable "extra_dependency" {
   description = "add extra dependencies to task definition"
   default     = ""
 }
+
+variable "extra_task_execution_policy" {
+  description = "extra task execution policy for roxprox"
+  default     = ""
+}
