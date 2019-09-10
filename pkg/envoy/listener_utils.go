@@ -6,9 +6,9 @@ import (
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
+	extAuthz "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/ext_authz/v2"
 	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
-	"github.com/envoyproxy/go-control-plane/pkg/util"
 	"github.com/gogo/protobuf/types"
 )
 
@@ -80,7 +80,7 @@ func getListenerHTTPFilterIndex(filterName string, httpFilter []*hcm.HttpFilter)
 	return -1
 }
 
-func getListenerHTTPFilter(httpFilter []*hcm.HttpFilter) (jwtAuth.JwtAuthentication, error) {
+func getListenerHTTPFilterJwtAuth(httpFilter []*hcm.HttpFilter) (jwtAuth.JwtAuthentication, error) {
 	var jwtConfig jwtAuth.JwtAuthentication
 	httpFilterPos := getListenerHTTPFilterIndex("envoy.filters.http.jwt_authn", httpFilter)
 	if httpFilterPos == -1 {
@@ -92,6 +92,19 @@ func getListenerHTTPFilter(httpFilter []*hcm.HttpFilter) (jwtAuth.JwtAuthenticat
 	}
 	return jwtConfig, nil
 }
+func getListenerHTTPFilterAuthz(httpFilter []*hcm.HttpFilter) (extAuthz.ExtAuthz, error) {
+	var authzConfig extAuthz.ExtAuthz
+	httpFilterPos := getListenerHTTPFilterIndex("envoy.ext_authz", httpFilter)
+	if httpFilterPos == -1 {
+		return authzConfig, fmt.Errorf("HttpFilter for authz missing")
+	}
+	err := types.UnmarshalAny(httpFilter[httpFilterPos].GetTypedConfig(), &authzConfig)
+	if err != nil {
+		return authzConfig, err
+	}
+	return authzConfig, nil
+}
+
 func getListenerAttributes(params ListenerParams, paramsTLS TLSParams) (bool, string, string, string, uint32, string) {
 	var (
 		tls             bool
@@ -141,19 +154,25 @@ func getListenerAttributes(params ListenerParams, paramsTLS TLSParams) (bool, st
 	}
 	return tls, targetPrefix, virtualHostName, listenerName, listenerPort, matchType
 }
-func newHttpFilter(jwtAuth *types.Any) []*hcm.HttpFilter {
-	return []*hcm.HttpFilter{
-		{
-			Name: "envoy.filters.http.jwt_authn",
-			ConfigType: &hcm.HttpFilter_TypedConfig{
-				TypedConfig: jwtAuth,
-			},
-		},
-		{
-			Name: util.Router,
-		},
+func updateHTTPFilterWithConfig(httpFilter *[]*hcm.HttpFilter, filterName string, filterConfig *types.Any) {
+	// check whether filter exists
+	httpFilterPos := getListenerHTTPFilterIndex(filterName, *httpFilter)
+
+	if httpFilterPos == -1 {
+		// prepend new httpFilter if the filter is not added yet
+		*httpFilter = append(
+			[]*hcm.HttpFilter{{
+				Name: filterName,
+				ConfigType: &hcm.HttpFilter_TypedConfig{
+					TypedConfig: filterConfig,
+				}},
+			}, *httpFilter...)
+	} else {
+		// filter exists: copy filter and update config of the filter
+		(*httpFilter)[httpFilterPos].ConfigType = &hcm.HttpFilter_TypedConfig{TypedConfig: filterConfig}
 	}
 }
+
 func cmpMatch(a *route.RouteMatch, b *route.RouteMatch) bool {
 	if a.GetPath() != b.GetPath() {
 		return false
@@ -190,12 +209,4 @@ func cmpMatch(a *route.RouteMatch, b *route.RouteMatch) bool {
 	}
 
 	return true
-}
-
-func newHttpRouterFilter() []*hcm.HttpFilter {
-	return []*hcm.HttpFilter{
-		{
-			Name: util.Router,
-		},
-	}
 }

@@ -201,8 +201,40 @@ func (x *XDS) ImportObject(object pkgApi.Object) ([]WorkQueueItem, error) {
 			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
 		}
 		return items, nil
+	case "authzFilter":
+		authzFilter := object.Data.(pkgApi.AuthzFilter)
+		items, err := x.importAuthzFilter(authzFilter)
+		if err != nil {
+			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
+		}
+		return items, nil
 	}
+
 	return []WorkQueueItem{}, nil
+}
+
+func (x *XDS) importAuthzFilter(authzFilter pkgApi.AuthzFilter) ([]WorkQueueItem, error) {
+	return []WorkQueueItem{
+		{
+			Action: "createCluster",
+			ClusterParams: ClusterParams{
+				Name:           "authzFilter_" + authzFilter.Metadata.Name,
+				TargetHostname: authzFilter.Spec.Hostname,
+				Port:           authzFilter.Spec.Port,
+				HTTP2:          true,
+			},
+		},
+		{
+			Action: "updateListenersWithAuthzFilter",
+			ListenerParams: ListenerParams{
+				Name: "authzFilter_" + authzFilter.Metadata.Name,
+				Authz: Authz{
+					Timeout:          authzFilter.Spec.Timeout,
+					FailureModeAllow: authzFilter.Spec.FailureModeAllow,
+				},
+			},
+		},
+	}, nil
 }
 
 func (x *XDS) importJwtProvider(jwtProvider pkgApi.JwtProvider) ([]WorkQueueItem, error) {

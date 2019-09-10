@@ -19,6 +19,7 @@ type WorkQueue struct {
 	cert           *Cert
 	listener       *Listener
 	jwtProvider    *JwtProvider
+	authzFilter    *AuthzFilter
 	cluster        *Cluster
 	acmeContact    string
 	latestSnapshot cache.Snapshot
@@ -37,7 +38,7 @@ func NewWorkQueue(s storage.Storage, acmeContact string) (*WorkQueue, error) {
 		}
 	}
 
-	w := &WorkQueue{c: c, cs: cs, cert: cert, listener: newListener(), cluster: newCluster(), jwtProvider: newJwtProvider()}
+	w := &WorkQueue{c: c, cs: cs, cert: cert, listener: newListener(), cluster: newCluster(), jwtProvider: newJwtProvider(), authzFilter: newAuthzFilter()}
 
 	// run queue to resolve dependencies
 	go w.resolveDependsOn()
@@ -140,6 +141,24 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 				logger.Errorf("updateListenerWithJwtProvider error: %s", err)
 			} else {
 				item.state = "finished"
+			}
+			updateXds = true
+		case "updateListenersWithAuthzFilter":
+			err := w.authzFilter.updateListenersWithAuthzFilter(&w.cache, item.ListenerParams)
+			if err != nil {
+				item.state = "error"
+				logger.Errorf("updateListenerWithAuthzFilter error: %s", err)
+			} else {
+				// update default httpFilter
+				authzConfig, err := w.authzFilter.getAuthzFilterEncoded(item.ListenerParams)
+				if err != nil {
+					item.state = "error"
+					logger.Errorf("updateListenerWithAuthzFilter error: %s", err)
+				} else {
+					// update default listener route
+					w.listener.updateDefaultHTTPRouterFilter("envoy.ext_authz", authzConfig)
+					item.state = "finished"
+				}
 			}
 			updateXds = true
 		case "updateListenerWithChallenge":

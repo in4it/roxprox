@@ -3,7 +3,7 @@ resource "aws_ecs_cluster" "roxprox" {
 }
 
 data "template_file" "roxprox" {
-  template =  var.enable_appmesh ? file("${path.module}/templates/roxprox-appmesh.json") : file("${path.module}/templates/roxprox.json")
+  template =  var.enable_appmesh ? file("${path.module}/templates/roxprox-appmesh.json.tpl") : file("${path.module}/templates/roxprox.json.tpl")
 
   vars = {
     AWS_REGION            = data.aws_region.current.name

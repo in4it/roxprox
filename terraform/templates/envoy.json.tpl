@@ -30,6 +30,7 @@
              "hostPort": 10001,
              "protocol": "tcp"
           }
-       ]
-    }
+       ],
+       "dependsOn": [${EXTRA_DEPENDENCY}]
+    }${EXTRA_CONTAINERS}
   ]

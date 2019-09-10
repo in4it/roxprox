@@ -396,3 +396,35 @@ func TestImportObjects(t *testing.T) {
 		return
 	}
 }
+
+func TestAuthzObject(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test-authz.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+	HTTPRouterFilter := x.workQueue.listener.newHTTPRouterFilter()
+	if len(HTTPRouterFilter) < 2 {
+		t.Errorf("Less than 2 http router filters")
+		return
+	}
+	if HTTPRouterFilter[0].GetName() != "envoy.ext_authz" {
+		t.Errorf("ext_authz not found in httprouter filter")
+		return
+	}
+}

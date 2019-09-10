@@ -19,6 +19,13 @@ EOF
 
 }
 
+resource "aws_iam_role_policy" "roxprox-ecs-extra-task-execution-role" {
+  count = var.extra_task_execution_policy == "" ? 0 : 1
+  name = "roxprox-ecs-extra-task-execution-role"
+  role = aws_iam_role.roxprox-ecs-task-execution-role.id
+  policy = var.extra_task_execution_policy
+}
+
 resource "aws_iam_role_policy" "roxprox-ecs-task-execution-role" {
   name = "roxprox-ecs-task-execution-role"
   role = aws_iam_role.roxprox-ecs-task-execution-role.id
@@ -137,4 +144,11 @@ assume_role_policy = <<EOF
 }
 EOF
 
+}
+
+resource "aws_iam_role_policy" "roxprox-envoy-extra-task-role" {
+  count = var.extra_task_role_policy == "" ? 0 : 1
+  name = "roxprox-extra-task-role"
+  role = aws_iam_role.roxprox-envoy-proxy-task-role.id
+  policy = var.extra_task_role_policy
 }

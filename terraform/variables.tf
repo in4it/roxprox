@@ -22,6 +22,25 @@ variable "envoy_proxy_count" {
   default     = 1
 }
 
+variable "envoy_proxy_cpu" {
+  description = "fargate task cpu"
+  default     = 256
+}
+variable "envoy_proxy_memory" {
+  description = "fargate task memory"
+  default     = 512
+}
+
+variable "envoy_proxy_appmesh_cpu" {
+  description = "fargate task cpu when appmesh is enabled"
+  default     = 512
+}
+variable "envoy_proxy_appmesh_memory" {
+  description = "fargate task memory when appmesh is enabled"
+  default     = 1024
+}
+
+
 variable "subnets" {
   type        = list(string)
   description = "subnets to use"
@@ -80,7 +99,28 @@ variable "appmesh_name" {
   description = "name of the app mesh"
   default     = ""
 }
+
 variable "appmesh_envoy_release" {
   description = "tag of appmesh envoy release"
   default     = "v1.11.1.1-prod"
+}
+
+variable "extra_containers" {
+  description = "add extra containers to task definition"
+  default     = ""
+}
+
+variable "extra_dependency" {
+  description = "add extra dependencies to task definition"
+  default     = ""
+}
+
+variable "extra_task_execution_policy" {
+  description = "extra task execution policy for roxprox"
+  default     = ""
+}
+
+variable "extra_task_role_policy" {
+  description = "extra task role policy for roxprox"
+  default     = ""
 }

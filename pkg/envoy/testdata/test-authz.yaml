@@ -1,0 +1,9 @@
+api: proxy.in4it.io/v1
+kind: authzFilter
+metadata:
+  name: testfilter
+spec:
+  hostname: localhost
+  port: 8080
+  timeout: 5s
+  failureModeAllow: false

@@ -6,14 +6,17 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
+	extAuthz "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/ext_authz/v2"
 	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
 	"github.com/envoyproxy/go-control-plane/pkg/cache"
+	"github.com/gogo/protobuf/types"
 	"github.com/juju/loggo"
 )
 
@@ -164,6 +167,7 @@ func TestUpdateListener(t *testing.T) {
 	logger.SetLogLevel(loggo.DEBUG)
 	l := newListener()
 	j := newJwtProvider()
+	a := newAuthzFilter()
 	var cache WorkQueueCache
 	params1 := ListenerParams{
 		Name:           "test_1",
@@ -286,6 +290,13 @@ func TestUpdateListener(t *testing.T) {
 			Hostname: "hostname1.example.com",
 			Regex:    "/test8/(.*)",
 			Methods:  []string{"POST", "DELETE"},
+		},
+	}
+	params9 := ListenerParams{
+		Name: "authzTest",
+		Authz: Authz{
+			Timeout:          "2s",
+			FailureModeAllow: false,
 		},
 	}
 
@@ -466,6 +477,28 @@ func TestUpdateListener(t *testing.T) {
 	if err := validateDomain(cache.listeners, params8); err != nil {
 		t.Errorf("Validation failed: %s", err)
 		return
+	}
+	// add authz (should update all listeners)
+	if err := a.updateListenersWithAuthzFilter(&cache, params9); err != nil {
+		t.Errorf("Error: %s", err)
+		return
+	}
+	// validate authz
+	if err := validateAuthz(cache.listeners, params9); err != nil {
+		t.Errorf("Validation failed: %s", err)
+		return
+	}
+	// update default HTTP Router filter
+	if authzConfig, err := a.getAuthzFilterEncoded(params9); err != nil {
+		t.Errorf("getAuthzFilterEncoded error: %s", err)
+	} else {
+		l.updateDefaultHTTPRouterFilter("envoy.ext_authz", authzConfig)
+	}
+	// validate new HTTP filters
+	if err := validateNewHTTPRouterFilter(l.newHTTPRouterFilter(), params9); err != nil {
+		t.Errorf("Validation failed: %s", err)
+		return
+
 	}
 }
 
@@ -736,7 +769,7 @@ func validateJWTProvider(listeners []cache.Resource, auth Auth) error {
 			if err != nil {
 				return err
 			}
-			jwtConfig, err := getListenerHTTPFilter(manager.HttpFilters)
+			jwtConfig, err := getListenerHTTPFilterJwtAuth(manager.HttpFilters)
 			if err != nil {
 				return err
 			}
@@ -750,7 +783,7 @@ func validateJWTProvider(listeners []cache.Resource, auth Auth) error {
 				if err != nil {
 					return fmt.Errorf("Could not extract manager from listener %s", cachedListener.Name)
 				}
-				jwtConfig, err := getListenerHTTPFilter(manager.HttpFilters)
+				jwtConfig, err := getListenerHTTPFilterJwtAuth(manager.HttpFilters)
 				if err != nil {
 					return err
 				}
@@ -790,7 +823,7 @@ func validateJWTProviderWithJWTConfig(jwtConfig jwtAuth.JwtAuthentication, auth 
 func validateJWT(manager hcm.HttpConnectionManager, params ListenerParams) error {
 	// validate jwt
 	if params.Auth.JwtProvider != "" {
-		jwtConfig, err := getListenerHTTPFilter(manager.HttpFilters)
+		jwtConfig, err := getListenerHTTPFilterJwtAuth(manager.HttpFilters)
 		if err != nil {
 			return err
 		}
@@ -895,4 +928,73 @@ func testEqualityString(a, b []string) bool {
 	}
 
 	return true
+}
+
+func validateAuthz(listeners []cache.Resource, params ListenerParams) error {
+	if len(listeners) == 0 {
+		return fmt.Errorf("Listener is empty (got %d)", len(listeners))
+	}
+
+	for _, cachedListenerResource := range listeners {
+		cachedListener := cachedListenerResource.(*api.Listener)
+
+		if cachedListener.Name == "l_http" {
+			manager, err := getListenerHTTPConnectionManager(cachedListener)
+			if err != nil {
+				return err
+			}
+			authzConfig, err := getListenerHTTPFilterAuthz(manager.HttpFilters)
+			if err != nil {
+				return err
+			}
+			err = validateAuthzConfig(authzConfig, params, cachedListener.Name)
+		} else if cachedListener.Name == "l_tls" {
+			for _, filterChain := range cachedListener.FilterChains {
+				if len(filterChain.Filters) == 0 {
+					return fmt.Errorf("No filters found in listener %s", cachedListener.Name)
+				}
+				manager, err := getManager((filterChain.Filters[0].ConfigType).(*listener.Filter_TypedConfig))
+				if err != nil {
+					return fmt.Errorf("Could not extract manager from listener %s", cachedListener.Name)
+				}
+				authzConfig, err := getListenerHTTPFilterAuthz(manager.HttpFilters)
+				if err != nil {
+					return err
+				}
+				err = validateAuthzConfig(authzConfig, params, cachedListener.Name)
+			}
+		} else {
+			return fmt.Errorf("Unknown listener %s", cachedListener.Name)
+		}
+	}
+
+	return nil
+}
+
+func validateNewHTTPRouterFilter(httpFilter []*hcm.HttpFilter, params ListenerParams) error {
+	authzConfig, err := getListenerHTTPFilterAuthz(httpFilter)
+	if err != nil {
+		return err
+	}
+	validateAuthzConfig(authzConfig, params, "newHTTPRouterFilter")
+	return nil
+}
+func validateAuthzConfig(authzConfig extAuthz.ExtAuthz, params ListenerParams, listenerName string) error {
+	if authzConfig.FailureModeAllow != params.Authz.FailureModeAllow {
+		return fmt.Errorf("Failuremode allow is not correct")
+	}
+	if authzConfig.GetGrpcService().GetEnvoyGrpc().GetClusterName() != params.Name {
+		return fmt.Errorf("authz has wrong cluster")
+	}
+	timeout, err := time.ParseDuration(params.Authz.Timeout)
+	if err != nil {
+		return fmt.Errorf("Could not parse timeout %s for listener %s", params.Authz.Timeout, listenerName)
+	}
+	if !types.DurationProto(timeout).Equal(*(authzConfig.GetGrpcService().GetTimeout())) {
+		return fmt.Errorf("authz has wrong timeout for listener %s", listenerName)
+	}
+
+	logger.Debugf("Validated authz filter for listener %s", listenerName)
+
+	return nil
 }
