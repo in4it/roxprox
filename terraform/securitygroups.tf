@@ -64,8 +64,8 @@ resource "aws_security_group" "roxprox-envoy-alb" {
   }
     
   ingress {
-    from_port       = 9901
-    to_port         = 9901
+    from_port       = 9909
+    to_port         = 9909
     protocol        = "tcp"
     security_groups = var.management_access_sg
   }
