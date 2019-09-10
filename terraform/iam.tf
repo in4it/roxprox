@@ -145,3 +145,10 @@ assume_role_policy = <<EOF
 EOF
 
 }
+
+resource "aws_iam_role_policy" "roxprox-envoy-extra-task-role" {
+  count = var.extra_task_role_policy == "" ? 0 : 1
+  name = "roxprox-extra-task-role"
+  role = aws_iam_role.roxprox-envoy-proxy-task-role.id
+  policy = var.extra_task_role_policy
+}

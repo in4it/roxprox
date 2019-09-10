@@ -119,3 +119,8 @@ variable "extra_task_execution_policy" {
   description = "extra task execution policy for roxprox"
   default     = ""
 }
+
+variable "extra_task_role_policy" {
+  description = "extra task role policy for roxprox"
+  default     = ""
+}
