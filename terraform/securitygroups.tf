@@ -107,3 +107,19 @@ resource "aws_security_group" "roxprox-alb" {
   }
 
 }
+resource "aws_security_group" "datadog" {
+  count = var.enable_datadog ? 1 : 0
+  ingress {
+    from_port   = 8126
+    to_port     = 8126
+    protocol    = "tcp"
+    security_groups = var.loadbalancer == "alb" ? [aws_security_group.roxprox-envoy-alb[0].id] : [aws_security_group.roxprox-envoy-nlb[0].id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
