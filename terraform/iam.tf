@@ -158,6 +158,27 @@ resource "aws_iam_role_policy" "roxprox-envoy-extra-task-role" {
 # datadog
 #
 
+resource "aws_iam_role" "datadog-ecs-task-execution-role" {
+  name = "datadog-ecs-task-execution-role"
+
+  assume_role_policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "ecs-tasks.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+
+}
+
 resource "aws_iam_role_policy" "datadog-ecs-task-execution-role" {
   name = "datadog-ecs-task-execution-role"
   role = aws_iam_role.datadog-ecs-task-execution-role.id
