@@ -67,7 +67,7 @@ resource "aws_security_group" "roxprox-envoy-alb" {
     from_port       = 9909
     to_port         = 9909
     protocol        = "tcp"
-    security_groups = var.management_access_sg
+    security_groups = var.enable_datadog ? concat(var.management_access_sg, [aws_security_group.roxprox-datadog[0].id]) : var.management_access_sg
   }
 
 
@@ -113,17 +113,20 @@ resource "aws_security_group" "roxprox-datadog" {
   vpc_id      = data.aws_subnet.subnet.vpc_id
   description = "roxprox-datadog"
 
-  ingress {
-    from_port       = 8126
-    to_port         = 8126
-    protocol        = "tcp"
-    security_groups = var.loadbalancer == "alb" ? [aws_security_group.roxprox-envoy-alb[0].id] : [aws_security_group.roxprox-envoy-nlb[0].id]
-  }
-
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+}
+
+resource "aws_security_group_rule" "roxprox-datadog-allow-apm" {
+  count                    = var.enable_datadog ? 1 : 0
+  type                     = "ingress"
+  from_port                = 8126
+  to_port                  = 8126
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.roxprox-datadog[0].id
+  source_security_group_id = var.loadbalancer == "alb" ? aws_security_group.roxprox-envoy-alb[0].id : aws_security_group.roxprox-envoy-nlb[0].id
 }
