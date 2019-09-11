@@ -6,6 +6,7 @@ data "template_file" "datadog" {
   template = file("${path.module}/templates/datadog-agent.json.tpl")
 
   vars = {
+    AWS_REGION = data.aws_region.current.name
     DD_API_KEY = var.datadog_api_key
     STATS_URL  = var.datadog_stats_url
     IMAGE      = var.datadog_image
@@ -41,6 +42,6 @@ resource "aws_ecs_service" "datadog" {
   }
 
   service_registries {
-    registry_arn = aws_service_discovery_service.roxprox.arn
+    registry_arn = aws_service_discovery_service.roxprox-datadog.arn
   }
 }

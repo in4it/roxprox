@@ -3,7 +3,7 @@
         "name": "datadog-agent",
         "image": "${IMAGE}:${VERSION}",
         "essential": true,
-        "command": ["bash", "-c", "'echo -en \"init_config:\ninstances:\n  - stats_url: ${STATS_URL}\n\" > /etc/datadog-agent/conf.d/envoy.d/conf.yaml && /init'"],
+        "command": ["bash", "-c", "'echo -en \"init_config:\\ninstances:\\n  - stats_url: ${STATS_URL}\\n\" > /etc/datadog-agent/conf.d/envoy.d/conf.yaml && /init'"],
         "logConfiguration": { 
               "logDriver": "awslogs",
               "options": { 
