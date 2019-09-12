@@ -20,6 +20,7 @@ type WorkQueue struct {
 	listener       *Listener
 	jwtProvider    *JwtProvider
 	authzFilter    *AuthzFilter
+	tracing        *Tracing
 	cluster        *Cluster
 	acmeContact    string
 	latestSnapshot cache.Snapshot
@@ -38,7 +39,16 @@ func NewWorkQueue(s storage.Storage, acmeContact string) (*WorkQueue, error) {
 		}
 	}
 
-	w := &WorkQueue{c: c, cs: cs, cert: cert, listener: newListener(), cluster: newCluster(), jwtProvider: newJwtProvider(), authzFilter: newAuthzFilter()}
+	w := &WorkQueue{
+		c:           c,
+		cs:          cs,
+		cert:        cert,
+		listener:    newListener(),
+		cluster:     newCluster(),
+		jwtProvider: newJwtProvider(),
+		authzFilter: newAuthzFilter(),
+		tracing:     newTracing(),
+	}
 
 	// run queue to resolve dependencies
 	go w.resolveDependsOn()
@@ -159,6 +169,17 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 					w.listener.updateDefaultHTTPRouterFilter("envoy.ext_authz", authzConfig)
 					item.state = "finished"
 				}
+			}
+			updateXds = true
+		case "updateListenersWithTracing":
+			err := w.tracing.updateListenersWithTracing(&w.cache, item.TracingParams)
+			if err != nil {
+				item.state = "error"
+				logger.Errorf("updateListenersWithTracing error: %s", err)
+			} else {
+				// update default listener route
+				w.listener.updateDefaultTracingSetting(item.TracingParams)
+				item.state = "finished"
 			}
 			updateXds = true
 		case "updateListenerWithChallenge":

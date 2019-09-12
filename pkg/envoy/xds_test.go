@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
 	"github.com/in4it/roxprox/pkg/storage"
 	localStorage "github.com/in4it/roxprox/pkg/storage/local"
 	"github.com/juju/loggo"
@@ -427,4 +428,46 @@ func TestAuthzObject(t *testing.T) {
 		t.Errorf("ext_authz not found in httprouter filter")
 		return
 	}
+}
+
+func TestTracingObject(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test-tracing.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+	httpFilters := x.workQueue.listener.newHTTPRouterFilter()
+	manager := x.workQueue.listener.newManager(strings.Replace("testlistener", "l_", "r_", 1), []*route.VirtualHost{}, httpFilters)
+	if manager.Tracing == nil {
+		t.Errorf("No tracing config found")
+		return
+	}
+	if manager.Tracing.GetClientSampling().Value != 100 {
+		t.Errorf("Tracing: wrong sampling information found")
+		return
+	}
+	if manager.Tracing.GetRandomSampling().Value != 99 {
+		t.Errorf("Tracing: wrong sampling information found")
+		return
+	}
+	if manager.Tracing.GetOverallSampling().Value != 98 {
+		t.Errorf("Tracing: wrong sampling information found")
+		return
+	}
+
 }

@@ -1,0 +1,9 @@
+api: proxy.in4it.io/v1
+kind: tracing
+metadata:
+  name: test-tracing
+spec:
+  clientSampling: 100
+  randomSampling: 99
+  overallSampling: 98
+

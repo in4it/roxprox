@@ -208,6 +208,13 @@ func (x *XDS) ImportObject(object pkgApi.Object) ([]WorkQueueItem, error) {
 			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
 		}
 		return items, nil
+	case "tracing":
+		tracing := object.Data.(pkgApi.Tracing)
+		items, err := x.importTracing(tracing)
+		if err != nil {
+			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
+		}
+		return items, nil
 	}
 
 	return []WorkQueueItem{}, nil
@@ -232,6 +239,20 @@ func (x *XDS) importAuthzFilter(authzFilter pkgApi.AuthzFilter) ([]WorkQueueItem
 					Timeout:          authzFilter.Spec.Timeout,
 					FailureModeAllow: authzFilter.Spec.FailureModeAllow,
 				},
+			},
+		},
+	}, nil
+}
+
+func (x *XDS) importTracing(tracing pkgApi.Tracing) ([]WorkQueueItem, error) {
+	return []WorkQueueItem{
+		{
+			Action: "updateListenersWithTracing",
+			TracingParams: TracingParams{
+				Enabled:         true,
+				ClientSampling:  tracing.Spec.ClientSampling,
+				RandomSampling:  tracing.Spec.RandomSampling,
+				OverallSampling: tracing.Spec.OverallSampling,
 			},
 		},
 	}, nil

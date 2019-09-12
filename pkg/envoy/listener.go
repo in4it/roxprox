@@ -11,6 +11,7 @@ import (
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
+	envoyType "github.com/envoyproxy/go-control-plane/envoy/type"
 	"github.com/envoyproxy/go-control-plane/pkg/cache"
 	"github.com/envoyproxy/go-control-plane/pkg/util"
 	"github.com/gogo/protobuf/types"
@@ -21,6 +22,7 @@ const Error_NoFilterFound = "NoFilterFound"
 
 type Listener struct {
 	httpFilter []*hcm.HttpFilter
+	tracing    *hcm.HttpConnectionManager_Tracing
 }
 
 func newListener() *Listener {
@@ -407,7 +409,7 @@ func (l *Listener) routeIndex(routes []*route.Route, route *route.Route) int {
 }
 
 func (l *Listener) newManager(routeName string, virtualHosts []*route.VirtualHost, httpFilters []*hcm.HttpFilter) *hcm.HttpConnectionManager {
-	return &hcm.HttpConnectionManager{
+	httpConnectionManager := &hcm.HttpConnectionManager{
 		CodecType:  hcm.AUTO,
 		StatPrefix: "ingress_http",
 		RouteSpecifier: &hcm.HttpConnectionManager_RouteConfig{
@@ -418,6 +420,10 @@ func (l *Listener) newManager(routeName string, virtualHosts []*route.VirtualHos
 		},
 		HttpFilters: httpFilters,
 	}
+	if l.tracing != nil {
+		httpConnectionManager.Tracing = l.tracing
+	}
+	return httpConnectionManager
 }
 
 func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *api.Listener {
@@ -617,6 +623,14 @@ func (l *Listener) validateListeners(listeners []cache.Resource, clusterNames []
 
 func (l *Listener) updateDefaultHTTPRouterFilter(filterName string, filterConfig *types.Any) {
 	updateHTTPFilterWithConfig(&l.httpFilter, filterName, filterConfig)
+}
+
+func (l *Listener) updateDefaultTracingSetting(tracing TracingParams) {
+	l.tracing = &hcm.HttpConnectionManager_Tracing{
+		ClientSampling:  &envoyType.Percent{Value: tracing.ClientSampling},
+		RandomSampling:  &envoyType.Percent{Value: tracing.RandomSampling},
+		OverallSampling: &envoyType.Percent{Value: tracing.OverallSampling},
+	}
 }
 
 func (l *Listener) newHTTPRouterFilter() []*hcm.HttpFilter {

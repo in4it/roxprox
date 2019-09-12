@@ -12,8 +12,8 @@ type WorkQueueItem struct {
 	ListenerParams   ListenerParams
 	ChallengeParams  ChallengeParams
 	CreateCertParams CreateCertParams
-
-	state string
+	TracingParams    TracingParams
+	state            string
 }
 
 type WorkQueueCache struct {
@@ -93,4 +93,11 @@ type ObjectDependency struct {
 type Authz struct {
 	Timeout          string
 	FailureModeAllow bool
+}
+
+type TracingParams struct {
+	Enabled         bool
+	ClientSampling  float64
+	RandomSampling  float64
+	OverallSampling float64
 }
