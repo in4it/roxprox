@@ -3,7 +3,7 @@
 #
 
 data "template_file" "envoy-config-http" {
-  template = enable_datadog ? file("${path.module}/templates/envoy-datadog.yml") : file("${path.module}/templates/envoy.yml")
+  template = var.enable_datadog ? file("${path.module}/templates/envoy-datadog.yml") : file("${path.module}/templates/envoy.yml")
   vars = {
     CLUSTER    = "roxprox"
     ID         = "roxprox-http"
@@ -101,7 +101,7 @@ resource "aws_ecs_service" "envoy-proxy" {
 
 data "template_file" "envoy-config-https" {
   count = var.tls_listener ? 1 : 0
-  template = enable_datadog ? file("${path.module}/templates/envoy-datadog.yml") : file("${path.module}/templates/envoy.yml")
+  template = var.enable_datadog ? file("${path.module}/templates/envoy-datadog.yml") : file("${path.module}/templates/envoy.yml")
   vars = {
     CLUSTER    = "roxprox"
     ID         = "roxprox-https"
