@@ -13,7 +13,7 @@
                  "awslogs-stream-prefix": "envoy-proxy"
               }
        },
-           "secrets": [
+       "secrets": [
          { 
            "name": "ENVOY_CONFIG", 
            "valueFrom": "${ENVOY_CONFIG}"

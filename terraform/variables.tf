@@ -124,3 +124,32 @@ variable "extra_task_role_policy" {
   description = "extra task role policy for roxprox"
   default     = ""
 }
+
+variable "enable_datadog" {
+  description = "flag to enable datadog integration"
+  default     = false
+}
+variable "datadog_api_key" {
+  description = "datadog api key"
+  default     = ""
+}
+variable "datadog_stats_url" {
+  description = "datadog stats url"
+  default     = ""
+}
+variable "datadog_image" {
+  description = "datadog agent image"
+  default     = "datadog/agent"
+}
+variable "datadog_image_version" {
+  description = "datadog agent image version"
+  default     = "latest"
+}
+variable "datadog_count" {
+  description = "datadog service count"
+  default     = "2"
+}
+variable "datadog_extra_task_execution_policy" {
+  description = "datadog extra task execution policy"
+  default     = ""
+}

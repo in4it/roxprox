@@ -3,11 +3,13 @@
 #
 
 data "template_file" "envoy-config-http" {
-  template = file("${path.module}/envoy.yml")
+  template = var.enable_datadog ? file("${path.module}/templates/envoy-datadog.yml") : file("${path.module}/templates/envoy.yml")
   vars = {
-    CLUSTER = "roxprox"
-    ID      = "roxprox-http"
-    ADDRESS = "roxprox.roxprox.local"
+    CLUSTER    = "roxprox"
+    ID         = "roxprox-http"
+    ADDRESS    = "roxprox.roxprox.local"
+    DATADOG    = "datadog.roxprox.local"
+    ADMIN_PORT = "9909"
   }
 }
 
@@ -99,11 +101,13 @@ resource "aws_ecs_service" "envoy-proxy" {
 
 data "template_file" "envoy-config-https" {
   count = var.tls_listener ? 1 : 0
-  template = file("${path.module}/envoy.yml")
+  template = var.enable_datadog ? file("${path.module}/templates/envoy-datadog.yml") : file("${path.module}/templates/envoy.yml")
   vars = {
-    CLUSTER = "roxprox"
-    ID = "roxprox-https"
-    ADDRESS = "roxprox.roxprox.local"
+    CLUSTER    = "roxprox"
+    ID         = "roxprox-https"
+    ADDRESS    = "roxprox.roxprox.local"
+    DATADOG    = "datadog.roxprox.local"
+    ADMIN_PORT = "9909"
   }
 }
 

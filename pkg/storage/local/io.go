@@ -133,6 +133,13 @@ func (l *LocalStorage) GetObject(name string) ([]api.Object, error) {
 					return objects, err
 				}
 				object.Data = authzFilter
+			case "tracing":
+				var tracing api.Tracing
+				err = yaml.Unmarshal([]byte(contentsSplitted), &tracing)
+				if err != nil {
+					return objects, err
+				}
+				object.Data = tracing
 			default:
 				return objects, errors.New("Rule in wrong format")
 			}
