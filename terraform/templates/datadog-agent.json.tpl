@@ -24,6 +24,10 @@
             {
                 "name": "ECS_FARGATE",
                 "value": "true"
+            },
+            {
+                "name": "DD_APM_ENV",
+                "value": "${DD_APM_ENV}"
             }
         ]
     }

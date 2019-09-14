@@ -8,6 +8,7 @@ data "template_file" "datadog" {
   vars = {
     AWS_REGION = data.aws_region.current.name
     DD_API_KEY = var.datadog_api_key
+    DD_APM_ENV = var.datadog_env
     STATS_URL  = var.datadog_stats_url
     IMAGE      = var.datadog_image
     VERSION    = var.datadog_image_version

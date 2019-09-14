@@ -153,3 +153,7 @@ variable "datadog_extra_task_execution_policy" {
   description = "datadog extra task execution policy"
   default     = ""
 }
+variable "datadog_env" {
+  description = "datadog APM default enviroment"
+  default     = "none"
+}
