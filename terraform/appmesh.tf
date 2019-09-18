@@ -10,7 +10,11 @@ resource "aws_appmesh_virtual_node" "envoy-proxy" {
         protocol = "tcp"
       }
 
-      backend {
+      backends {
+        virtual_service {
+          virtual_service_name = "roxprox.roxprox.local"
+        }
+        
         dynamic "virtual_service" {
           for_each = var.appmesh_backends
             content {
