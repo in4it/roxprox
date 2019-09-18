@@ -105,6 +105,12 @@ variable "appmesh_envoy_release" {
   default     = "v1.11.1.1-prod"
 }
 
+variable "appmesh_backends" {
+  description = "list of backends to be configured in the appmesh virtual node"
+  type        = list
+  default     = []
+}
+
 variable "extra_containers" {
   description = "add extra containers to task definition"
   default     = ""
