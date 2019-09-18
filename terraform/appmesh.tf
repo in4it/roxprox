@@ -10,11 +10,12 @@ resource "aws_appmesh_virtual_node" "envoy-proxy" {
         protocol = "tcp"
       }
 
-      dynamic "backend" {
-        for_each = var.appmesh_backends:
-          virtual_service {
-            virtual_service_name = backend.value
-          }
+      backend {
+        dynamic "virtual_service" {
+          for_each = var.appmesh_backends:
+            content {
+              virtual_service_name = virtual_service.value
+            }
       }
 
       health_check {
