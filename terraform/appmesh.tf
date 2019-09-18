@@ -11,9 +11,9 @@ resource "aws_appmesh_virtual_node" "envoy-proxy" {
       }
 
       dynamic "backend" {
-        for b in var.appmesh_backends:
+        for_each = var.appmesh_backends:
           virtual_service {
-            virtual_service_name = b
+            virtual_service_name = backend.value
           }
       }
 
