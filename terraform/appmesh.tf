@@ -4,23 +4,23 @@ resource "aws_appmesh_virtual_node" "envoy-proxy" {
   mesh_name = "${var.appmesh_name}"
 
   spec {
+    backend {
+      virtual_service {
+        virtual_service_name = "roxprox.roxprox.local"
+      }
+
+      dynamic "virtual_service" {
+        for_each = var.appmesh_backends
+          content {
+            virtual_service_name = virtual_service.value
+          }
+      }
+    }
+
     listener {
       port_mapping {
         port     = 10000
         protocol = "tcp"
-      }
-
-      backends {
-        virtual_service {
-          virtual_service_name = "roxprox.roxprox.local"
-        }
-        
-        dynamic "virtual_service" {
-          for_each = var.appmesh_backends
-            content {
-              virtual_service_name = virtual_service.value
-            }
-        }
       }
 
       health_check {
