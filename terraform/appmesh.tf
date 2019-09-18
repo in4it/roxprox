@@ -16,6 +16,7 @@ resource "aws_appmesh_virtual_node" "envoy-proxy" {
             content {
               virtual_service_name = virtual_service.value
             }
+        }
       }
 
       health_check {
