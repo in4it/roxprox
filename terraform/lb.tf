@@ -77,7 +77,8 @@ resource "aws_lb_target_group" "envoy-proxy-http" {
     healthy_threshold   = 2
     unhealthy_threshold = 2
     protocol            = var.loadbalancer == "alb" ? "HTTP" : "TCP"
-    matcher             = var.loadbalancer == "alb" ? "200,404,301,302" : ""
+    matcher             = var.loadbalancer == "alb" ? var.loadbalancer_healthcheck_matcher : ""
+    path                = var.loadbalancer == "alb" ? var.loadbalancer_healthcheck_path : ""
     interval            = 30
   }
 }

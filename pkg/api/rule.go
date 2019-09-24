@@ -26,9 +26,15 @@ type RuleConditions struct {
 	Methods  []string `json:"methods"`
 }
 type RuleActions struct {
-	Proxy RuleActionsProxy `json:"proxy"`
+	Proxy          RuleActionsProxy          `json:"proxy"`
+	DirectResponse RuleActionsDirectResponse `json:"directResponse" yaml:"directResponse"`
 }
 type RuleActionsProxy struct {
 	Hostname string `json:"hostname"`
 	Port     int64  `json:"port"`
+}
+
+type RuleActionsDirectResponse struct {
+	Status uint32 `json:"status"`
+	Body   string `json:"body"`
 }
