@@ -72,7 +72,7 @@ variable "loadbalancer_healthcheck_matcher" {
 
 variable "loadbalancer_healthcheck_path" {
   description = "loadbalancer healthcheck path to use"
-  default     = ""
+  default     = "/"
 }
 
 variable "loadbalancer_alb_cert" {
