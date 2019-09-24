@@ -1,0 +1,11 @@
+api: proxy.in4it.io/v1
+kind: rule
+metadata:
+  name: healthcheck
+spec:
+  conditions:
+    - path: /.roxprox/health
+  actions:
+    - directResponse:
+        status: 200
+        body: "OK"

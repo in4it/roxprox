@@ -27,7 +27,7 @@ type RuleConditions struct {
 }
 type RuleActions struct {
 	Proxy          RuleActionsProxy          `json:"proxy"`
-	DirectResponse RuleActionsDirectResponse `json:"directResponse"`
+	DirectResponse RuleActionsDirectResponse `json:"directResponse" yaml:"directResponse"`
 }
 type RuleActionsProxy struct {
 	Hostname string `json:"hostname"`

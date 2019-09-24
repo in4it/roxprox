@@ -624,25 +624,28 @@ func (l *Listener) validateListeners(listeners []cache.Resource, clusterNames []
 		}
 		for _, virtualHost := range routeSpecifier.RouteConfig.VirtualHosts {
 			for _, virtualHostRoute := range virtualHost.Routes {
-				switch reflect.TypeOf(virtualHostRoute.Action).String() {
-				case "*route.Route_Route":
-					clusterFound := false
-					virtualHostRouteClusterName := virtualHostRoute.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
-					for _, clusterName := range clusterNames {
-						if clusterName == virtualHostRouteClusterName {
-							clusterFound = true
+				if virtualHostRoute.Action != nil {
+					switch reflect.TypeOf(virtualHostRoute.Action).String() {
+					case "*route.Route_Route":
+						clusterFound := false
+						virtualHostRouteClusterName := virtualHostRoute.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
+						for _, clusterName := range clusterNames {
+							if clusterName == virtualHostRouteClusterName {
+								clusterFound = true
+							}
 						}
+						if !clusterFound {
+							return false, fmt.Errorf("Cluster not found: %s", virtualHostRouteClusterName)
+						}
+					case "*route.Route_DirectResponse":
+						logger.Debugf("Validation: DirectResponse, no cluster validation necessary")
+						// no validation necessary
+					default:
+						return false, fmt.Errorf("Route action type is unknown: %s", reflect.TypeOf(virtualHostRoute.Action).String())
 					}
-					if !clusterFound {
-						return false, fmt.Errorf("Cluster not found: %s", virtualHostRouteClusterName)
-					}
-				case "*route.Route_DirectResponse":
-					logger.Debugf("Validation: DirectResponse, no cluster validation necessary")
-					// no validation necessary
-				default:
-					return false, fmt.Errorf("Route action type is unknown: %s", reflect.TypeOf(virtualHostRoute.Action).String())
+				} else {
+					return false, fmt.Errorf("Validation: no route action found for virtualhost: %+v", virtualHost)
 				}
-
 			}
 		}
 	}
@@ -663,4 +666,51 @@ func (l *Listener) updateDefaultTracingSetting(tracing TracingParams) {
 
 func (l *Listener) newHTTPRouterFilter() []*hcm.HttpFilter {
 	return l.httpFilter
+}
+
+func (l *Listener) printListener(cache *WorkQueueCache) (string, error) {
+	var res string
+	for _, listener := range cache.listeners {
+		ll := listener.(*api.Listener)
+		res += "Listener: " + ll.Name + "\n"
+		manager, err := getListenerHTTPConnectionManager(ll)
+		if err != nil {
+			return "", err
+		}
+		routeSpecifier, err := l.getListenerRouteSpecifier(manager)
+		if err != nil {
+			return "", err
+		}
+		for _, virtualHost := range routeSpecifier.RouteConfig.VirtualHosts {
+			res += "Virtualhost: " + virtualHost.GetName() + "\n"
+			for _, virtualHostRoute := range virtualHost.Routes {
+				if virtualHostRoute.Match != nil {
+					if virtualHostRoute.Match.GetPath() != "" {
+						res += "Match path: " + virtualHostRoute.Match.GetPath() + "\n"
+					}
+					if virtualHostRoute.Match.GetPrefix() != "" {
+						res += "Match prefix: " + virtualHostRoute.Match.GetPrefix() + "\n"
+					}
+					if virtualHostRoute.Match.GetRegex() != "" {
+						res += "Match regex: " + virtualHostRoute.Match.GetRegex() + "\n"
+					}
+				}
+				if virtualHostRoute.Action != nil {
+					switch reflect.TypeOf(virtualHostRoute.Action).String() {
+					case "*route.Route_Route":
+						res += "Route action (cluster): " + virtualHostRoute.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster + "\n"
+					case "*route.Route_DirectResponse":
+						res += "Route action (directResponse): "
+						res += fmt.Sprint(virtualHostRoute.Action.(*route.Route_DirectResponse).DirectResponse.GetStatus()) + " "
+						res += virtualHostRoute.Action.(*route.Route_DirectResponse).DirectResponse.Body.GetInlineString() + "\n"
+					default:
+						return "", fmt.Errorf("Route action type is unknown: %s", reflect.TypeOf(virtualHostRoute.Action).String())
+					}
+				} else {
+					return "", fmt.Errorf("Validation: no route action found for virtualhost: %+v", virtualHost)
+				}
+			}
+		}
+	}
+	return res, nil
 }

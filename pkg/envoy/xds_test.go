@@ -493,4 +493,10 @@ func TestDirectResponseObject(t *testing.T) {
 			return
 		}
 	}
+	out, err := x.workQueue.listener.printListener(&x.workQueue.cache)
+	if err != nil {
+		t.Errorf("listener print error: %s", err)
+		return
+	}
+	fmt.Printf("%s\n", out)
 }

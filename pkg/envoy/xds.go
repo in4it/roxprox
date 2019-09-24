@@ -375,8 +375,7 @@ func (x *XDS) getAction(ruleName string, actions []pkgApi.RuleActions) Action {
 			action.RuleName = ruleName
 			action.Proxy.TargetHostname = ruleAction.Proxy.Hostname
 			action.Proxy.Port = ruleAction.Proxy.Port
-		}
-		if ruleAction.DirectResponse.Status > 0 {
+		} else if ruleAction.DirectResponse.Status > 0 {
 			action.Type = "directResponse"
 			action.RuleName = ruleName
 			action.DirectResponse.Status = ruleAction.DirectResponse.Status
@@ -439,15 +438,18 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 	action := x.getAction(rule.Metadata.Name, rule.Spec.Actions)
 	createRuleType := ""
 	// create cluster
-	if action.Type == "proxy" {
+	switch action.Type {
+	case "proxy":
 		workQueueItem := WorkQueueItem{
 			Action:        "createCluster",
 			ClusterParams: x.getClusterParams(action),
 		}
 		workQueueItems = append(workQueueItems, workQueueItem)
 		createRuleType = "createRule"
-	} else {
+	case "directResponse":
 		createRuleType = "createRuleWithoutCluster"
+	default:
+		logger.Debugf("Rule without action: %+v", rule)
 	}
 	// create listener that proxies to targetHostname
 	for _, condition := range rule.Spec.Conditions {

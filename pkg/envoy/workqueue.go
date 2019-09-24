@@ -79,6 +79,7 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 	for k, item := range items {
 		itemID := uuid.New().String()
 		items[k].id = itemID
+		logger.Tracef("WorkQueue: processing item: %s", item.Action)
 		switch item.Action {
 		case "createCluster":
 			if element, err := w.cluster.findCluster(w.cache.clusters, item.ClusterParams); err == nil {
