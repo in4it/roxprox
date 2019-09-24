@@ -380,16 +380,36 @@ func (x *XDS) getAction(ruleName string, actions []pkgApi.RuleActions) Action {
 	return action
 }
 func (x *XDS) getListenerParams(action Action, condition pkgApi.RuleConditions) ListenerParams {
-	return ListenerParams{
-		Name:           action.RuleName,
-		TargetHostname: action.Proxy.TargetHostname,
-		Conditions: Conditions{
-			Hostname: condition.Hostname,
-			Prefix:   condition.Prefix,
-			Path:     condition.Path,
-			Regex:    condition.Regex,
-			Methods:  condition.Methods,
-		},
+	switch action.Type {
+	case "proxy":
+		return ListenerParams{
+			Name:           action.RuleName,
+			TargetHostname: action.Proxy.TargetHostname,
+			Conditions: Conditions{
+				Hostname: condition.Hostname,
+				Prefix:   condition.Prefix,
+				Path:     condition.Path,
+				Regex:    condition.Regex,
+				Methods:  condition.Methods,
+			},
+		}
+	case "directResponse":
+		return ListenerParams{
+			Name: action.RuleName,
+			DirectResponse: DirectResponse{
+				Status: action.DirectResponse.Status,
+				Body:   action.DirectResponse.Body,
+			},
+			Conditions: Conditions{
+				Hostname: condition.Hostname,
+				Prefix:   condition.Prefix,
+				Path:     condition.Path,
+				Regex:    condition.Regex,
+				Methods:  condition.Methods,
+			},
+		}
+	default:
+		return ListenerParams{}
 	}
 }
 func (x *XDS) getClusterParams(action Action) ClusterParams {
@@ -411,77 +431,84 @@ func (x *XDS) getAuthParams(jwtProviderName string, jwtProvider pkgApi.JwtProvid
 func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 	var workQueueItems []WorkQueueItem
 	action := x.getAction(rule.Metadata.Name, rule.Spec.Actions)
+	// create cluster
 	if action.Type == "proxy" {
-		// create cluster
 		workQueueItem := WorkQueueItem{
 			Action:        "createCluster",
 			ClusterParams: x.getClusterParams(action),
 		}
 		workQueueItems = append(workQueueItems, workQueueItem)
-		// create listener that proxies to targetHostname
-		for _, condition := range rule.Spec.Conditions {
-			// validation
-			if rule.Spec.Certificate != "" && condition.Hostname == "" {
-				return []WorkQueueItem{}, fmt.Errorf("Validation error: rule with certificate, but without a hostname condition - ignoring rule")
-
-			}
-			if condition.Hostname != "" || condition.Prefix != "" || condition.Path != "" || condition.Regex != "" {
-				listenerParams := x.getListenerParams(action, condition)
-				if rule.Spec.Auth.JwtProvider != "" {
-					object, err := x.getObject("jwtProvider", rule.Spec.Auth.JwtProvider)
-					if err != nil {
-						logger.Infof("Could not set Auth parameters: jwtprovider not found (error: %s)", err)
-						return workQueueItems, err
-					} else {
-						listenerParams.Auth = x.getAuthParams(rule.Spec.Auth.JwtProvider, object.Data.(pkgApi.JwtProvider))
-					}
-					workQueueItems = append(workQueueItems, []WorkQueueItem{
-						{
-							Action:         "createRule",
-							ListenerParams: listenerParams,
-							TLSParams:      TLSParams{},
-						},
-						{
-							Action:         "updateListenerWithJwtProvider",
-							ListenerParams: listenerParams,
-						},
-						{
-							Action:         "createJwtRule",
-							ListenerParams: listenerParams,
-							TLSParams:      TLSParams{},
-						},
-					}...)
+	}
+	// create listener that proxies to targetHostname
+	for _, condition := range rule.Spec.Conditions {
+		// validation
+		if rule.Spec.Certificate != "" && condition.Hostname == "" {
+			return []WorkQueueItem{}, fmt.Errorf("Validation error: rule with certificate, but without a hostname condition - ignoring rule")
+		}
+		if condition.Hostname != "" || condition.Prefix != "" || condition.Path != "" || condition.Regex != "" {
+			listenerParams := x.getListenerParams(action, condition)
+			if rule.Spec.Auth.JwtProvider != "" {
+				object, err := x.getObject("jwtProvider", rule.Spec.Auth.JwtProvider)
+				if err != nil {
+					logger.Infof("Could not set Auth parameters: jwtprovider not found (error: %s)", err)
+					return workQueueItems, err
 				} else {
-					workQueueItems = append(workQueueItems, WorkQueueItem{
+					listenerParams.Auth = x.getAuthParams(rule.Spec.Auth.JwtProvider, object.Data.(pkgApi.JwtProvider))
+				}
+				workQueueItems = append(workQueueItems, []WorkQueueItem{
+					{
 						Action:         "createRule",
 						ListenerParams: listenerParams,
 						TLSParams:      TLSParams{},
-					})
-				}
+					},
+					{
+						Action:         "updateListenerWithJwtProvider",
+						ListenerParams: listenerParams,
+					},
+					{
+						Action:         "createJwtRule",
+						ListenerParams: listenerParams,
+						TLSParams:      TLSParams{},
+					},
+				}...)
+			} else {
+				workQueueItems = append(workQueueItems, WorkQueueItem{
+					Action:         "createRule",
+					ListenerParams: listenerParams,
+					TLSParams:      TLSParams{},
+				})
+			}
 
-				if rule.Spec.Certificate == "letsencrypt" {
-					// TLS listener
-					certBundle, err := x.s.GetCertBundle(rule.Metadata.Name)
-					if err != nil && err != x.s.GetError("errNotExist") {
+			if rule.Spec.Certificate == "letsencrypt" {
+				// TLS listener
+				certBundle, err := x.s.GetCertBundle(rule.Metadata.Name)
+				if err != nil && err != x.s.GetError("errNotExist") {
+					return workQueueItems, err
+				}
+				if err != nil && err == x.s.GetError("errNotExist") {
+					// TODO: add to list for creation
+					logger.Debugf("Certificate not found, needs to be created")
+				}
+				if err == nil {
+					logger.Debugf("Certificate found, adding TLS")
+					privateKeyPem, err := x.s.GetPrivateKeyPem(rule.Metadata.Name)
+					if err != nil {
 						return workQueueItems, err
 					}
-					if err != nil && err == x.s.GetError("errNotExist") {
-						// TODO: add to list for creation
-						logger.Debugf("Certificate not found, needs to be created")
-					}
-					if err == nil {
-						logger.Debugf("Certificate found, adding TLS")
-						privateKeyPem, err := x.s.GetPrivateKeyPem(rule.Metadata.Name)
-						if err != nil {
-							return workQueueItems, err
+					createRuleKey := -1
+					for k, v := range workQueueItems {
+						if v.Action == "createRule" {
+							createRuleKey = k
 						}
-						workQueueItemTLS := workQueueItem
+					}
+					if createRuleKey != -1 {
+						workQueueItemTLS := workQueueItems[createRuleKey]
 						workQueueItemTLS.Action = "createRule"
 						workQueueItemTLS.TLSParams = TLSParams{
 							Name:       rule.Metadata.Name,
 							CertBundle: certBundle,
 							PrivateKey: privateKeyPem,
-							Domain:     workQueueItem.ListenerParams.Conditions.Hostname,
+							Domain:     workQueueItems[createRuleKey].ListenerParams.Conditions.Hostname,
 						}
 						workQueueItems = append(workQueueItems, workQueueItemTLS)
 					}
