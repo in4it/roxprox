@@ -115,6 +115,18 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 				}
 				updateXds = true
 			}
+		case "createRuleWithoutCluster":
+			if len(w.cache.listeners) == 0 {
+				w.cache.listeners = append(w.cache.listeners, w.listener.createListener(item.ListenerParams, item.TLSParams))
+			}
+			err := w.listener.updateListener(&w.cache, item.ListenerParams, item.TLSParams)
+			if err != nil {
+				logger.Errorf("createRule error: %s", err)
+				item.state = "error"
+			} else {
+				item.state = "finished"
+			}
+			updateXds = true
 		case "createJwtRule":
 			err := w.jwtProvider.UpdateJwtRule(&w.cache, item.ListenerParams, item.TLSParams)
 			if err != nil {

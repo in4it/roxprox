@@ -376,6 +376,12 @@ func (x *XDS) getAction(ruleName string, actions []pkgApi.RuleActions) Action {
 			action.Proxy.TargetHostname = ruleAction.Proxy.Hostname
 			action.Proxy.Port = ruleAction.Proxy.Port
 		}
+		if ruleAction.DirectResponse.Status > 0 {
+			action.Type = "directResponse"
+			action.RuleName = ruleName
+			action.DirectResponse.Status = ruleAction.DirectResponse.Status
+			action.DirectResponse.Body = ruleAction.DirectResponse.Body
+		}
 	}
 	return action
 }
@@ -431,6 +437,7 @@ func (x *XDS) getAuthParams(jwtProviderName string, jwtProvider pkgApi.JwtProvid
 func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 	var workQueueItems []WorkQueueItem
 	action := x.getAction(rule.Metadata.Name, rule.Spec.Actions)
+	createRuleType := ""
 	// create cluster
 	if action.Type == "proxy" {
 		workQueueItem := WorkQueueItem{
@@ -438,6 +445,9 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 			ClusterParams: x.getClusterParams(action),
 		}
 		workQueueItems = append(workQueueItems, workQueueItem)
+		createRuleType = "createRule"
+	} else {
+		createRuleType = "createRuleWithoutCluster"
 	}
 	// create listener that proxies to targetHostname
 	for _, condition := range rule.Spec.Conditions {
@@ -457,7 +467,7 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 				}
 				workQueueItems = append(workQueueItems, []WorkQueueItem{
 					{
-						Action:         "createRule",
+						Action:         createRuleType, // createRule or createRuleWithoutCluster
 						ListenerParams: listenerParams,
 						TLSParams:      TLSParams{},
 					},
@@ -473,7 +483,7 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 				}...)
 			} else {
 				workQueueItems = append(workQueueItems, WorkQueueItem{
-					Action:         "createRule",
+					Action:         createRuleType, // createRule or createRuleWithoutCluster
 					ListenerParams: listenerParams,
 					TLSParams:      TLSParams{},
 				})
@@ -503,7 +513,7 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 					}
 					if createRuleKey != -1 {
 						workQueueItemTLS := workQueueItems[createRuleKey]
-						workQueueItemTLS.Action = "createRule"
+						workQueueItemTLS.Action = createRuleType // createRule or createRuleWithoutCluster
 						workQueueItemTLS.TLSParams = TLSParams{
 							Name:       rule.Metadata.Name,
 							CertBundle: certBundle,

@@ -2,6 +2,7 @@ package envoy
 
 import (
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -623,15 +624,23 @@ func (l *Listener) validateListeners(listeners []cache.Resource, clusterNames []
 		}
 		for _, virtualHost := range routeSpecifier.RouteConfig.VirtualHosts {
 			for _, virtualHostRoute := range virtualHost.Routes {
-				clusterFound := false
-				virtualHostRouteClusterName := virtualHostRoute.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
-				for _, clusterName := range clusterNames {
-					if clusterName == virtualHostRouteClusterName {
-						clusterFound = true
+				switch reflect.TypeOf(virtualHostRoute.Action).String() {
+				case "*route.Route_Route":
+					clusterFound := false
+					virtualHostRouteClusterName := virtualHostRoute.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
+					for _, clusterName := range clusterNames {
+						if clusterName == virtualHostRouteClusterName {
+							clusterFound = true
+						}
 					}
-				}
-				if !clusterFound {
-					return false, fmt.Errorf("Cluster not found: %s", virtualHostRouteClusterName)
+					if !clusterFound {
+						return false, fmt.Errorf("Cluster not found: %s", virtualHostRouteClusterName)
+					}
+				case "*route.Route_DirectResponse":
+					logger.Debugf("Validation: DirectResponse, no cluster validation necessary")
+					// no validation necessary
+				default:
+					return false, fmt.Errorf("Route action type is unknown: %s", reflect.TypeOf(virtualHostRoute.Action).String())
 				}
 
 			}
