@@ -299,6 +299,17 @@ func TestUpdateListener(t *testing.T) {
 			FailureModeAllow: false,
 		},
 	}
+	params10 := ListenerParams{
+		Name: "directResponseTest",
+		Conditions: Conditions{
+			Path:    "/directresponse",
+			Methods: []string{"GET"},
+		},
+		DirectResponse: DirectResponse{
+			Status: 200,
+			Body:   "OK",
+		},
+	}
 
 	listener := l.createListener(params1, paramsTLS1)
 	cache.listeners = append(cache.listeners, listener)
@@ -498,7 +509,17 @@ func TestUpdateListener(t *testing.T) {
 	if err := validateNewHTTPRouterFilter(l.newHTTPRouterFilter(), params9); err != nil {
 		t.Errorf("Validation failed: %s", err)
 		return
+	}
 
+	// update listener with domain 10
+	if err := l.updateListener(&cache, params10, paramsTLS1); err != nil {
+		t.Errorf("Error: %s", err)
+		return
+	}
+	// validate domain 10
+	if err := validateDomain(cache.listeners, params10); err != nil {
+		t.Errorf("Validation failed: %s", err)
+		return
 	}
 }
 
@@ -661,6 +682,7 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 	prefixFound := false
 	pathFound := false
 	regexFound := false
+	directResponseFound := false
 	methodsFound := make(map[string]bool)
 
 	if params.Conditions.Hostname == "" {
@@ -701,6 +723,17 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 							}
 						}
 					}
+					switch reflect.TypeOf(r.Action).String() {
+					case "*route.Route_Route":
+						// do nothing here
+					case "*route.Route_DirectResponse":
+						d := r.Action.(*route.Route_DirectResponse).DirectResponse
+						if params.DirectResponse.Status == d.GetStatus() && params.DirectResponse.Body == d.GetBody().GetInlineString() {
+							directResponseFound = true
+						}
+					default:
+						return fmt.Errorf("Type is %s", reflect.TypeOf(r.Action).String())
+					}
 				}
 			}
 		}
@@ -735,6 +768,12 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 	}
 	if len(params.Conditions.Methods) > 0 {
 		logger.Debugf("Methods found: %s", strings.Join(params.Conditions.Methods, ","))
+	}
+
+	if params.DirectResponse.Status > 0 && !directResponseFound {
+		return fmt.Errorf("Got directresponse parameter, but no directresponse found")
+	} else {
+		logger.Debugf("Directresponse found found: %d : %s", params.DirectResponse.Status, params.DirectResponse.Body)
 	}
 
 	return validateJWT(manager, params)

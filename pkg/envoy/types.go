@@ -47,6 +47,7 @@ type ListenerParams struct {
 	Conditions     Conditions
 	Auth           Auth
 	Authz          Authz
+	DirectResponse DirectResponse
 }
 
 type ChallengeParams struct {
@@ -77,9 +78,10 @@ type Auth struct {
 }
 
 type Action struct {
-	RuleName string
-	Type     string
-	Proxy    ActionProxy
+	RuleName       string
+	Type           string
+	Proxy          ActionProxy
+	DirectResponse DirectResponseAction
 }
 
 type ActionProxy struct {
@@ -100,4 +102,13 @@ type TracingParams struct {
 	ClientSampling  float64
 	RandomSampling  float64
 	OverallSampling float64
+}
+
+type DirectResponse struct {
+	Status uint32
+	Body   string
+}
+type DirectResponseAction struct {
+	Status uint32
+	Body   string
 }

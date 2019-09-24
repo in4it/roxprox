@@ -65,6 +65,16 @@ variable "loadbalancer" {
   default     = "nlb"
 }
 
+variable "loadbalancer_healthcheck_matcher" {
+  description = "loadbalancer healthcheck matcher to use"
+  default     = "200,404,301,302"
+}
+
+variable "loadbalancer_healthcheck_path" {
+  description = "loadbalancer healthcheck path to use"
+  default     = "/"
+}
+
 variable "loadbalancer_alb_cert" {
   description = "loadbalancer alb certificate to use"
   default     = ""

@@ -471,3 +471,32 @@ func TestTracingObject(t *testing.T) {
 	}
 
 }
+
+func TestDirectResponseObject(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test-directresponse.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+	out, err := x.workQueue.listener.printListener(&x.workQueue.cache)
+	if err != nil {
+		t.Errorf("listener print error: %s", err)
+		return
+	}
+	fmt.Printf("%s\n", out)
+}

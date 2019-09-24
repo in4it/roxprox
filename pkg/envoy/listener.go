@@ -2,6 +2,7 @@ package envoy
 
 import (
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -150,9 +151,10 @@ func (l *Listener) getListenerRouteSpecifier(manager hcm.HttpConnectionManager) 
 	return routeSpecifier, nil
 }
 
-func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, clusterName, virtualHostName string, methods []string, matchType string) *route.VirtualHost {
+func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, clusterName, virtualHostName string, methods []string, matchType string, directResponse DirectResponse) *route.VirtualHost {
 	var hostRewriteSpecifier *route.RouteAction_HostRewrite
 	var routes []*route.Route
+	var routeAction *route.Route_Route
 
 	if hostname == "" {
 		hostname = "*"
@@ -162,15 +164,16 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 		hostRewriteSpecifier = &route.RouteAction_HostRewrite{
 			HostRewrite: targetHostname,
 		}
-	}
-
-	routeAction := &route.Route_Route{
-		Route: &route.RouteAction{
-			HostRewriteSpecifier: hostRewriteSpecifier,
-			ClusterSpecifier: &route.RouteAction_Cluster{
-				Cluster: clusterName,
+		routeAction = &route.Route_Route{
+			Route: &route.RouteAction{
+				HostRewriteSpecifier: hostRewriteSpecifier,
+				ClusterSpecifier: &route.RouteAction_Cluster{
+					Cluster: clusterName,
+				},
 			},
-		},
+		}
+	} else {
+		routeAction = &route.Route_Route{}
 	}
 
 	var headers []*route.HeaderMatcher
@@ -185,7 +188,8 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 			})
 		}
 	}
-	if matchType == "prefix" {
+	switch matchType {
+	case "prefix":
 		if len(headers) == 0 {
 			routes = append(routes, &route.Route{
 				Match: &route.RouteMatch{
@@ -208,7 +212,7 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 				})
 			}
 		}
-	} else if matchType == "path" {
+	case "path":
 		if len(headers) == 0 {
 			routes = append(routes, &route.Route{
 				Match: &route.RouteMatch{
@@ -231,7 +235,7 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 				})
 			}
 		}
-	} else if matchType == "regex" {
+	case "regex":
 		if len(headers) == 0 {
 			routes = append(routes, &route.Route{
 				Match: &route.RouteMatch{
@@ -252,6 +256,22 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 					},
 					Action: routeAction,
 				})
+			}
+		}
+	}
+
+	// fill out directresponse action if defined
+	if directResponse.Status > 0 {
+		for routeKey := range routes {
+			routes[routeKey].Action = &route.Route_DirectResponse{
+				DirectResponse: &route.DirectResponseAction{
+					Status: directResponse.Status,
+					Body: &core.DataSource{
+						Specifier: &core.DataSource_InlineString{
+							InlineString: directResponse.Body,
+						},
+					},
+				},
 			}
 		}
 	}
@@ -341,7 +361,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	}
 
 	// create new virtualhost
-	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname, params.Conditions.Methods, matchType)
+	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname, params.Conditions.Methods, matchType, params.DirectResponse)
 
 	// check if we need to overwrite the virtualhost
 	virtualHostKey := -1
@@ -541,7 +561,7 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 		return err
 	}
 
-	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname, params.Conditions.Methods, matchType)
+	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname, params.Conditions.Methods, matchType, params.DirectResponse)
 
 	virtualHostKey := -1
 	for k, curVirtualHost := range routeSpecifier.RouteConfig.VirtualHosts {
@@ -604,17 +624,28 @@ func (l *Listener) validateListeners(listeners []cache.Resource, clusterNames []
 		}
 		for _, virtualHost := range routeSpecifier.RouteConfig.VirtualHosts {
 			for _, virtualHostRoute := range virtualHost.Routes {
-				clusterFound := false
-				virtualHostRouteClusterName := virtualHostRoute.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
-				for _, clusterName := range clusterNames {
-					if clusterName == virtualHostRouteClusterName {
-						clusterFound = true
+				if virtualHostRoute.Action != nil {
+					switch reflect.TypeOf(virtualHostRoute.Action).String() {
+					case "*route.Route_Route":
+						clusterFound := false
+						virtualHostRouteClusterName := virtualHostRoute.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
+						for _, clusterName := range clusterNames {
+							if clusterName == virtualHostRouteClusterName {
+								clusterFound = true
+							}
+						}
+						if !clusterFound {
+							return false, fmt.Errorf("Cluster not found: %s", virtualHostRouteClusterName)
+						}
+					case "*route.Route_DirectResponse":
+						logger.Debugf("Validation: DirectResponse, no cluster validation necessary")
+						// no validation necessary
+					default:
+						return false, fmt.Errorf("Route action type is unknown: %s", reflect.TypeOf(virtualHostRoute.Action).String())
 					}
+				} else {
+					return false, fmt.Errorf("Validation: no route action found for virtualhost: %+v", virtualHost)
 				}
-				if !clusterFound {
-					return false, fmt.Errorf("Cluster not found: %s", virtualHostRouteClusterName)
-				}
-
 			}
 		}
 	}
@@ -635,4 +666,51 @@ func (l *Listener) updateDefaultTracingSetting(tracing TracingParams) {
 
 func (l *Listener) newHTTPRouterFilter() []*hcm.HttpFilter {
 	return l.httpFilter
+}
+
+func (l *Listener) printListener(cache *WorkQueueCache) (string, error) {
+	var res string
+	for _, listener := range cache.listeners {
+		ll := listener.(*api.Listener)
+		res += "Listener: " + ll.Name + "\n"
+		manager, err := getListenerHTTPConnectionManager(ll)
+		if err != nil {
+			return "", err
+		}
+		routeSpecifier, err := l.getListenerRouteSpecifier(manager)
+		if err != nil {
+			return "", err
+		}
+		for _, virtualHost := range routeSpecifier.RouteConfig.VirtualHosts {
+			res += "Virtualhost: " + virtualHost.GetName() + "\n"
+			for _, virtualHostRoute := range virtualHost.Routes {
+				if virtualHostRoute.Match != nil {
+					if virtualHostRoute.Match.GetPath() != "" {
+						res += "Match path: " + virtualHostRoute.Match.GetPath() + "\n"
+					}
+					if virtualHostRoute.Match.GetPrefix() != "" {
+						res += "Match prefix: " + virtualHostRoute.Match.GetPrefix() + "\n"
+					}
+					if virtualHostRoute.Match.GetRegex() != "" {
+						res += "Match regex: " + virtualHostRoute.Match.GetRegex() + "\n"
+					}
+				}
+				if virtualHostRoute.Action != nil {
+					switch reflect.TypeOf(virtualHostRoute.Action).String() {
+					case "*route.Route_Route":
+						res += "Route action (cluster): " + virtualHostRoute.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster + "\n"
+					case "*route.Route_DirectResponse":
+						res += "Route action (directResponse): "
+						res += fmt.Sprint(virtualHostRoute.Action.(*route.Route_DirectResponse).DirectResponse.GetStatus()) + " "
+						res += virtualHostRoute.Action.(*route.Route_DirectResponse).DirectResponse.Body.GetInlineString() + "\n"
+					default:
+						return "", fmt.Errorf("Route action type is unknown: %s", reflect.TypeOf(virtualHostRoute.Action).String())
+					}
+				} else {
+					return "", fmt.Errorf("Validation: no route action found for virtualhost: %+v", virtualHost)
+				}
+			}
+		}
+	}
+	return res, nil
 }
