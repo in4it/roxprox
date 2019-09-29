@@ -6,6 +6,7 @@ Envoy autocert is an envoy control plane with AWS Cloud support.
 * Instant s3 notifications update the envoy proxy without having to do a manual reload or restart
 * ACME support to automatically verify, issue and setup letsencrypt certificates
 * authn: support for JWT authentication
+* authz: support for external grpc service which can authorize a connection
 * Works stand-alone or serverless with AWS Fargate
 * Traffic only passes the envoy proxy
 
@@ -21,11 +22,126 @@ Envoy autocert is an envoy control plane with AWS Cloud support.
 ## Run envoy
 There is an example envoy.yaml in the resources/ directory. Make sure to change the "address: 127.0.0.1" to the ip/host of the control-plane. You can start envoy with
 ```
-docker run --rm -it --network="host" -v "${PWD}/resources/envoy.yaml":/etc/envoy/envoy.yaml envoyproxy/envoy:v1.10.0
+docker run --rm -it --network="host" -v "${PWD}/resources/envoy.yaml":/etc/envoy/envoy.yaml envoyproxy/envoy:v1.11.1
 ```
 ## Configuration
-You can configure endpoints using yaml definitions. Here's an example yaml definition that you can put in your data/ folder:
+You can configure endpoints using yaml definitions. Below are example yaml definitions that you can put in your data/ folder.
 
+
+### Simple reverse proxy (hostname + prefix)
+```
+api: proxy.in4it.io/v1
+kind: rule
+metadata:
+  name: simple-reverse-proxy
+spec:
+  conditions:
+    - hostname: test1.example.com
+      prefix: /api
+  actions:
+    - proxy:
+        hostname: target-example.com
+        port: 443
+```
+
+### Simple reverse proxy (path)
+```
+api: proxy.in4it.io/v1
+kind: rule
+metadata:
+  name: simple-reverse-proxy
+spec:
+  conditions:
+    - path: /fixed-url
+  actions:
+    - proxy:
+        hostname: target-example.com
+        port: 443
+```
+
+### Simple reverse proxy (regex)
+```
+api: proxy.in4it.io/v1
+kind: rule
+metadata:
+  name: simple-reverse-proxy
+spec:
+  conditions:
+    - regex: "/api/v.*/health"
+  actions:
+    - proxy:
+        hostname: target-example.com
+        port: 443
+```
+
+### Authn
+```
+api: proxy.in4it.io/v1
+kind: rule
+metadata:
+  name: simple-reverse-proxy
+spec:
+  auth:
+    jwtProvider: myJwtProvider
+  conditions:
+    - prefix: /
+  actions:
+    - proxy:
+        hostname: target-example.com
+        port: 443
+---
+api: proxy.in4it.io/v1
+kind: jwtProvider
+metadata:
+  name: myJwtProvider
+spec:
+  remoteJwks: https://my-idp.com/.well-known/jwks.json
+  issuer: myIssuer
+  forward: true # forward jwt token to target
+```
+
+### Authorization example
+```
+api: proxy.in4it.io/v1
+kind: authzFilter
+metadata:
+  name: example-authz
+spec:
+  hostname: localhost # hostname of service, can be localhost if deployed in same container / kubernetes pod / ecs task
+  port: 8080
+  timeout: 5s
+  failureModeAllow: false  # if true, a failure of the service will still let clients reach the target servers
+```
+
+### Directresponse (for a Healthcheck)
+```
+api: proxy.in4it.io/v1
+kind: rule
+metadata:
+  name: healthcheck
+spec:
+  conditions:
+    - path: /.roxprox/health
+  actions:
+    - directResponse:
+        status: 200
+        body: "OK"
+```
+
+### Tracing
+Tracing destination hostname (for example Datadog), can be defined in the envoy.yaml (because it's a static host).
+```
+api: proxy.in4it.io/v1
+kind: tracing
+metadata:
+  name: tracing
+spec:
+  clientSampling: 100
+  randomSampling: 100
+  overallSampling: 100
+```
+
+### TLS using letsencrypt
 ```
 api: proxy.in4it.io/v1
 kind: rule
@@ -52,7 +168,7 @@ There is a terraform module available in this repository. It'll configure an S3 
 module "roxprox" {
   source              = "github.com/in4it/roxprox//terraform"
   release             = "latest"                                     # use a tag or use latest for master
-  acme_contact        = "your-email"                                 # email contact used by Let's encrypt
+  acme_contact        = "your-email"                                 # email contact used by Let's encrypt, leave empty to disable TLS
   control_plane_count = 1                                            # desired controle plane instances
   envoy_proxy_count   = 1                                            # envoy proxy count (there will be still one for http and one for https, due to the AWS Fargate/NLB limitations)
   subnets             = ["subnet-1234abcd"]                          # AWS subnet to use
@@ -63,7 +179,7 @@ module "roxprox" {
 You'll still need to upload the configuration to the s3 bucket
 
 
-# build 
+# Manual build 
 
 ```
 protoc -I proto/ proto/notification.proto --go_out=plugins=grpc:proto/notification
