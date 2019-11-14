@@ -9,6 +9,12 @@ data "aws_acm_certificate" "alb_cert" {
   statuses = ["ISSUED"]
 }
 
+data "aws_acm_certificate" "alb_cert_extra" {
+  count    = length(var.loadbalancer_alb_cert_extra)
+  domain   = element(var.loadbalancer_alb_cert_extra, count.index)
+  statuses = ["ISSUED"]
+}
+
 resource "aws_lb" "lb" {
   name               = "roxprox"
   subnets            = var.lb_subnets
@@ -31,6 +37,13 @@ resource "aws_lb_listener" "lb-https" {
     type             = "forward"
   }
 }
+
+resource "aws_lb_listener_certificate" "extra-certificates" {
+  count           = length(var.loadbalancer_alb_cert_extra)
+  listener_arn    = aws_lb_listener.lb-https.arn
+  certificate_arn = element(data.aws_acm_certificate.alb_cert_extra.*.arn, count.index)
+} 
+
 resource "aws_lb_listener_rule" "lb-https-redirect" {
   count        = var.loadbalancer_https_forwarding ? 1 : 0
   listener_arn = aws_lb_listener.lb-http.arn
