@@ -76,9 +76,15 @@ variable "loadbalancer_healthcheck_path" {
 }
 
 variable "loadbalancer_alb_cert" {
-  description = "loadbalancer alb certificate to use"
+  description = "main loadbalancer alb certificate to use"
   default     = ""
 }
+
+variable "loadbalancer_alb_cert_extra" {
+  description = "loadbalancer alb certificate to use (extra certificates)"
+  default     = []
+}
+
 variable "loadbalancer_ssl_policy" {
   description = "ssl policy for the https listener to use"
   default     = "ELBSecurityPolicy-2016-08"
