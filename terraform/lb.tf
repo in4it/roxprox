@@ -21,6 +21,12 @@ resource "aws_lb" "lb" {
   load_balancer_type = var.loadbalancer == "alb" ? "application" : "network"
   security_groups    = var.loadbalancer == "alb" ? [aws_security_group.roxprox-alb[0].id] : []
 
+  access_logs {
+    bucket  = var.bucket_lb_logs
+    prefix  = "roxprox-lb"
+    enabled = var.enable_lb_logs
+  }
+
   enable_deletion_protection = true
 }
 
@@ -42,7 +48,7 @@ resource "aws_lb_listener_certificate" "extra-certificates" {
   count           = length(var.loadbalancer_alb_cert_extra)
   listener_arn    = aws_lb_listener.lb-https.arn
   certificate_arn = element(data.aws_acm_certificate.alb_cert_extra.*.arn, count.index)
-} 
+}
 
 resource "aws_lb_listener_rule" "lb-https-redirect" {
   count        = var.loadbalancer_https_forwarding ? 1 : 0
@@ -114,4 +120,3 @@ resource "aws_lb_target_group" "envoy-proxy-https" {
     interval            = 30
   }
 }
-

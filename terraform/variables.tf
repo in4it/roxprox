@@ -51,6 +51,16 @@ variable "lb_subnets" {
   description = "loadbalancer subnets to use"
 }
 
+variable "enable_lb_logs" {
+  description = "true to enable logs for LB"
+  default     = "false"
+}
+
+variable "bucket_lb_logs" {
+  description = "name of s3 bucket to use for lb logs"
+}
+
+
 variable "s3_bucket" {
   description = "name of s3 bucket to use"
 }
