@@ -7,15 +7,16 @@ import (
 	"strings"
 
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
+	auth "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
+	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
+	listener "github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
+	route "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
 	envoyType "github.com/envoyproxy/go-control-plane/envoy/type"
 	"github.com/envoyproxy/go-control-plane/pkg/cache"
-	"github.com/envoyproxy/go-control-plane/pkg/util"
-	"github.com/gogo/protobuf/types"
+	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
+	"github.com/golang/protobuf/ptypes"
+	any "github.com/golang/protobuf/ptypes/any"
 )
 
 const Error_NoFilterChainFound = "NoFilterChainFound"
@@ -30,7 +31,7 @@ func newListener() *Listener {
 	listener := &Listener{}
 	listener.httpFilter = []*hcm.HttpFilter{
 		{
-			Name: util.Router,
+			Name: wellknown.Router,
 		},
 	}
 	return listener
@@ -134,7 +135,7 @@ func (l *Listener) updateListenerWithChallenge(cache *WorkQueueCache, challenge 
 				})
 			}
 			manager.RouteSpecifier = routeSpecifier
-			pbst, err := types.MarshalAny(&manager)
+			pbst, err := ptypes.MarshalAny(&manager)
 			if err != nil {
 				panic(err)
 			}
@@ -292,12 +293,12 @@ func (l *Listener) newTLSFilter(params ListenerParams, paramsTLS TLSParams, list
 		Routes:  []*route.Route{},
 	}
 	manager := l.newManager(strings.Replace(listenerName, "l_", "r_", 1), []*route.VirtualHost{newEmptyVirtualHost}, httpFilters)
-	pbst, err := types.MarshalAny(manager)
+	pbst, err := ptypes.MarshalAny(manager)
 	if err != nil {
 		panic(err)
 	}
 	return []*listener.Filter{{
-		Name: util.HTTPConnectionManager,
+		Name: wellknown.HTTPConnectionManager,
 		ConfigType: &listener.Filter_TypedConfig{
 			TypedConfig: pbst,
 		},
@@ -386,7 +387,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	}
 
 	manager.RouteSpecifier = routeSpecifier
-	pbst, err := types.MarshalAny(&manager)
+	pbst, err := ptypes.MarshalAny(&manager)
 	if err != nil {
 		panic(err)
 	}
@@ -413,7 +414,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 func (l *Listener) routeExist(routes []*route.Route, route *route.Route) bool {
 	routeFound := false
 	for _, v := range routes {
-		if cmpMatch(v.Match, route.Match) && v.Action.Equal(route.Action) {
+		if cmpMatch(v.Match, route.Match) && routeActionEqual(v, route) {
 			routeFound = true
 		}
 	}
@@ -421,7 +422,7 @@ func (l *Listener) routeExist(routes []*route.Route, route *route.Route) bool {
 }
 func (l *Listener) routeIndex(routes []*route.Route, route *route.Route) int {
 	for index, v := range routes {
-		if cmpMatch(v.Match, route.Match) && v.Action.Equal(route.Action) {
+		if cmpMatch(v.Match, route.Match) && routeActionEqual(v, route) {
 			return index
 		}
 	}
@@ -430,7 +431,7 @@ func (l *Listener) routeIndex(routes []*route.Route, route *route.Route) int {
 
 func (l *Listener) newManager(routeName string, virtualHosts []*route.VirtualHost, httpFilters []*hcm.HttpFilter) *hcm.HttpConnectionManager {
 	httpConnectionManager := &hcm.HttpConnectionManager{
-		CodecType:  hcm.AUTO,
+		CodecType:  hcm.HttpConnectionManager_AUTO,
 		StatPrefix: "ingress_http",
 		RouteSpecifier: &hcm.HttpConnectionManager_RouteConfig{
 			RouteConfig: &api.RouteConfiguration{
@@ -456,7 +457,7 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 	httpFilters := l.newHTTPRouterFilter()
 	manager := l.newManager(strings.Replace(listenerName, "l_", "r_", 1), []*route.VirtualHost{}, httpFilters)
 
-	pbst, err := types.MarshalAny(manager)
+	pbst, err := ptypes.MarshalAny(manager)
 	if err != nil {
 		panic(err)
 	}
@@ -466,7 +467,7 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 		Address: &core.Address{
 			Address: &core.Address_SocketAddress{
 				SocketAddress: &core.SocketAddress{
-					Protocol: core.TCP,
+					Protocol: core.SocketAddress_TCP,
 					Address:  "0.0.0.0",
 					PortSpecifier: &core.SocketAddress_PortValue{
 						PortValue: listenerPort,
@@ -476,7 +477,7 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 		},
 		FilterChains: []*listener.FilterChain{{
 			Filters: []*listener.Filter{{
-				Name: util.HTTPConnectionManager,
+				Name: wellknown.HTTPConnectionManager,
 				ConfigType: &listener.Filter_TypedConfig{
 					TypedConfig: pbst,
 				},
@@ -590,7 +591,7 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 	}
 
 	manager.RouteSpecifier = routeSpecifier
-	pbst, err := types.MarshalAny(&manager)
+	pbst, err := ptypes.MarshalAny(&manager)
 	if err != nil {
 		panic(err)
 	}
@@ -626,7 +627,7 @@ func (l *Listener) validateListeners(listeners []cache.Resource, clusterNames []
 			for _, virtualHostRoute := range virtualHost.Routes {
 				if virtualHostRoute.Action != nil {
 					switch reflect.TypeOf(virtualHostRoute.Action).String() {
-					case "*route.Route_Route":
+					case "*envoy_api_v2_route.Route_Route":
 						clusterFound := false
 						virtualHostRouteClusterName := virtualHostRoute.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
 						for _, clusterName := range clusterNames {
@@ -637,7 +638,7 @@ func (l *Listener) validateListeners(listeners []cache.Resource, clusterNames []
 						if !clusterFound {
 							return false, fmt.Errorf("Cluster not found: %s", virtualHostRouteClusterName)
 						}
-					case "*route.Route_DirectResponse":
+					case "*envoy_api_v2_route.Route_DirectResponse":
 						logger.Debugf("Validation: DirectResponse, no cluster validation necessary")
 						// no validation necessary
 					default:
@@ -652,7 +653,7 @@ func (l *Listener) validateListeners(listeners []cache.Resource, clusterNames []
 	return true, nil
 }
 
-func (l *Listener) updateDefaultHTTPRouterFilter(filterName string, filterConfig *types.Any) {
+func (l *Listener) updateDefaultHTTPRouterFilter(filterName string, filterConfig *any.Any) {
 	updateHTTPFilterWithConfig(&l.httpFilter, filterName, filterConfig)
 }
 
@@ -697,9 +698,9 @@ func (l *Listener) printListener(cache *WorkQueueCache) (string, error) {
 				}
 				if virtualHostRoute.Action != nil {
 					switch reflect.TypeOf(virtualHostRoute.Action).String() {
-					case "*route.Route_Route":
+					case "*envoy_api_v2_route.Route_Route":
 						res += "Route action (cluster): " + virtualHostRoute.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster + "\n"
-					case "*route.Route_DirectResponse":
+					case "*envoy_api_v2_route.Route_DirectResponse":
 						res += "Route action (directResponse): "
 						res += fmt.Sprint(virtualHostRoute.Action.(*route.Route_DirectResponse).DirectResponse.GetStatus()) + " "
 						res += virtualHostRoute.Action.(*route.Route_DirectResponse).DirectResponse.Body.GetInlineString() + "\n"

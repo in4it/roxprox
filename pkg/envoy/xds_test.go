@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
+	route "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
 	"github.com/in4it/roxprox/pkg/storage"
 	localStorage "github.com/in4it/roxprox/pkg/storage/local"
 	"github.com/juju/loggo"

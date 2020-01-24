@@ -56,7 +56,7 @@ func NewWorkQueue(s storage.Storage, acmeContact string) (*WorkQueue, error) {
 	return w, nil
 }
 func (w *WorkQueue) InitCache() cache.SnapshotCache {
-	w.cache.snapshotCache = cache.NewSnapshotCache(false, Hasher{}, logger)
+	w.cache.snapshotCache = cache.NewSnapshotCache(false, Hasher{}, nil)
 	return w.cache.snapshotCache
 }
 func (w *WorkQueue) InitCallback() *Callback {
@@ -329,7 +329,7 @@ func InArray(a []string, v string) (ret bool, i int) {
 func (w *WorkQueue) updateXds() {
 	now := time.Now().UnixNano()
 	atomic.AddInt64(&w.cache.version, 1)
-	w.latestSnapshot = cache.NewSnapshot(fmt.Sprint(now)+"-"+fmt.Sprint(w.cache.version), nil, w.cache.clusters, nil, w.cache.listeners)
+	w.latestSnapshot = cache.NewSnapshot(fmt.Sprint(now)+"-"+fmt.Sprint(w.cache.version), nil, w.cache.clusters, nil, w.cache.listeners, nil)
 	var nodeUpdated []string
 	for _, v := range w.callback.connections {
 		if ret, _ := InArray(nodeUpdated, v.Id); !ret {

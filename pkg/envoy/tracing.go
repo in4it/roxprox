@@ -2,10 +2,10 @@ package envoy
 
 import (
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
+	listener "github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
 	envoyType "github.com/envoyproxy/go-control-plane/envoy/type"
-	"github.com/gogo/protobuf/types"
+	"github.com/golang/protobuf/ptypes"
 )
 
 type Tracing struct{}
@@ -33,7 +33,7 @@ func (t *Tracing) updateListenersWithTracing(cache *WorkQueueCache, tracing Trac
 				}
 
 				// update manager in cache
-				pbst, err := types.MarshalAny(&manager)
+				pbst, err := ptypes.MarshalAny(&manager)
 				if err != nil {
 					return err
 				}

@@ -9,9 +9,9 @@ import (
 	"time"
 
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
+	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
+	listener "github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
+	route "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
 	extAuthz "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/ext_authz/v2"
 	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
@@ -699,15 +699,15 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 				domainFound = true
 				for _, r := range virtualhost.Routes {
 					switch reflect.TypeOf(r.Match.PathSpecifier).String() {
-					case "*route.RouteMatch_Prefix":
+					case "*envoy_api_v2_route.RouteMatch_Prefix":
 						if r.Match.PathSpecifier.(*route.RouteMatch_Prefix).Prefix == params.Conditions.Prefix {
 							prefixFound = true
 						}
-					case "*route.RouteMatch_Path":
+					case "*envoy_api_v2_route.RouteMatch_Path":
 						if r.Match.PathSpecifier.(*route.RouteMatch_Path).Path == params.Conditions.Path {
 							pathFound = true
 						}
-					case "*route.RouteMatch_Regex":
+					case "*envoy_api_v2_route.RouteMatch_Regex":
 						if r.Match.PathSpecifier.(*route.RouteMatch_Regex).Regex == params.Conditions.Regex {
 							regexFound = true
 						}
@@ -724,9 +724,9 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 						}
 					}
 					switch reflect.TypeOf(r.Action).String() {
-					case "*route.Route_Route":
+					case "*envoy_api_v2_route.Route_Route":
 						// do nothing here
-					case "*route.Route_DirectResponse":
+					case "*envoy_api_v2_route.Route_DirectResponse":
 						d := r.Action.(*route.Route_DirectResponse).DirectResponse
 						if params.DirectResponse.Status == d.GetStatus() && params.DirectResponse.Body == d.GetBody().GetInlineString() {
 							directResponseFound = true
@@ -885,15 +885,15 @@ func validateJWT(manager hcm.HttpConnectionManager, params ListenerParams) error
 		matchedEntries := 0
 		for _, rule := range jwtConfig.Rules {
 			switch reflect.TypeOf(rule.Match.PathSpecifier).String() {
-			case "*route.RouteMatch_Prefix":
+			case "*envoy_api_v2_route.RouteMatch_Prefix":
 				if rule.Match.PathSpecifier.(*route.RouteMatch_Prefix).Prefix == params.Conditions.Prefix {
 					prefixFound = true
 				}
-			case "*route.RouteMatch_Path":
+			case "*envoy_api_v2_route.RouteMatch_Path":
 				if rule.Match.PathSpecifier.(*route.RouteMatch_Path).Path == params.Conditions.Path {
 					pathFound = true
 				}
-			case "*route.RouteMatch_Regex":
+			case "*envoy_api_v2_route.RouteMatch_Regex":
 				if rule.Match.PathSpecifier.(*route.RouteMatch_Regex).Regex == params.Conditions.Regex {
 					regexFound = true
 				}
