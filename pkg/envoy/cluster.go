@@ -43,10 +43,19 @@ func (c *Cluster) getAllClusterNames(clusters []cache.Resource) []string {
 }
 
 func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
-	var tlsContext *auth.UpstreamTlsContext
+	var transportSocket *core.TransportSocket
 	if params.Port == 443 {
-		tlsContext = &auth.UpstreamTlsContext{
+		tlsContext, err := ptypes.MarshalAny(&auth.UpstreamTlsContext{
 			Sni: params.TargetHostname,
+		})
+		if err != nil {
+			panic(err)
+		}
+		transportSocket = &core.TransportSocket{
+			Name: "tls",
+			ConfigType: &core.TransportSocket_TypedConfig{
+				TypedConfig: tlsContext,
+			},
 		}
 	}
 
@@ -72,7 +81,7 @@ func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 		ConnectTimeout:  ptypes.DurationProto(connectTimeout),
 		DnsLookupFamily: api.Cluster_V4_ONLY,
 		LbPolicy:        api.Cluster_ROUND_ROBIN,
-		TlsContext:      tlsContext,
+		TransportSocket: transportSocket,
 		LoadAssignment: &api.ClusterLoadAssignment{
 			ClusterName: params.Name,
 			Endpoints: []*endpoint.LocalityLbEndpoints{
