@@ -5,6 +5,8 @@ import (
 	"reflect"
 
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
+	auth "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
+	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	listener "github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
 	route "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
 	extAuthz "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/ext_authz/v2"
@@ -41,6 +43,18 @@ func getManager(typedConfig *listener.Filter_TypedConfig) (hcm.HttpConnectionMan
 
 	return manager, nil
 }
+
+func getTransportSocketDownStreamTlsSocket(typedConfig *core.TransportSocket_TypedConfig) (auth.DownstreamTlsContext, error) {
+	var tlsContext auth.DownstreamTlsContext
+
+	err := ptypes.UnmarshalAny(typedConfig.TypedConfig, &tlsContext)
+	if err != nil {
+		return tlsContext, err
+	}
+
+	return tlsContext, nil
+}
+
 func getListenerHTTPConnectionManagerTLS(ll *api.Listener, hostname string) (hcm.HttpConnectionManager, error) {
 	var err error
 	var manager hcm.HttpConnectionManager

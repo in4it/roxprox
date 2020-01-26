@@ -638,12 +638,15 @@ func validateDomainTLS(listeners []cache.Resource, params ListenerParams, tlsPar
 	if filterId == -1 {
 		return fmt.Errorf("Filter not found for domain %s", params.Conditions.Hostname)
 	}
-
-	if len(cachedListener.FilterChains[filterId].TlsContext.CommonTlsContext.TlsCertificates) == 0 {
+	tlsContext, err := getTransportSocketDownStreamTlsSocket(cachedListener.FilterChains[filterId].GetTransportSocket().GetConfigType().(*core.TransportSocket_TypedConfig))
+	if err != nil {
+		panic(err)
+	}
+	if len(tlsContext.GetCommonTlsContext().GetTlsCertificates()) == 0 {
 		return fmt.Errorf("No certificates found in filter chain for domain %s", params.Conditions.Hostname)
 	}
-	tlsBundle := cachedListener.FilterChains[filterId].TlsContext.CommonTlsContext.TlsCertificates[0].CertificateChain.Specifier.(*core.DataSource_InlineString).InlineString
-	privateKey := cachedListener.FilterChains[filterId].TlsContext.CommonTlsContext.TlsCertificates[0].PrivateKey.Specifier.(*core.DataSource_InlineString).InlineString
+	tlsBundle := tlsContext.GetCommonTlsContext().TlsCertificates[0].CertificateChain.Specifier.(*core.DataSource_InlineString).InlineString
+	privateKey := tlsContext.GetCommonTlsContext().TlsCertificates[0].PrivateKey.Specifier.(*core.DataSource_InlineString).InlineString
 
 	if tlsBundle != tlsParams.CertBundle {
 		return fmt.Errorf("TLS bundle not found. Got: %s, Expected: %s", tlsBundle, tlsParams.CertBundle)

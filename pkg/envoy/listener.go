@@ -39,26 +39,35 @@ func newListener() *Listener {
 }
 
 func (l *Listener) newTLSFilterChain(params TLSParams) *listener.FilterChain {
+	tlsContext, err := ptypes.MarshalAny(&auth.DownstreamTlsContext{
+		CommonTlsContext: &auth.CommonTlsContext{
+			TlsCertificates: []*auth.TlsCertificate{
+				{
+					CertificateChain: &core.DataSource{
+						Specifier: &core.DataSource_InlineString{
+							InlineString: params.CertBundle,
+						},
+					},
+					PrivateKey: &core.DataSource{
+						Specifier: &core.DataSource_InlineString{
+							InlineString: params.PrivateKey,
+						},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
 	return &listener.FilterChain{
 		FilterChainMatch: &listener.FilterChainMatch{
 			ServerNames: []string{params.Domain},
 		},
-		TlsContext: &auth.DownstreamTlsContext{
-			CommonTlsContext: &auth.CommonTlsContext{
-				TlsCertificates: []*auth.TlsCertificate{
-					{
-						CertificateChain: &core.DataSource{
-							Specifier: &core.DataSource_InlineString{
-								InlineString: params.CertBundle,
-							},
-						},
-						PrivateKey: &core.DataSource{
-							Specifier: &core.DataSource_InlineString{
-								InlineString: params.PrivateKey,
-							},
-						},
-					},
-				},
+		TransportSocket: &core.TransportSocket{
+			Name: "tls",
+			ConfigType: &core.TransportSocket_TypedConfig{
+				TypedConfig: tlsContext,
 			},
 		},
 	}
@@ -76,7 +85,7 @@ func (l *Listener) updateListenerWithNewCert(cache *WorkQueueCache, params TLSPa
 			} else {
 				logger.Debugf("Updating existing filterchain in %s with certificate for domain %s", ll.Name, params.Domain)
 				filterChain := l.newTLSFilterChain(params)
-				ll.FilterChains[filterId].TlsContext = filterChain.TlsContext
+				ll.FilterChains[filterId].TransportSocket = filterChain.TransportSocket
 			}
 		}
 	}
@@ -505,7 +514,7 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 			ServerNames: []string{params.Conditions.Hostname},
 		}
 		// add cert and key to tls listener
-		newListener.FilterChains[0].TlsContext = &auth.DownstreamTlsContext{
+		tlsContext, err := ptypes.MarshalAny(&auth.DownstreamTlsContext{
 			CommonTlsContext: &auth.CommonTlsContext{
 				TlsCertificates: []*auth.TlsCertificate{
 					{
@@ -521,6 +530,15 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 						},
 					},
 				},
+			},
+		})
+		if err != nil {
+			panic(err)
+		}
+		newListener.FilterChains[0].TransportSocket = &core.TransportSocket{
+			Name: "tls",
+			ConfigType: &core.TransportSocket_TypedConfig{
+				TypedConfig: tlsContext,
 			},
 		}
 	}
