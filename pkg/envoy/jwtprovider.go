@@ -3,6 +3,7 @@ package envoy
 import (
 	"fmt"
 	"sort"
+	"time"
 
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
@@ -160,7 +161,8 @@ func (j *JwtProvider) getJwtConfig(auth Auth) *jwtAuth.JwtAuthentication {
 				JwksSourceSpecifier: &jwtAuth.JwtProvider_RemoteJwks{
 					RemoteJwks: &jwtAuth.RemoteJwks{
 						HttpUri: &core.HttpUri{
-							Uri: auth.RemoteJwks,
+							Uri:     auth.RemoteJwks,
+							Timeout: ptypes.DurationProto(30 * time.Second),
 							HttpUpstreamType: &core.HttpUri_Cluster{
 								Cluster: "jwtProvider_" + auth.JwtProvider,
 							},
