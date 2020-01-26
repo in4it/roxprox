@@ -10,6 +10,7 @@ import (
 	route "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
 	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
+	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher"
 	"github.com/golang/protobuf/ptypes"
 )
 
@@ -105,8 +106,11 @@ func (j *JwtProvider) getJwtRule(conditions Conditions, clusterName string, jwtP
 		if len(methodHeaders) == 0 {
 			rules = append(rules, &jwtAuth.RequirementRule{
 				Match: &route.RouteMatch{
-					PathSpecifier: &route.RouteMatch_Regex{
-						Regex: conditions.Regex,
+					PathSpecifier: &route.RouteMatch_SafeRegex{
+						SafeRegex: &matcher.RegexMatcher{
+							Regex:      conditions.Regex,
+							EngineType: &matcher.RegexMatcher_GoogleRe2{GoogleRe2: &matcher.RegexMatcher_GoogleRE2{}},
+						},
 					},
 					Headers: hostnameHeaders,
 				},
@@ -116,8 +120,11 @@ func (j *JwtProvider) getJwtRule(conditions Conditions, clusterName string, jwtP
 			for _, methodHeader := range methodHeaders {
 				rules = append(rules, &jwtAuth.RequirementRule{
 					Match: &route.RouteMatch{
-						PathSpecifier: &route.RouteMatch_Regex{
-							Regex: conditions.Regex,
+						PathSpecifier: &route.RouteMatch_SafeRegex{
+							SafeRegex: &matcher.RegexMatcher{
+								Regex:      conditions.Regex,
+								EngineType: &matcher.RegexMatcher_GoogleRe2{GoogleRe2: &matcher.RegexMatcher_GoogleRE2{}},
+							},
 						},
 						Headers: append(hostnameHeaders, methodHeader),
 					},

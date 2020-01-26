@@ -10,6 +10,7 @@ import (
 	extAuthz "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/ext_authz/v2"
 	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
+	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
 )
@@ -229,7 +230,7 @@ func headerMatchEqual(a, b *route.HeaderMatcher) bool {
 	if a.GetRangeMatch() != b.GetRangeMatch() {
 		return false
 	}
-	if a.GetRegexMatch() != b.GetRegexMatch() {
+	if a.GetSafeRegexMatch().GetRegex() != b.GetSafeRegexMatch().GetRegex() {
 		return false
 	}
 	if a.GetPresentMatch() != b.GetPresentMatch() {
@@ -244,6 +245,26 @@ func headerMatchEqual(a, b *route.HeaderMatcher) bool {
 	return true
 }
 
+func regexMatchEqual(a, b *matcher.RegexMatcher) bool {
+	if a != nil {
+		if b == nil {
+			return false
+		}
+		if a.Regex != b.Regex {
+			return false
+		}
+	}
+	if b != nil {
+		if a == nil {
+			return false
+		}
+		if a.Regex != b.Regex {
+			return false
+		}
+	}
+	return true
+}
+
 func routeMatchEqual(a, b *route.RouteMatch) bool {
 	if a.GetPrefix() != b.GetPrefix() {
 		return false
@@ -251,9 +272,10 @@ func routeMatchEqual(a, b *route.RouteMatch) bool {
 	if a.GetPath() != b.GetPath() {
 		return false
 	}
-	if a.GetRegex() != b.GetRegex() {
+	if !regexMatchEqual(a.GetSafeRegex(), b.GetSafeRegex()) {
 		return false
 	}
+
 	for _, v1 := range a.GetHeaders() {
 		isMatch := false
 		for _, v2 := range b.GetHeaders() {

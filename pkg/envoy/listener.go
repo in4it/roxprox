@@ -13,6 +13,7 @@ import (
 	route "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
 	envoyType "github.com/envoyproxy/go-control-plane/envoy/type"
+	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher"
 	"github.com/envoyproxy/go-control-plane/pkg/cache"
 	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
 	"github.com/golang/protobuf/ptypes"
@@ -240,8 +241,11 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 		if len(headers) == 0 {
 			routes = append(routes, &route.Route{
 				Match: &route.RouteMatch{
-					PathSpecifier: &route.RouteMatch_Regex{
-						Regex: targetPrefix,
+					PathSpecifier: &route.RouteMatch_SafeRegex{
+						SafeRegex: &matcher.RegexMatcher{
+							Regex:      targetPrefix,
+							EngineType: &matcher.RegexMatcher_GoogleRe2{GoogleRe2: &matcher.RegexMatcher_GoogleRE2{}},
+						},
 					},
 				},
 				Action: routeAction,
@@ -250,8 +254,11 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 			for _, header := range headers {
 				routes = append(routes, &route.Route{
 					Match: &route.RouteMatch{
-						PathSpecifier: &route.RouteMatch_Regex{
-							Regex: targetPrefix,
+						PathSpecifier: &route.RouteMatch_SafeRegex{
+							SafeRegex: &matcher.RegexMatcher{
+								Regex:      targetPrefix,
+								EngineType: &matcher.RegexMatcher_GoogleRe2{GoogleRe2: &matcher.RegexMatcher_GoogleRE2{}},
+							},
 						},
 						Headers: []*route.HeaderMatcher{header},
 					},
@@ -692,8 +699,8 @@ func (l *Listener) printListener(cache *WorkQueueCache) (string, error) {
 					if virtualHostRoute.Match.GetPrefix() != "" {
 						res += "Match prefix: " + virtualHostRoute.Match.GetPrefix() + "\n"
 					}
-					if virtualHostRoute.Match.GetRegex() != "" {
-						res += "Match regex: " + virtualHostRoute.Match.GetRegex() + "\n"
+					if virtualHostRoute.Match.GetSafeRegex().GetRegex() != "" {
+						res += "Match regex: " + virtualHostRoute.Match.GetSafeRegex().GetRegex() + "\n"
 					}
 				}
 				if virtualHostRoute.Action != nil {

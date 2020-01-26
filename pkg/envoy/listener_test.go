@@ -15,6 +15,7 @@ import (
 	extAuthz "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/ext_authz/v2"
 	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
+	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher"
 	"github.com/envoyproxy/go-control-plane/pkg/cache"
 	"github.com/gogo/protobuf/types"
 	"github.com/juju/loggo"
@@ -707,8 +708,8 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 						if r.Match.PathSpecifier.(*route.RouteMatch_Path).Path == params.Conditions.Path {
 							pathFound = true
 						}
-					case "*envoy_api_v2_route.RouteMatch_Regex":
-						if r.Match.PathSpecifier.(*route.RouteMatch_Regex).Regex == params.Conditions.Regex {
+					case "*envoy_api_v2_route.RouteMatch_SafeRegex":
+						if r.Match.PathSpecifier.(*route.RouteMatch_SafeRegex).SafeRegex.GetRegex() == params.Conditions.Regex {
 							regexFound = true
 						}
 					default:
@@ -893,8 +894,8 @@ func validateJWT(manager hcm.HttpConnectionManager, params ListenerParams) error
 				if rule.Match.PathSpecifier.(*route.RouteMatch_Path).Path == params.Conditions.Path {
 					pathFound = true
 				}
-			case "*envoy_api_v2_route.RouteMatch_Regex":
-				if rule.Match.PathSpecifier.(*route.RouteMatch_Regex).Regex == params.Conditions.Regex {
+			case "*envoy_api_v2_route.RouteMatch_SafeRegex":
+				if rule.Match.PathSpecifier.(*route.RouteMatch_SafeRegex).SafeRegex.GetRegex() == params.Conditions.Regex {
 					regexFound = true
 				}
 			default:
@@ -1036,4 +1037,26 @@ func validateAuthzConfig(authzConfig extAuthz.ExtAuthz, params ListenerParams, l
 	logger.Debugf("Validated authz filter for listener %s", listenerName)
 
 	return nil
+}
+
+func TestRegexMatcher(t *testing.T) {
+	a := &matcher.RegexMatcher{
+		Regex: "/a.*/",
+	}
+	b := &matcher.RegexMatcher{
+		Regex: "/a.*/",
+	}
+	c := &matcher.RegexMatcher{
+		Regex: "",
+	}
+	if !regexMatchEqual(a, b) {
+		t.Error("regex didn't match but should (a, b)")
+		return
+	}
+	if regexMatchEqual(b, c) {
+		t.Error("regex match but should (b, c)")
+		return
+	}
+
+	return
 }
