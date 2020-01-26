@@ -1,6 +1,7 @@
 package envoy
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -42,7 +43,7 @@ func NewXDS(s storage.Storage, acmeContact, port string) *XDS {
 		acmeContact: acmeContact,
 	}
 
-	server := xds.NewServer(x.workQueue.InitCache(), x.workQueue.InitCallback())
+	server := xds.NewServer(context.Background(), x.workQueue.InitCache(), x.workQueue.InitCallback())
 	if port != "" {
 		grpcServer := grpc.NewServer()
 		lis, _ := net.Listen("tcp", ":"+port)

@@ -2,14 +2,19 @@ package envoy
 
 import (
 	"fmt"
+	"reflect"
 
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
+	auth "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
+	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
+	listener "github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
+	route "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
 	extAuthz "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/ext_authz/v2"
 	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
-	"github.com/gogo/protobuf/types"
+	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher"
+	"github.com/golang/protobuf/ptypes"
+	"github.com/golang/protobuf/ptypes/any"
 )
 
 // static listener functions
@@ -31,13 +36,25 @@ func getListenerHTTPConnectionManager(ll *api.Listener) (hcm.HttpConnectionManag
 func getManager(typedConfig *listener.Filter_TypedConfig) (hcm.HttpConnectionManager, error) {
 	var manager hcm.HttpConnectionManager
 
-	err := types.UnmarshalAny(typedConfig.TypedConfig, &manager)
+	err := ptypes.UnmarshalAny(typedConfig.TypedConfig, &manager)
 	if err != nil {
 		return manager, err
 	}
 
 	return manager, nil
 }
+
+func getTransportSocketDownStreamTlsSocket(typedConfig *core.TransportSocket_TypedConfig) (auth.DownstreamTlsContext, error) {
+	var tlsContext auth.DownstreamTlsContext
+
+	err := ptypes.UnmarshalAny(typedConfig.TypedConfig, &tlsContext)
+	if err != nil {
+		return tlsContext, err
+	}
+
+	return tlsContext, nil
+}
+
 func getListenerHTTPConnectionManagerTLS(ll *api.Listener, hostname string) (hcm.HttpConnectionManager, error) {
 	var err error
 	var manager hcm.HttpConnectionManager
@@ -86,7 +103,7 @@ func getListenerHTTPFilterJwtAuth(httpFilter []*hcm.HttpFilter) (jwtAuth.JwtAuth
 	if httpFilterPos == -1 {
 		return jwtConfig, fmt.Errorf("HttpFilter for jwt missing")
 	}
-	err := types.UnmarshalAny(httpFilter[httpFilterPos].GetTypedConfig(), &jwtConfig)
+	err := ptypes.UnmarshalAny(httpFilter[httpFilterPos].GetTypedConfig(), &jwtConfig)
 	if err != nil {
 		return jwtConfig, err
 	}
@@ -98,7 +115,7 @@ func getListenerHTTPFilterAuthz(httpFilter []*hcm.HttpFilter) (extAuthz.ExtAuthz
 	if httpFilterPos == -1 {
 		return authzConfig, fmt.Errorf("HttpFilter for authz missing")
 	}
-	err := types.UnmarshalAny(httpFilter[httpFilterPos].GetTypedConfig(), &authzConfig)
+	err := ptypes.UnmarshalAny(httpFilter[httpFilterPos].GetTypedConfig(), &authzConfig)
 	if err != nil {
 		return authzConfig, err
 	}
@@ -154,7 +171,7 @@ func getListenerAttributes(params ListenerParams, paramsTLS TLSParams) (bool, st
 	}
 	return tls, targetPrefix, virtualHostName, listenerName, listenerPort, matchType
 }
-func updateHTTPFilterWithConfig(httpFilter *[]*hcm.HttpFilter, filterName string, filterConfig *types.Any) {
+func updateHTTPFilterWithConfig(httpFilter *[]*hcm.HttpFilter, filterName string, filterConfig *any.Any) {
 	// check whether filter exists
 	httpFilterPos := getListenerHTTPFilterIndex(filterName, *httpFilter)
 
@@ -204,7 +221,106 @@ func cmpMatch(a *route.RouteMatch, b *route.RouteMatch) bool {
 		}
 	}
 
-	if !a.Equal(b) {
+	if !routeMatchEqual(a, b) {
+		return false
+	}
+
+	return true
+}
+
+func headerMatchEqual(a, b *route.HeaderMatcher) bool {
+	if a.GetName() != b.GetName() {
+		return false
+	}
+	if a.GetExactMatch() != b.GetExactMatch() {
+		return false
+	}
+	if a.GetInvertMatch() != b.GetInvertMatch() {
+		return false
+	}
+	if a.GetPrefixMatch() != b.GetPrefixMatch() {
+		return false
+	}
+	if a.GetRangeMatch() != b.GetRangeMatch() {
+		return false
+	}
+	if a.GetSafeRegexMatch().GetRegex() != b.GetSafeRegexMatch().GetRegex() {
+		return false
+	}
+	if a.GetPresentMatch() != b.GetPresentMatch() {
+		return false
+	}
+	if a.GetSafeRegexMatch() != b.GetSafeRegexMatch() {
+		return false
+	}
+	if a.GetSuffixMatch() != b.GetSuffixMatch() {
+		return false
+	}
+	return true
+}
+
+func regexMatchEqual(a, b *matcher.RegexMatcher) bool {
+	if a != nil {
+		if b == nil {
+			return false
+		}
+		if a.Regex != b.Regex {
+			return false
+		}
+	}
+	if b != nil {
+		if a == nil {
+			return false
+		}
+		if a.Regex != b.Regex {
+			return false
+		}
+	}
+	return true
+}
+
+func routeMatchEqual(a, b *route.RouteMatch) bool {
+	if a.GetPrefix() != b.GetPrefix() {
+		return false
+	}
+	if a.GetPath() != b.GetPath() {
+		return false
+	}
+	if !regexMatchEqual(a.GetSafeRegex(), b.GetSafeRegex()) {
+		return false
+	}
+
+	for _, v1 := range a.GetHeaders() {
+		isMatch := false
+		for _, v2 := range b.GetHeaders() {
+			if headerMatchEqual(v1, v2) {
+				isMatch = true
+			}
+		}
+		if !isMatch {
+			return false
+		}
+	}
+	return true
+}
+func routeActionEqual(a, b *route.Route) bool {
+	if reflect.TypeOf(a.Action).String() != reflect.TypeOf(b.Action).String() {
+		return false
+	}
+	switch reflect.TypeOf(a.Action).String() {
+	case "*envoy_api_v2_route.Route_Route":
+		cluster1 := a.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
+		cluster2 := b.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
+		if cluster1 != cluster2 {
+			return false
+		}
+	case "*envoy_api_v2_route.Route_DirectResponse":
+		status1 := a.Action.(*route.Route_DirectResponse).DirectResponse.GetStatus()
+		status2 := b.Action.(*route.Route_DirectResponse).DirectResponse.GetStatus()
+		if status1 != status2 {
+			return false
+		}
+	default:
 		return false
 	}
 

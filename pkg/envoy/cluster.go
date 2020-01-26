@@ -5,10 +5,11 @@ import (
 	"time"
 
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/endpoint"
-	"github.com/envoyproxy/go-control-plane/pkg/cache"
+	auth "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
+	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
+	endpoint "github.com/envoyproxy/go-control-plane/envoy/api/v2/endpoint"
+	cache "github.com/envoyproxy/go-control-plane/pkg/cache"
+	"github.com/golang/protobuf/ptypes"
 )
 
 type Cluster struct{}
@@ -42,10 +43,19 @@ func (c *Cluster) getAllClusterNames(clusters []cache.Resource) []string {
 }
 
 func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
-	var tlsContext *auth.UpstreamTlsContext
+	var transportSocket *core.TransportSocket
 	if params.Port == 443 {
-		tlsContext = &auth.UpstreamTlsContext{
+		tlsContext, err := ptypes.MarshalAny(&auth.UpstreamTlsContext{
 			Sni: params.TargetHostname,
+		})
+		if err != nil {
+			panic(err)
+		}
+		transportSocket = &core.TransportSocket{
+			Name: "tls",
+			ConfigType: &core.TransportSocket_TypedConfig{
+				TypedConfig: tlsContext,
+			},
 		}
 	}
 
@@ -54,7 +64,7 @@ func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 	address := &core.Address{Address: &core.Address_SocketAddress{
 		SocketAddress: &core.SocketAddress{
 			Address:  params.TargetHostname,
-			Protocol: core.TCP,
+			Protocol: core.SocketAddress_TCP,
 			PortSpecifier: &core.SocketAddress_PortValue{
 				PortValue: uint32(params.Port),
 			},
@@ -68,10 +78,10 @@ func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 		ClusterDiscoveryType: &api.Cluster_Type{
 			Type: api.Cluster_STRICT_DNS,
 		},
-		ConnectTimeout:  &connectTimeout,
+		ConnectTimeout:  ptypes.DurationProto(connectTimeout),
 		DnsLookupFamily: api.Cluster_V4_ONLY,
 		LbPolicy:        api.Cluster_ROUND_ROBIN,
-		TlsContext:      tlsContext,
+		TransportSocket: transportSocket,
 		LoadAssignment: &api.ClusterLoadAssignment{
 			ClusterName: params.Name,
 			Endpoints: []*endpoint.LocalityLbEndpoints{

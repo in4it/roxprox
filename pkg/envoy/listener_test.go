@@ -9,12 +9,13 @@ import (
 	"time"
 
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
+	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
+	listener "github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
+	route "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
 	extAuthz "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/ext_authz/v2"
 	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
+	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher"
 	"github.com/envoyproxy/go-control-plane/pkg/cache"
 	"github.com/gogo/protobuf/types"
 	"github.com/juju/loggo"
@@ -637,12 +638,15 @@ func validateDomainTLS(listeners []cache.Resource, params ListenerParams, tlsPar
 	if filterId == -1 {
 		return fmt.Errorf("Filter not found for domain %s", params.Conditions.Hostname)
 	}
-
-	if len(cachedListener.FilterChains[filterId].TlsContext.CommonTlsContext.TlsCertificates) == 0 {
+	tlsContext, err := getTransportSocketDownStreamTlsSocket(cachedListener.FilterChains[filterId].GetTransportSocket().GetConfigType().(*core.TransportSocket_TypedConfig))
+	if err != nil {
+		panic(err)
+	}
+	if len(tlsContext.GetCommonTlsContext().GetTlsCertificates()) == 0 {
 		return fmt.Errorf("No certificates found in filter chain for domain %s", params.Conditions.Hostname)
 	}
-	tlsBundle := cachedListener.FilterChains[filterId].TlsContext.CommonTlsContext.TlsCertificates[0].CertificateChain.Specifier.(*core.DataSource_InlineString).InlineString
-	privateKey := cachedListener.FilterChains[filterId].TlsContext.CommonTlsContext.TlsCertificates[0].PrivateKey.Specifier.(*core.DataSource_InlineString).InlineString
+	tlsBundle := tlsContext.GetCommonTlsContext().TlsCertificates[0].CertificateChain.Specifier.(*core.DataSource_InlineString).InlineString
+	privateKey := tlsContext.GetCommonTlsContext().TlsCertificates[0].PrivateKey.Specifier.(*core.DataSource_InlineString).InlineString
 
 	if tlsBundle != tlsParams.CertBundle {
 		return fmt.Errorf("TLS bundle not found. Got: %s, Expected: %s", tlsBundle, tlsParams.CertBundle)
@@ -699,16 +703,16 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 				domainFound = true
 				for _, r := range virtualhost.Routes {
 					switch reflect.TypeOf(r.Match.PathSpecifier).String() {
-					case "*route.RouteMatch_Prefix":
+					case "*envoy_api_v2_route.RouteMatch_Prefix":
 						if r.Match.PathSpecifier.(*route.RouteMatch_Prefix).Prefix == params.Conditions.Prefix {
 							prefixFound = true
 						}
-					case "*route.RouteMatch_Path":
+					case "*envoy_api_v2_route.RouteMatch_Path":
 						if r.Match.PathSpecifier.(*route.RouteMatch_Path).Path == params.Conditions.Path {
 							pathFound = true
 						}
-					case "*route.RouteMatch_Regex":
-						if r.Match.PathSpecifier.(*route.RouteMatch_Regex).Regex == params.Conditions.Regex {
+					case "*envoy_api_v2_route.RouteMatch_SafeRegex":
+						if r.Match.PathSpecifier.(*route.RouteMatch_SafeRegex).SafeRegex.GetRegex() == params.Conditions.Regex {
 							regexFound = true
 						}
 					default:
@@ -724,9 +728,9 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 						}
 					}
 					switch reflect.TypeOf(r.Action).String() {
-					case "*route.Route_Route":
+					case "*envoy_api_v2_route.Route_Route":
 						// do nothing here
-					case "*route.Route_DirectResponse":
+					case "*envoy_api_v2_route.Route_DirectResponse":
 						d := r.Action.(*route.Route_DirectResponse).DirectResponse
 						if params.DirectResponse.Status == d.GetStatus() && params.DirectResponse.Body == d.GetBody().GetInlineString() {
 							directResponseFound = true
@@ -885,16 +889,16 @@ func validateJWT(manager hcm.HttpConnectionManager, params ListenerParams) error
 		matchedEntries := 0
 		for _, rule := range jwtConfig.Rules {
 			switch reflect.TypeOf(rule.Match.PathSpecifier).String() {
-			case "*route.RouteMatch_Prefix":
+			case "*envoy_api_v2_route.RouteMatch_Prefix":
 				if rule.Match.PathSpecifier.(*route.RouteMatch_Prefix).Prefix == params.Conditions.Prefix {
 					prefixFound = true
 				}
-			case "*route.RouteMatch_Path":
+			case "*envoy_api_v2_route.RouteMatch_Path":
 				if rule.Match.PathSpecifier.(*route.RouteMatch_Path).Path == params.Conditions.Path {
 					pathFound = true
 				}
-			case "*route.RouteMatch_Regex":
-				if rule.Match.PathSpecifier.(*route.RouteMatch_Regex).Regex == params.Conditions.Regex {
+			case "*envoy_api_v2_route.RouteMatch_SafeRegex":
+				if rule.Match.PathSpecifier.(*route.RouteMatch_SafeRegex).SafeRegex.GetRegex() == params.Conditions.Regex {
 					regexFound = true
 				}
 			default:
@@ -1036,4 +1040,26 @@ func validateAuthzConfig(authzConfig extAuthz.ExtAuthz, params ListenerParams, l
 	logger.Debugf("Validated authz filter for listener %s", listenerName)
 
 	return nil
+}
+
+func TestRegexMatcher(t *testing.T) {
+	a := &matcher.RegexMatcher{
+		Regex: "/a.*/",
+	}
+	b := &matcher.RegexMatcher{
+		Regex: "/a.*/",
+	}
+	c := &matcher.RegexMatcher{
+		Regex: "",
+	}
+	if !regexMatchEqual(a, b) {
+		t.Error("regex didn't match but should (a, b)")
+		return
+	}
+	if regexMatchEqual(b, c) {
+		t.Error("regex match but should (b, c)")
+		return
+	}
+
+	return
 }

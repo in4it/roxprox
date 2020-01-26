@@ -7,15 +7,17 @@ import (
 	"strings"
 
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
+	auth "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
+	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
+	listener "github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
+	route "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
 	envoyType "github.com/envoyproxy/go-control-plane/envoy/type"
+	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher"
 	"github.com/envoyproxy/go-control-plane/pkg/cache"
-	"github.com/envoyproxy/go-control-plane/pkg/util"
-	"github.com/gogo/protobuf/types"
+	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
+	"github.com/golang/protobuf/ptypes"
+	any "github.com/golang/protobuf/ptypes/any"
 )
 
 const Error_NoFilterChainFound = "NoFilterChainFound"
@@ -30,33 +32,42 @@ func newListener() *Listener {
 	listener := &Listener{}
 	listener.httpFilter = []*hcm.HttpFilter{
 		{
-			Name: util.Router,
+			Name: wellknown.Router,
 		},
 	}
 	return listener
 }
 
 func (l *Listener) newTLSFilterChain(params TLSParams) *listener.FilterChain {
+	tlsContext, err := ptypes.MarshalAny(&auth.DownstreamTlsContext{
+		CommonTlsContext: &auth.CommonTlsContext{
+			TlsCertificates: []*auth.TlsCertificate{
+				{
+					CertificateChain: &core.DataSource{
+						Specifier: &core.DataSource_InlineString{
+							InlineString: params.CertBundle,
+						},
+					},
+					PrivateKey: &core.DataSource{
+						Specifier: &core.DataSource_InlineString{
+							InlineString: params.PrivateKey,
+						},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
 	return &listener.FilterChain{
 		FilterChainMatch: &listener.FilterChainMatch{
 			ServerNames: []string{params.Domain},
 		},
-		TlsContext: &auth.DownstreamTlsContext{
-			CommonTlsContext: &auth.CommonTlsContext{
-				TlsCertificates: []*auth.TlsCertificate{
-					{
-						CertificateChain: &core.DataSource{
-							Specifier: &core.DataSource_InlineString{
-								InlineString: params.CertBundle,
-							},
-						},
-						PrivateKey: &core.DataSource{
-							Specifier: &core.DataSource_InlineString{
-								InlineString: params.PrivateKey,
-							},
-						},
-					},
-				},
+		TransportSocket: &core.TransportSocket{
+			Name: "tls",
+			ConfigType: &core.TransportSocket_TypedConfig{
+				TypedConfig: tlsContext,
 			},
 		},
 	}
@@ -74,7 +85,7 @@ func (l *Listener) updateListenerWithNewCert(cache *WorkQueueCache, params TLSPa
 			} else {
 				logger.Debugf("Updating existing filterchain in %s with certificate for domain %s", ll.Name, params.Domain)
 				filterChain := l.newTLSFilterChain(params)
-				ll.FilterChains[filterId].TlsContext = filterChain.TlsContext
+				ll.FilterChains[filterId].TransportSocket = filterChain.TransportSocket
 			}
 		}
 	}
@@ -134,7 +145,7 @@ func (l *Listener) updateListenerWithChallenge(cache *WorkQueueCache, challenge 
 				})
 			}
 			manager.RouteSpecifier = routeSpecifier
-			pbst, err := types.MarshalAny(&manager)
+			pbst, err := ptypes.MarshalAny(&manager)
 			if err != nil {
 				panic(err)
 			}
@@ -239,8 +250,11 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 		if len(headers) == 0 {
 			routes = append(routes, &route.Route{
 				Match: &route.RouteMatch{
-					PathSpecifier: &route.RouteMatch_Regex{
-						Regex: targetPrefix,
+					PathSpecifier: &route.RouteMatch_SafeRegex{
+						SafeRegex: &matcher.RegexMatcher{
+							Regex:      targetPrefix,
+							EngineType: &matcher.RegexMatcher_GoogleRe2{GoogleRe2: &matcher.RegexMatcher_GoogleRE2{}},
+						},
 					},
 				},
 				Action: routeAction,
@@ -249,8 +263,11 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 			for _, header := range headers {
 				routes = append(routes, &route.Route{
 					Match: &route.RouteMatch{
-						PathSpecifier: &route.RouteMatch_Regex{
-							Regex: targetPrefix,
+						PathSpecifier: &route.RouteMatch_SafeRegex{
+							SafeRegex: &matcher.RegexMatcher{
+								Regex:      targetPrefix,
+								EngineType: &matcher.RegexMatcher_GoogleRe2{GoogleRe2: &matcher.RegexMatcher_GoogleRE2{}},
+							},
 						},
 						Headers: []*route.HeaderMatcher{header},
 					},
@@ -292,12 +309,12 @@ func (l *Listener) newTLSFilter(params ListenerParams, paramsTLS TLSParams, list
 		Routes:  []*route.Route{},
 	}
 	manager := l.newManager(strings.Replace(listenerName, "l_", "r_", 1), []*route.VirtualHost{newEmptyVirtualHost}, httpFilters)
-	pbst, err := types.MarshalAny(manager)
+	pbst, err := ptypes.MarshalAny(manager)
 	if err != nil {
 		panic(err)
 	}
 	return []*listener.Filter{{
-		Name: util.HTTPConnectionManager,
+		Name: wellknown.HTTPConnectionManager,
 		ConfigType: &listener.Filter_TypedConfig{
 			TypedConfig: pbst,
 		},
@@ -386,7 +403,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	}
 
 	manager.RouteSpecifier = routeSpecifier
-	pbst, err := types.MarshalAny(&manager)
+	pbst, err := ptypes.MarshalAny(&manager)
 	if err != nil {
 		panic(err)
 	}
@@ -413,7 +430,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 func (l *Listener) routeExist(routes []*route.Route, route *route.Route) bool {
 	routeFound := false
 	for _, v := range routes {
-		if cmpMatch(v.Match, route.Match) && v.Action.Equal(route.Action) {
+		if cmpMatch(v.Match, route.Match) && routeActionEqual(v, route) {
 			routeFound = true
 		}
 	}
@@ -421,7 +438,7 @@ func (l *Listener) routeExist(routes []*route.Route, route *route.Route) bool {
 }
 func (l *Listener) routeIndex(routes []*route.Route, route *route.Route) int {
 	for index, v := range routes {
-		if cmpMatch(v.Match, route.Match) && v.Action.Equal(route.Action) {
+		if cmpMatch(v.Match, route.Match) && routeActionEqual(v, route) {
 			return index
 		}
 	}
@@ -430,7 +447,7 @@ func (l *Listener) routeIndex(routes []*route.Route, route *route.Route) int {
 
 func (l *Listener) newManager(routeName string, virtualHosts []*route.VirtualHost, httpFilters []*hcm.HttpFilter) *hcm.HttpConnectionManager {
 	httpConnectionManager := &hcm.HttpConnectionManager{
-		CodecType:  hcm.AUTO,
+		CodecType:  hcm.HttpConnectionManager_AUTO,
 		StatPrefix: "ingress_http",
 		RouteSpecifier: &hcm.HttpConnectionManager_RouteConfig{
 			RouteConfig: &api.RouteConfiguration{
@@ -456,7 +473,7 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 	httpFilters := l.newHTTPRouterFilter()
 	manager := l.newManager(strings.Replace(listenerName, "l_", "r_", 1), []*route.VirtualHost{}, httpFilters)
 
-	pbst, err := types.MarshalAny(manager)
+	pbst, err := ptypes.MarshalAny(manager)
 	if err != nil {
 		panic(err)
 	}
@@ -466,7 +483,7 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 		Address: &core.Address{
 			Address: &core.Address_SocketAddress{
 				SocketAddress: &core.SocketAddress{
-					Protocol: core.TCP,
+					Protocol: core.SocketAddress_TCP,
 					Address:  "0.0.0.0",
 					PortSpecifier: &core.SocketAddress_PortValue{
 						PortValue: listenerPort,
@@ -476,7 +493,7 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 		},
 		FilterChains: []*listener.FilterChain{{
 			Filters: []*listener.Filter{{
-				Name: util.HTTPConnectionManager,
+				Name: wellknown.HTTPConnectionManager,
 				ConfigType: &listener.Filter_TypedConfig{
 					TypedConfig: pbst,
 				},
@@ -497,7 +514,7 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 			ServerNames: []string{params.Conditions.Hostname},
 		}
 		// add cert and key to tls listener
-		newListener.FilterChains[0].TlsContext = &auth.DownstreamTlsContext{
+		tlsContext, err := ptypes.MarshalAny(&auth.DownstreamTlsContext{
 			CommonTlsContext: &auth.CommonTlsContext{
 				TlsCertificates: []*auth.TlsCertificate{
 					{
@@ -513,6 +530,15 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 						},
 					},
 				},
+			},
+		})
+		if err != nil {
+			panic(err)
+		}
+		newListener.FilterChains[0].TransportSocket = &core.TransportSocket{
+			Name: "tls",
+			ConfigType: &core.TransportSocket_TypedConfig{
+				TypedConfig: tlsContext,
 			},
 		}
 	}
@@ -590,7 +616,7 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 	}
 
 	manager.RouteSpecifier = routeSpecifier
-	pbst, err := types.MarshalAny(&manager)
+	pbst, err := ptypes.MarshalAny(&manager)
 	if err != nil {
 		panic(err)
 	}
@@ -626,7 +652,7 @@ func (l *Listener) validateListeners(listeners []cache.Resource, clusterNames []
 			for _, virtualHostRoute := range virtualHost.Routes {
 				if virtualHostRoute.Action != nil {
 					switch reflect.TypeOf(virtualHostRoute.Action).String() {
-					case "*route.Route_Route":
+					case "*envoy_api_v2_route.Route_Route":
 						clusterFound := false
 						virtualHostRouteClusterName := virtualHostRoute.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
 						for _, clusterName := range clusterNames {
@@ -637,7 +663,7 @@ func (l *Listener) validateListeners(listeners []cache.Resource, clusterNames []
 						if !clusterFound {
 							return false, fmt.Errorf("Cluster not found: %s", virtualHostRouteClusterName)
 						}
-					case "*route.Route_DirectResponse":
+					case "*envoy_api_v2_route.Route_DirectResponse":
 						logger.Debugf("Validation: DirectResponse, no cluster validation necessary")
 						// no validation necessary
 					default:
@@ -652,7 +678,7 @@ func (l *Listener) validateListeners(listeners []cache.Resource, clusterNames []
 	return true, nil
 }
 
-func (l *Listener) updateDefaultHTTPRouterFilter(filterName string, filterConfig *types.Any) {
+func (l *Listener) updateDefaultHTTPRouterFilter(filterName string, filterConfig *any.Any) {
 	updateHTTPFilterWithConfig(&l.httpFilter, filterName, filterConfig)
 }
 
@@ -691,15 +717,15 @@ func (l *Listener) printListener(cache *WorkQueueCache) (string, error) {
 					if virtualHostRoute.Match.GetPrefix() != "" {
 						res += "Match prefix: " + virtualHostRoute.Match.GetPrefix() + "\n"
 					}
-					if virtualHostRoute.Match.GetRegex() != "" {
-						res += "Match regex: " + virtualHostRoute.Match.GetRegex() + "\n"
+					if virtualHostRoute.Match.GetSafeRegex().GetRegex() != "" {
+						res += "Match regex: " + virtualHostRoute.Match.GetSafeRegex().GetRegex() + "\n"
 					}
 				}
 				if virtualHostRoute.Action != nil {
 					switch reflect.TypeOf(virtualHostRoute.Action).String() {
-					case "*route.Route_Route":
+					case "*envoy_api_v2_route.Route_Route":
 						res += "Route action (cluster): " + virtualHostRoute.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster + "\n"
-					case "*route.Route_DirectResponse":
+					case "*envoy_api_v2_route.Route_DirectResponse":
 						res += "Route action (directResponse): "
 						res += fmt.Sprint(virtualHostRoute.Action.(*route.Route_DirectResponse).DirectResponse.GetStatus()) + " "
 						res += virtualHostRoute.Action.(*route.Route_DirectResponse).DirectResponse.Body.GetInlineString() + "\n"

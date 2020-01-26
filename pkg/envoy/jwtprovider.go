@@ -3,14 +3,16 @@ package envoy
 import (
 	"fmt"
 	"sort"
+	"time"
 
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
+	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
+	listener "github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
+	route "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
 	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
-	"github.com/gogo/protobuf/types"
+	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher"
+	"github.com/golang/protobuf/ptypes"
 )
 
 type JwtProvider struct{}
@@ -105,8 +107,11 @@ func (j *JwtProvider) getJwtRule(conditions Conditions, clusterName string, jwtP
 		if len(methodHeaders) == 0 {
 			rules = append(rules, &jwtAuth.RequirementRule{
 				Match: &route.RouteMatch{
-					PathSpecifier: &route.RouteMatch_Regex{
-						Regex: conditions.Regex,
+					PathSpecifier: &route.RouteMatch_SafeRegex{
+						SafeRegex: &matcher.RegexMatcher{
+							Regex:      conditions.Regex,
+							EngineType: &matcher.RegexMatcher_GoogleRe2{GoogleRe2: &matcher.RegexMatcher_GoogleRE2{}},
+						},
 					},
 					Headers: hostnameHeaders,
 				},
@@ -116,8 +121,11 @@ func (j *JwtProvider) getJwtRule(conditions Conditions, clusterName string, jwtP
 			for _, methodHeader := range methodHeaders {
 				rules = append(rules, &jwtAuth.RequirementRule{
 					Match: &route.RouteMatch{
-						PathSpecifier: &route.RouteMatch_Regex{
-							Regex: conditions.Regex,
+						PathSpecifier: &route.RouteMatch_SafeRegex{
+							SafeRegex: &matcher.RegexMatcher{
+								Regex:      conditions.Regex,
+								EngineType: &matcher.RegexMatcher_GoogleRe2{GoogleRe2: &matcher.RegexMatcher_GoogleRE2{}},
+							},
 						},
 						Headers: append(hostnameHeaders, methodHeader),
 					},
@@ -133,7 +141,7 @@ func (j *JwtProvider) getJwtRule(conditions Conditions, clusterName string, jwtP
 func (j *JwtProvider) jwtRuleExist(rules []*jwtAuth.RequirementRule, rule *jwtAuth.RequirementRule) bool {
 	ruleFound := false
 	for _, v := range rules {
-		if v.Match.Equal(rule.Match) && v.Requires.RequiresType.(*jwtAuth.JwtRequirement_ProviderName).ProviderName == rule.Requires.RequiresType.(*jwtAuth.JwtRequirement_ProviderName).ProviderName {
+		if routeMatchEqual(v.Match, rule.Match) && v.Requires.RequiresType.(*jwtAuth.JwtRequirement_ProviderName).ProviderName == rule.Requires.RequiresType.(*jwtAuth.JwtRequirement_ProviderName).ProviderName {
 			ruleFound = true
 		}
 	}
@@ -153,7 +161,8 @@ func (j *JwtProvider) getJwtConfig(auth Auth) *jwtAuth.JwtAuthentication {
 				JwksSourceSpecifier: &jwtAuth.JwtProvider_RemoteJwks{
 					RemoteJwks: &jwtAuth.RemoteJwks{
 						HttpUri: &core.HttpUri{
-							Uri: auth.RemoteJwks,
+							Uri:     auth.RemoteJwks,
+							Timeout: ptypes.DurationProto(30 * time.Second),
 							HttpUpstreamType: &core.HttpUri_Cluster{
 								Cluster: "jwtProvider_" + auth.JwtProvider,
 							},
@@ -186,14 +195,14 @@ func (j *JwtProvider) updateListenerWithJwtProvider(cache *WorkQueueCache, param
 		jwtConfig.Providers[params.Auth.JwtProvider] = jwtNewConfig.Providers[params.Auth.JwtProvider]
 		logger.Debugf("Adding/updating %s to jwt config", params.Auth.JwtProvider)
 
-		jwtConfigEncoded, err := types.MarshalAny(&jwtConfig)
+		jwtConfigEncoded, err := ptypes.MarshalAny(&jwtConfig)
 		if err != nil {
 			panic(err)
 		}
 
 		updateHTTPFilterWithConfig(&manager.HttpFilters, "envoy.filters.http.jwt_authn", jwtConfigEncoded)
 
-		pbst, err := types.MarshalAny(&manager)
+		pbst, err := ptypes.MarshalAny(&manager)
 		if err != nil {
 			panic(err)
 		}
@@ -274,14 +283,14 @@ func (j *JwtProvider) UpdateJwtRule(cache *WorkQueueCache, params ListenerParams
 			jwtConfig.Rules = append(jwtConfig.Rules, newJwtRule)
 		}
 	}
-	jwtConfigEncoded, err := types.MarshalAny(&jwtConfig)
+	jwtConfigEncoded, err := ptypes.MarshalAny(&jwtConfig)
 	if err != nil {
 		panic(err)
 	}
 
 	updateHTTPFilterWithConfig(&manager.HttpFilters, "envoy.filters.http.jwt_authn", jwtConfigEncoded)
 
-	pbst, err := types.MarshalAny(&manager)
+	pbst, err := ptypes.MarshalAny(&manager)
 	if err != nil {
 		panic(err)
 	}
@@ -351,7 +360,7 @@ func (j *JwtProvider) DeleteJwtRule(cache *WorkQueueCache, params ListenerParams
 			index := j.requirementRuleIndex(jwtConfig.Rules, rule)
 			jwtConfig.Rules = append(jwtConfig.Rules[:index], jwtConfig.Rules[index+1:]...)
 		}
-		jwtConfigEncoded, err := types.MarshalAny(&jwtConfig)
+		jwtConfigEncoded, err := ptypes.MarshalAny(&jwtConfig)
 		if err != nil {
 			panic(err)
 		}
@@ -361,7 +370,7 @@ func (j *JwtProvider) DeleteJwtRule(cache *WorkQueueCache, params ListenerParams
 		logger.Debugf("Couldn't find jwt provider %s during deleteRoute", params.Auth.JwtProvider)
 	}
 
-	pbst, err := types.MarshalAny(&manager)
+	pbst, err := ptypes.MarshalAny(&manager)
 	if err != nil {
 		panic(err)
 	}
