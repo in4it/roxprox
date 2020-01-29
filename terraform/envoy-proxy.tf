@@ -30,7 +30,7 @@ data "template_file" "envoy-proxy" {
     APPMESH_NAME          = var.appmesh_name
     APPMESH_ENVOY_RELEASE = var.appmesh_envoy_release
     EXTRA_CONTAINERS      = var.extra_containers == "" ? "" : ",${var.extra_containers}"
-    EXTRA_DEPENDENCY      = var.extra_dependency == "" ? "" : ",${var.extra_dependency}"
+    EXTRA_DEPENDENCY      = var.extra_dependency == "" ? "" : var.enable_appmesh ? ",${var.extra_dependency}" : var.extra_dependency
   }
 }
 
