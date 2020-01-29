@@ -65,8 +65,9 @@ resource "aws_lb_listener_rule" "lb-https-redirect" {
   }
 
   condition {
-    field  = "path-pattern"
-    values = ["/*"]
+    path_pattern {
+      values = ["/*"]
+    }
   }
 }
 
