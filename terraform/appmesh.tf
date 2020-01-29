@@ -1,7 +1,7 @@
 resource "aws_appmesh_virtual_node" "envoy-proxy" {
   count     = var.enable_appmesh ? 1 : 0
   name      = "envoy-proxy"
-  mesh_name = "${var.appmesh_name}"
+  mesh_name = var.appmesh_name
 
   spec {
     #backend {
@@ -45,12 +45,12 @@ resource "aws_appmesh_virtual_node" "envoy-proxy" {
 resource "aws_appmesh_virtual_service" "envoy-proxy" {
   count     = var.enable_appmesh ? 1 : 0
   name      = "envoy.roxprox.local"
-  mesh_name = "${var.appmesh_name}"
+  mesh_name = var.appmesh_name
 
   spec {
     provider {
       virtual_node {
-        virtual_node_name = "${aws_appmesh_virtual_node.envoy-proxy[0].name}"
+        virtual_node_name = aws_appmesh_virtual_node.envoy-proxy[0].name
       }
     }
   }
@@ -60,7 +60,7 @@ resource "aws_appmesh_virtual_service" "envoy-proxy" {
 resource "aws_appmesh_virtual_node" "roxprox" {
   count     = var.enable_appmesh ? 1 : 0
   name      = "roxprox"
-  mesh_name = "${var.appmesh_name}"
+  mesh_name = var.appmesh_name
 
   spec {
     listener {
@@ -89,12 +89,12 @@ resource "aws_appmesh_virtual_node" "roxprox" {
 resource "aws_appmesh_virtual_service" "roxprox" {
   count     = var.enable_appmesh ? 1 : 0
   name      = "roxprox.roxprox.local"
-  mesh_name = "${var.appmesh_name}"
+  mesh_name = var.appmesh_name
 
   spec {
     provider {
       virtual_node {
-        virtual_node_name = "${aws_appmesh_virtual_node.roxprox[0].name}"
+        virtual_node_name = aws_appmesh_virtual_node.roxprox[0].name
       }
     }
   }

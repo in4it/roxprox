@@ -4,10 +4,10 @@ resource "aws_s3_bucket" "roxprox" {
 }
 
 resource "aws_s3_bucket_notification" "roxprox-notification" {
-  bucket = "${aws_s3_bucket.roxprox.id}"
+  bucket = aws_s3_bucket.roxprox.id
 
   queue {
-    queue_arn     = "${aws_sqs_queue.roxprox-notifications.arn}"
+    queue_arn     = aws_sqs_queue.roxprox-notifications.arn
     events        = ["s3:ObjectCreated:*", "s3:ObjectRemoved:*"]
     filter_suffix = ".yaml"
   }
