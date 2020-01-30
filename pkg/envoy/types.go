@@ -39,6 +39,7 @@ type ClusterParams struct {
 	TargetHostname string
 	Port           int64
 	HTTP2          bool
+	HealthCheck    HealthCheck
 }
 type ListenerParams struct {
 	Name           string
@@ -87,7 +88,20 @@ type Action struct {
 type ActionProxy struct {
 	TargetHostname string
 	Port           int64
+	HealthCheck    HealthCheck
 }
+
+type HealthCheck struct {
+	HTTPHealthCheck    HTTPHealthCheck
+	Timeout            string
+	Interval           string
+	HealthyThreshold   uint32
+	UnhealthyThreshold uint32
+}
+type HTTPHealthCheck struct {
+	Path string
+}
+
 type ObjectDependency struct {
 	Type string
 	Name string

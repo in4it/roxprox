@@ -30,8 +30,20 @@ type RuleActions struct {
 	DirectResponse RuleActionsDirectResponse `json:"directResponse" yaml:"directResponse"`
 }
 type RuleActionsProxy struct {
-	Hostname string `json:"hostname"`
-	Port     int64  `json:"port"`
+	Hostname    string                `json:"hostname"`
+	Port        int64                 `json:"port"`
+	HealthCheck RuleActionHealthCheck `json:"healthCheck"`
+}
+
+type RuleActionHealthCheck struct {
+	HTTPHealthCheck    HTTPHealthCheck `json:"httpHealthCheck"`
+	Timeout            string          `json:"timeout"`
+	Interval           string          `json:"interval"`
+	HealthyThreshold   uint32          `json:"healthyThreshold"`
+	UnhealthyThreshold uint32          `json:"unhealthyThreshold"`
+}
+type HTTPHealthCheck struct {
+	Path string `json:"path"`
 }
 
 type RuleActionsDirectResponse struct {
