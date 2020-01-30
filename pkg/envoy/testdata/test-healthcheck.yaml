@@ -1,0 +1,19 @@
+api: proxy.in4it.io/v1
+kind: rule
+metadata:
+  name: test-healthcheck
+spec:
+  conditions:
+    - hostname: test-multiplerules-4.example.com
+      path: /test-healthcheck
+  actions:
+    - proxy:
+        hostname: target-example.com
+        port: 443
+        healthCheck:
+            interval: "3s"
+            timeout: "20s"
+            unhealthyThreshold: 2
+            healthyThreshold: 3
+            httpHealthCheck:
+              path: "/health"
