@@ -99,6 +99,7 @@ func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 			},
 		}
 		healthChecks = append(healthChecks, healthCheck)
+		logger.Infof("healthcheck on " + params.HealthCheck.HTTPHealthCheck.Path)
 	}
 
 	cluster := &api.Cluster{

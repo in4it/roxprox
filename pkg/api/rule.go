@@ -32,18 +32,18 @@ type RuleActions struct {
 type RuleActionsProxy struct {
 	Hostname    string                `json:"hostname"`
 	Port        int64                 `json:"port"`
-	HealthCheck RuleActionHealthCheck `json:"healthCheck"`
+	HealthCheck RuleActionHealthCheck `json:"healthCheck" yaml:"healthCheck"`
 }
 
 type RuleActionHealthCheck struct {
-	HTTPHealthCheck    HTTPHealthCheck `json:"httpHealthCheck"`
-	Timeout            string          `json:"timeout"`
-	Interval           string          `json:"interval"`
-	HealthyThreshold   uint32          `json:"healthyThreshold"`
-	UnhealthyThreshold uint32          `json:"unhealthyThreshold"`
+	HTTPHealthCheck    HTTPHealthCheck `json:"httpHealthCheck" yaml:"httpHealthCheck"`
+	Timeout            string          `json:"timeout" yaml:"timeout"`
+	Interval           string          `json:"interval" yaml:"interval"`
+	HealthyThreshold   uint32          `json:"healthyThreshold" yaml:"healthyThreshold"`
+	UnhealthyThreshold uint32          `json:"unhealthyThreshold" yaml:"unhealthyThreshold"`
 }
 type HTTPHealthCheck struct {
-	Path string `json:"path"`
+	Path string `json:"path" yaml:"path"`
 }
 
 type RuleActionsDirectResponse struct {
