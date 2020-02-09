@@ -14,5 +14,5 @@ require (
 	github.com/juju/loggo v0.0.0-20190526231331-6e530bcce5d8
 	golang.org/x/crypto v0.0.0-20190618222545-ea8f1a30c443
 	google.golang.org/grpc v1.25.1
-	gopkg.in/yaml.v2 v2.2.2
+	gopkg.in/yaml.v2 v2.2.8
 )

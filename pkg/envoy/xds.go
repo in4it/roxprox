@@ -376,6 +376,14 @@ func (x *XDS) getAction(ruleName string, actions []pkgApi.RuleActions) Action {
 			action.RuleName = ruleName
 			action.Proxy.TargetHostname = ruleAction.Proxy.Hostname
 			action.Proxy.Port = ruleAction.Proxy.Port
+			if ruleAction.Proxy.HealthCheck.HTTPHealthCheck.Path != "" {
+				action.Proxy.HealthCheck.HTTPHealthCheck.Path = ruleAction.Proxy.HealthCheck.HTTPHealthCheck.Path
+				action.Proxy.HealthCheck.Timeout = ruleAction.Proxy.HealthCheck.Timeout
+				action.Proxy.HealthCheck.Interval = ruleAction.Proxy.HealthCheck.Interval
+				action.Proxy.HealthCheck.HealthyThreshold = ruleAction.Proxy.HealthCheck.HealthyThreshold
+				action.Proxy.HealthCheck.UnhealthyThreshold = ruleAction.Proxy.HealthCheck.UnhealthyThreshold
+				action.Proxy.HealthCheck.UnhealthyInterval = ruleAction.Proxy.HealthCheck.UnhealthyInterval
+			}
 		} else if ruleAction.DirectResponse.Status > 0 {
 			action.Type = "directResponse"
 			action.RuleName = ruleName
@@ -423,6 +431,7 @@ func (x *XDS) getClusterParams(action Action) ClusterParams {
 		Name:           action.RuleName,
 		TargetHostname: action.Proxy.TargetHostname,
 		Port:           action.Proxy.Port,
+		HealthCheck:    action.Proxy.HealthCheck,
 	}
 }
 func (x *XDS) getAuthParams(jwtProviderName string, jwtProvider pkgApi.JwtProvider) Auth {

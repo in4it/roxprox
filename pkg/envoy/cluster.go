@@ -10,6 +10,7 @@ import (
 	endpoint "github.com/envoyproxy/go-control-plane/envoy/api/v2/endpoint"
 	cache "github.com/envoyproxy/go-control-plane/pkg/cache"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/golang/protobuf/ptypes/wrappers"
 )
 
 type Cluster struct{}
@@ -73,6 +74,42 @@ func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 
 	connectTimeout := 2 * time.Second
 
+	// add healthchecks
+	healthChecks := []*core.HealthCheck{}
+	if params.HealthCheck.HTTPHealthCheck.Path != "" {
+		healthcheckTimeout, err := time.ParseDuration(params.HealthCheck.Timeout)
+		if err != nil {
+			healthcheckTimeout = 30 * time.Second
+		}
+
+		healthcheckInterval, err := time.ParseDuration(params.HealthCheck.Interval)
+		if err != nil {
+			healthcheckInterval = 30 * time.Second
+		}
+
+		healthCheck := &core.HealthCheck{
+			Timeout:            ptypes.DurationProto(healthcheckTimeout),
+			Interval:           ptypes.DurationProto(healthcheckInterval),
+			UnhealthyThreshold: &wrappers.UInt32Value{Value: params.HealthCheck.UnhealthyThreshold},
+			HealthyThreshold:   &wrappers.UInt32Value{Value: params.HealthCheck.HealthyThreshold},
+			HealthChecker: &core.HealthCheck_HttpHealthCheck_{
+				HttpHealthCheck: &core.HealthCheck_HttpHealthCheck{
+					Path: params.HealthCheck.HTTPHealthCheck.Path,
+				},
+			},
+		}
+
+		// optional parameters
+		if params.HealthCheck.UnhealthyInterval != "" {
+			if healthCheckUnhealthyInterval, err := time.ParseDuration(params.HealthCheck.UnhealthyInterval); err == nil {
+				healthCheck.UnhealthyInterval = ptypes.DurationProto(healthCheckUnhealthyInterval)
+			}
+		}
+
+		healthChecks = append(healthChecks, healthCheck)
+		logger.Infof("healthcheck on " + params.HealthCheck.HTTPHealthCheck.Path)
+	}
+
 	cluster := &api.Cluster{
 		Name: params.Name,
 		ClusterDiscoveryType: &api.Cluster_Type{
@@ -81,6 +118,7 @@ func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 		ConnectTimeout:  ptypes.DurationProto(connectTimeout),
 		DnsLookupFamily: api.Cluster_V4_ONLY,
 		LbPolicy:        api.Cluster_ROUND_ROBIN,
+		HealthChecks:    healthChecks,
 		TransportSocket: transportSocket,
 		LoadAssignment: &api.ClusterLoadAssignment{
 			ClusterName: params.Name,
@@ -115,4 +153,29 @@ func (c *Cluster) GetClusterNames(clusters []cache.Resource) []string {
 		clusterNames = append(clusterNames, v.(*api.Cluster).Name)
 	}
 	return clusterNames
+}
+func (c *Cluster) PrintCluster(cache *WorkQueueCache, name string) (string, error) {
+	clusterFound := false
+	out := ""
+	for _, v := range cache.clusters {
+		cluster := v.(*api.Cluster)
+		if cluster.Name == name {
+			clusterFound = true
+			out += "Name: " + cluster.GetName()
+			healthChecks := cluster.GetHealthChecks()
+			for _, v := range healthChecks {
+
+				out += "\nHealthCheck: " + v.GetHttpHealthCheck().GetPath()
+				out += " - " + v.GetHealthyThreshold().String()
+				out += " - " + v.GetUnhealthyThreshold().String()
+				out += " - " + v.GetInterval().String()
+				out += " - " + v.GetTimeout().String()
+				out += " - " + v.GetUnhealthyInterval().String()
+			}
+		}
+	}
+	if clusterFound {
+		return out, nil
+	}
+	return out, fmt.Errorf("Cluster not found")
 }
