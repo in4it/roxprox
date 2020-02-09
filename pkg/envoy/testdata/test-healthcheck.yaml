@@ -13,6 +13,7 @@ spec:
         healthCheck:
             interval: "3s"
             timeout: "20s"
+            unhealthyInterval: "1s"
             unhealthyThreshold: 2
             healthyThreshold: 3
             httpHealthCheck:

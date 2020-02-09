@@ -98,6 +98,14 @@ func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 				},
 			},
 		}
+
+		// optional parameters
+		if params.HealthCheck.UnhealthyInterval != "" {
+			if healthCheckUnhealthyInterval, err := time.ParseDuration(params.HealthCheck.UnhealthyInterval); err == nil {
+				healthCheck.UnhealthyInterval = ptypes.DurationProto(healthCheckUnhealthyInterval)
+			}
+		}
+
 		healthChecks = append(healthChecks, healthCheck)
 		logger.Infof("healthcheck on " + params.HealthCheck.HTTPHealthCheck.Path)
 	}
@@ -162,6 +170,7 @@ func (c *Cluster) PrintCluster(cache *WorkQueueCache, name string) (string, erro
 				out += " - " + v.GetUnhealthyThreshold().String()
 				out += " - " + v.GetInterval().String()
 				out += " - " + v.GetTimeout().String()
+				out += " - " + v.GetUnhealthyInterval().String()
 			}
 		}
 	}

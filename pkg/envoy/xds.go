@@ -382,6 +382,7 @@ func (x *XDS) getAction(ruleName string, actions []pkgApi.RuleActions) Action {
 				action.Proxy.HealthCheck.Interval = ruleAction.Proxy.HealthCheck.Interval
 				action.Proxy.HealthCheck.HealthyThreshold = ruleAction.Proxy.HealthCheck.HealthyThreshold
 				action.Proxy.HealthCheck.UnhealthyThreshold = ruleAction.Proxy.HealthCheck.UnhealthyThreshold
+				action.Proxy.HealthCheck.UnhealthyInterval = ruleAction.Proxy.HealthCheck.UnhealthyInterval
 			}
 		} else if ruleAction.DirectResponse.Status > 0 {
 			action.Type = "directResponse"

@@ -97,6 +97,7 @@ type HealthCheck struct {
 	Interval           string
 	HealthyThreshold   uint32
 	UnhealthyThreshold uint32
+	UnhealthyInterval  string
 }
 type HTTPHealthCheck struct {
 	Path string

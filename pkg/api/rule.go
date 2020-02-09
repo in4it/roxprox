@@ -41,6 +41,7 @@ type RuleActionHealthCheck struct {
 	Interval           string          `json:"interval" yaml:"interval"`
 	HealthyThreshold   uint32          `json:"healthyThreshold" yaml:"healthyThreshold"`
 	UnhealthyThreshold uint32          `json:"unhealthyThreshold" yaml:"unhealthyThreshold"`
+	UnhealthyInterval  string          `json:"unhealthyInterval" yaml:"unhealthyInterval"`
 }
 type HTTPHealthCheck struct {
 	Path string `json:"path" yaml:"path"`
