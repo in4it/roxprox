@@ -13,7 +13,6 @@ resource "aws_s3_bucket_notification" "roxprox-notification" {
   }
 }
 
-
 resource "aws_sqs_queue" "roxprox-notifications" {
   name                       = "${var.s3_bucket}-notifications"
   receive_wait_time_seconds  = 20
@@ -26,7 +25,9 @@ resource "aws_sqs_queue" "roxprox-notifications" {
   "Statement": [
     {
       "Effect": "Allow",
-      "Principal": "*",
+      "Principal": {
+        "Service": "s3.amazonaws.com"  
+      },
       "Action": "sqs:SendMessage",
       "Resource": "arn:aws:sqs:*:*:${var.s3_bucket}-notifications",
       "Condition": {
