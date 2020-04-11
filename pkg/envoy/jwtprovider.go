@@ -8,9 +8,8 @@ import (
 	corev2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	route "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
 	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
-	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
 	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
-	listener "github.com/envoyproxy/go-control-plane/envoy/service/listener/v3"
+	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher"
 	"github.com/golang/protobuf/ptypes"
 )
@@ -206,7 +205,7 @@ func (j *JwtProvider) updateListenerWithJwtProvider(cache *WorkQueueCache, param
 		if err != nil {
 			panic(err)
 		}
-		ll.FilterChains[0].Filters[0].ConfigType = &listener.Filter_TypedConfig{
+		ll.FilterChains[0].Filters[0].ConfigType = &api.Filter_TypedConfig{
 			TypedConfig: pbst,
 		}
 	}
@@ -305,7 +304,7 @@ func (j *JwtProvider) UpdateJwtRule(cache *WorkQueueCache, params ListenerParams
 	}
 
 	// modify filter
-	ll.FilterChains[filterId].Filters[0].ConfigType = &listener.Filter_TypedConfig{
+	ll.FilterChains[filterId].Filters[0].ConfigType = &api.Filter_TypedConfig{
 		TypedConfig: pbst,
 	}
 
@@ -382,7 +381,7 @@ func (j *JwtProvider) DeleteJwtRule(cache *WorkQueueCache, params ListenerParams
 		filterId = 0
 	}
 
-	ll.FilterChains[filterId].Filters[0].ConfigType = &listener.Filter_TypedConfig{
+	ll.FilterChains[filterId].Filters[0].ConfigType = &api.Filter_TypedConfig{
 		TypedConfig: pbst,
 	}
 

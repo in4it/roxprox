@@ -13,7 +13,7 @@ import (
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	extAuthz "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/ext_authz/v2"
 	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
-	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
+	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	listener "github.com/envoyproxy/go-control-plane/envoy/service/listener/v3"
 	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher"
 	cache "github.com/envoyproxy/go-control-plane/pkg/cache/v3"

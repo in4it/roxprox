@@ -6,11 +6,12 @@ import (
 	"sort"
 	"strings"
 
-	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	auth "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
-	route "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
-	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
+	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
+	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
+	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
+	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
+	auth "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	listener "github.com/envoyproxy/go-control-plane/envoy/service/listener/v3"
 	envoyType "github.com/envoyproxy/go-control-plane/envoy/type"
 	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher"
@@ -38,10 +39,10 @@ func newListener() *Listener {
 	return listener
 }
 
-func (l *Listener) newTLSFilterChain(params TLSParams) *listener.FilterChain {
-	tlsContext, err := ptypes.MarshalAny(&auth.DownstreamTlsContext{
-		CommonTlsContext: &auth.CommonTlsContext{
-			TlsCertificates: []*auth.TlsCertificate{
+func (l *Listener) newTLSFilterChain(params TLSParams) *api.FilterChain {
+	tlsContext, err := ptypes.MarshalAny(&tls.DownstreamTlsContext{
+		CommonTlsContext: &tls.CommonTlsContext{
+			TlsCertificates: []*tls.TlsCertificate{
 				{
 					CertificateChain: &core.DataSource{
 						Specifier: &core.DataSource_InlineString{
@@ -60,8 +61,8 @@ func (l *Listener) newTLSFilterChain(params TLSParams) *listener.FilterChain {
 	if err != nil {
 		panic(err)
 	}
-	return &listener.FilterChain{
-		FilterChainMatch: &listener.FilterChainMatch{
+	return &api.FilterChain{
+		FilterChainMatch: &api.FilterChainMatch{
 			ServerNames: []string{params.Domain},
 		},
 		TransportSocket: &core.TransportSocket{
@@ -149,7 +150,7 @@ func (l *Listener) updateListenerWithChallenge(cache *WorkQueueCache, challenge 
 			if err != nil {
 				panic(err)
 			}
-			ll.FilterChains[0].Filters[0].ConfigType = &listener.Filter_TypedConfig{
+			ll.FilterChains[0].Filters[0].ConfigType = &api.Filter_TypedConfig{
 				TypedConfig: pbst,
 			}
 		}
@@ -163,7 +164,7 @@ func (l *Listener) getListenerRouteSpecifier(manager hcm.HttpConnectionManager) 
 }
 
 func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, clusterName, virtualHostName string, methods []string, matchType string, directResponse DirectResponse) *route.VirtualHost {
-	var hostRewriteSpecifier *route.RouteAction_HostRewrite
+	var hostRewriteSpecifier *route.RouteAction_HostRewriteLiteral
 	var routes []*route.Route
 	var routeAction *route.Route_Route
 
@@ -172,8 +173,8 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 	}
 
 	if targetHostname != "" {
-		hostRewriteSpecifier = &route.RouteAction_HostRewrite{
-			HostRewrite: targetHostname,
+		hostRewriteSpecifier = &route.RouteAction_HostRewriteLiteral{
+			HostRewriteLiteral: targetHostname,
 		}
 		routeAction = &route.Route_Route{
 			Route: &route.RouteAction{
