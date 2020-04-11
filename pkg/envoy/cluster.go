@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	auth "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
-	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
-	endpoint "github.com/envoyproxy/go-control-plane/envoy/api/v2/endpoint"
+	api "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
+	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	endpoint "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
 	cacheTypes "github.com/envoyproxy/go-control-plane/pkg/cache/types"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/wrappers"
@@ -120,7 +120,7 @@ func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 		LbPolicy:        api.Cluster_ROUND_ROBIN,
 		HealthChecks:    healthChecks,
 		TransportSocket: transportSocket,
-		LoadAssignment: &api.ClusterLoadAssignment{
+		LoadAssignment: &endpoint.ClusterLoadAssignment{
 			ClusterName: params.Name,
 			Endpoints: []*endpoint.LocalityLbEndpoints{
 				{

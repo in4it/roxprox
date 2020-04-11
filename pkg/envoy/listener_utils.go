@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"reflect"
 
-	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	auth "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
-	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
-	listener "github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
 	route "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
+	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	extAuthz "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/ext_authz/v2"
 	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
+	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
@@ -27,13 +26,13 @@ func getListenerHTTPConnectionManager(ll *api.Listener) (hcm.HttpConnectionManag
 	if len(ll.FilterChains[0].Filters) == 0 {
 		return manager, fmt.Errorf("No filters found in listener %s", ll.Name)
 	}
-	manager, err = getManager((ll.FilterChains[0].Filters[0].ConfigType).(*listener.Filter_TypedConfig))
+	manager, err = getManager((ll.FilterChains[0].Filters[0].ConfigType).(*api.Filter_TypedConfig))
 	if err != nil {
 		return manager, err
 	}
 	return manager, nil
 }
-func getManager(typedConfig *listener.Filter_TypedConfig) (hcm.HttpConnectionManager, error) {
+func getManager(typedConfig *api.Filter_TypedConfig) (hcm.HttpConnectionManager, error) {
 	var manager hcm.HttpConnectionManager
 
 	err := ptypes.UnmarshalAny(typedConfig.TypedConfig, &manager)
@@ -67,7 +66,7 @@ func getListenerHTTPConnectionManagerTLS(ll *api.Listener, hostname string) (hcm
 		if len(ll.FilterChains[filterId].Filters) == 0 {
 			return manager, fmt.Errorf(Error_NoFilterFound)
 		}
-		manager, err = getManager(ll.FilterChains[filterId].Filters[0].ConfigType.(*listener.Filter_TypedConfig))
+		manager, err = getManager(ll.FilterChains[filterId].Filters[0].ConfigType.(*api.Filter_TypedConfig))
 		if err != nil {
 			return manager, err
 		}
@@ -75,7 +74,7 @@ func getListenerHTTPConnectionManagerTLS(ll *api.Listener, hostname string) (hcm
 
 	return manager, nil
 }
-func getFilterChainId(filterChains []*listener.FilterChain, hostname string) int {
+func getFilterChainId(filterChains []*api.FilterChain, hostname string) int {
 	filterId := -1
 
 	for k, filter := range filterChains {

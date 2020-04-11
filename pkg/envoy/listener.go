@@ -8,10 +8,10 @@ import (
 
 	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	auth "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
-	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
-	listener "github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
 	route "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
+	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
+	listener "github.com/envoyproxy/go-control-plane/envoy/service/listener/v3"
 	envoyType "github.com/envoyproxy/go-control-plane/envoy/type"
 	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher"
 	cacheTypes "github.com/envoyproxy/go-control-plane/pkg/cache/types"
