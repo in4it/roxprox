@@ -16,7 +16,7 @@ import (
 	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
 	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher"
-	"github.com/envoyproxy/go-control-plane/pkg/cache"
+	cache "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
 	"github.com/gogo/protobuf/types"
 	"github.com/juju/loggo"
 )
@@ -703,15 +703,15 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 				domainFound = true
 				for _, r := range virtualhost.Routes {
 					switch reflect.TypeOf(r.Match.PathSpecifier).String() {
-					case "*envoy_api_v2_route.RouteMatch_Prefix":
+					case "*envoy_api_v3_route.RouteMatch_Prefix":
 						if r.Match.PathSpecifier.(*route.RouteMatch_Prefix).Prefix == params.Conditions.Prefix {
 							prefixFound = true
 						}
-					case "*envoy_api_v2_route.RouteMatch_Path":
+					case "*envoy_api_v3_route.RouteMatch_Path":
 						if r.Match.PathSpecifier.(*route.RouteMatch_Path).Path == params.Conditions.Path {
 							pathFound = true
 						}
-					case "*envoy_api_v2_route.RouteMatch_SafeRegex":
+					case "*envoy_api_v3_route.RouteMatch_SafeRegex":
 						if r.Match.PathSpecifier.(*route.RouteMatch_SafeRegex).SafeRegex.GetRegex() == params.Conditions.Regex {
 							regexFound = true
 						}
@@ -728,9 +728,9 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 						}
 					}
 					switch reflect.TypeOf(r.Action).String() {
-					case "*envoy_api_v2_route.Route_Route":
+					case "*envoy_api_v3_route.Route_Route":
 						// do nothing here
-					case "*envoy_api_v2_route.Route_DirectResponse":
+					case "*envoy_api_v3_route.Route_DirectResponse":
 						d := r.Action.(*route.Route_DirectResponse).DirectResponse
 						if params.DirectResponse.Status == d.GetStatus() && params.DirectResponse.Body == d.GetBody().GetInlineString() {
 							directResponseFound = true
@@ -889,15 +889,15 @@ func validateJWT(manager hcm.HttpConnectionManager, params ListenerParams) error
 		matchedEntries := 0
 		for _, rule := range jwtConfig.Rules {
 			switch reflect.TypeOf(rule.Match.PathSpecifier).String() {
-			case "*envoy_api_v2_route.RouteMatch_Prefix":
+			case "*envoy_api_v3_route.RouteMatch_Prefix":
 				if rule.Match.PathSpecifier.(*route.RouteMatch_Prefix).Prefix == params.Conditions.Prefix {
 					prefixFound = true
 				}
-			case "*envoy_api_v2_route.RouteMatch_Path":
+			case "*envoy_api_v3_route.RouteMatch_Path":
 				if rule.Match.PathSpecifier.(*route.RouteMatch_Path).Path == params.Conditions.Path {
 					pathFound = true
 				}
-			case "*envoy_api_v2_route.RouteMatch_SafeRegex":
+			case "*envoy_api_v3_route.RouteMatch_SafeRegex":
 				if rule.Match.PathSpecifier.(*route.RouteMatch_SafeRegex).SafeRegex.GetRegex() == params.Conditions.Regex {
 					regexFound = true
 				}

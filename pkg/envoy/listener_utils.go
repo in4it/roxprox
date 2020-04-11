@@ -308,13 +308,13 @@ func routeActionEqual(a, b *route.Route) bool {
 		return false
 	}
 	switch reflect.TypeOf(a.Action).String() {
-	case "*envoy_api_v2_route.Route_Route":
+	case "*envoy_api_v3_route.Route_Route":
 		cluster1 := a.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
 		cluster2 := b.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
 		if cluster1 != cluster2 {
 			return false
 		}
-	case "*envoy_api_v2_route.Route_DirectResponse":
+	case "*envoy_api_v3_route.Route_DirectResponse":
 		status1 := a.Action.(*route.Route_DirectResponse).DirectResponse.GetStatus()
 		status2 := b.Action.(*route.Route_DirectResponse).DirectResponse.GetStatus()
 		if status1 != status2 {

@@ -1,6 +1,9 @@
 package envoy
 
-import "github.com/envoyproxy/go-control-plane/pkg/cache"
+import (
+	cacheTypes "github.com/envoyproxy/go-control-plane/pkg/cache/types"
+	"github.com/envoyproxy/go-control-plane/pkg/cache/v3"
+)
 
 type WorkQueueItem struct {
 	id               string
@@ -18,8 +21,8 @@ type WorkQueueItem struct {
 
 type WorkQueueCache struct {
 	snapshotCache cache.SnapshotCache
-	clusters      []cache.Resource
-	listeners     []cache.Resource
+	clusters      []cacheTypes.Resource
+	listeners     []cacheTypes.Resource
 	version       int64
 }
 

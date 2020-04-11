@@ -14,7 +14,7 @@ import (
 	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
 	envoyType "github.com/envoyproxy/go-control-plane/envoy/type"
 	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher"
-	"github.com/envoyproxy/go-control-plane/pkg/cache"
+	cacheTypes "github.com/envoyproxy/go-control-plane/pkg/cache/types"
 	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
 	"github.com/golang/protobuf/ptypes"
 	any "github.com/golang/protobuf/ptypes/any"
@@ -545,7 +545,7 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 	return newListener
 }
 
-func (l *Listener) GetListenerNames(listeners []cache.Resource) []string {
+func (l *Listener) GetListenerNames(listeners []cacheTypes.Resource) []string {
 	var listenerNames []string
 	for _, v := range listeners {
 		listenerNames = append(listenerNames, v.(*api.Listener).Name)
@@ -635,7 +635,7 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 	return nil
 }
 
-func (l *Listener) validateListeners(listeners []cache.Resource, clusterNames []string) (bool, error) {
+func (l *Listener) validateListeners(listeners []cacheTypes.Resource, clusterNames []string) (bool, error) {
 	logger.Debugf("Validating config...")
 	for listenerKey := range listeners {
 		ll := listeners[listenerKey].(*api.Listener)
@@ -652,7 +652,7 @@ func (l *Listener) validateListeners(listeners []cache.Resource, clusterNames []
 			for _, virtualHostRoute := range virtualHost.Routes {
 				if virtualHostRoute.Action != nil {
 					switch reflect.TypeOf(virtualHostRoute.Action).String() {
-					case "*envoy_api_v2_route.Route_Route":
+					case "*envoy_api_v3_route.Route_Route":
 						clusterFound := false
 						virtualHostRouteClusterName := virtualHostRoute.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
 						for _, clusterName := range clusterNames {
@@ -663,7 +663,7 @@ func (l *Listener) validateListeners(listeners []cache.Resource, clusterNames []
 						if !clusterFound {
 							return false, fmt.Errorf("Cluster not found: %s", virtualHostRouteClusterName)
 						}
-					case "*envoy_api_v2_route.Route_DirectResponse":
+					case "*envoy_api_v3_route.Route_DirectResponse":
 						logger.Debugf("Validation: DirectResponse, no cluster validation necessary")
 						// no validation necessary
 					default:
@@ -723,9 +723,9 @@ func (l *Listener) printListener(cache *WorkQueueCache) (string, error) {
 				}
 				if virtualHostRoute.Action != nil {
 					switch reflect.TypeOf(virtualHostRoute.Action).String() {
-					case "*envoy_api_v2_route.Route_Route":
+					case "*envoy_api_v3_route.Route_Route":
 						res += "Route action (cluster): " + virtualHostRoute.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster + "\n"
-					case "*envoy_api_v2_route.Route_DirectResponse":
+					case "*envoy_api_v3_route.Route_DirectResponse":
 						res += "Route action (directResponse): "
 						res += fmt.Sprint(virtualHostRoute.Action.(*route.Route_DirectResponse).DirectResponse.GetStatus()) + " "
 						res += virtualHostRoute.Action.(*route.Route_DirectResponse).DirectResponse.Body.GetInlineString() + "\n"
