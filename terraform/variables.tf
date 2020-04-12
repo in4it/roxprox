@@ -1,6 +1,6 @@
 variable "envoy_release" {
   description = "docker tag of envoy release"
-  default     = "v1.10.0"
+  default     = "v1.14.1"
 }
 
 variable "release" {
