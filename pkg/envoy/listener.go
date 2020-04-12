@@ -11,10 +11,8 @@ import (
 	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
-	auth "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
-	listener "github.com/envoyproxy/go-control-plane/envoy/service/listener/v3"
-	envoyType "github.com/envoyproxy/go-control-plane/envoy/type"
-	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher"
+	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
+	envoyType "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 	cacheTypes "github.com/envoyproxy/go-control-plane/pkg/cache/types"
 	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
 	"github.com/golang/protobuf/ptypes"
@@ -302,7 +300,7 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 	}
 }
 
-func (l *Listener) newTLSFilter(params ListenerParams, paramsTLS TLSParams, listenerName string) []*listener.Filter {
+func (l *Listener) newTLSFilter(params ListenerParams, paramsTLS TLSParams, listenerName string) []*api.Filter {
 	httpFilters := l.newHTTPRouterFilter()
 	newEmptyVirtualHost := &route.VirtualHost{
 		Name:    "v_" + params.Conditions.Hostname,
@@ -314,9 +312,9 @@ func (l *Listener) newTLSFilter(params ListenerParams, paramsTLS TLSParams, list
 	if err != nil {
 		panic(err)
 	}
-	return []*listener.Filter{{
+	return []*api.Filter{{
 		Name: wellknown.HTTPConnectionManager,
-		ConfigType: &listener.Filter_TypedConfig{
+		ConfigType: &api.Filter_TypedConfig{
 			TypedConfig: pbst,
 		},
 	}}
@@ -419,7 +417,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	}
 
 	// modify filter
-	ll.FilterChains[filterId].Filters[0].ConfigType = &listener.Filter_TypedConfig{
+	ll.FilterChains[filterId].Filters[0].ConfigType = &api.Filter_TypedConfig{
 		TypedConfig: pbst,
 	}
 
@@ -451,7 +449,7 @@ func (l *Listener) newManager(routeName string, virtualHosts []*route.VirtualHos
 		CodecType:  hcm.HttpConnectionManager_AUTO,
 		StatPrefix: "ingress_http",
 		RouteSpecifier: &hcm.HttpConnectionManager_RouteConfig{
-			RouteConfig: &api.RouteConfiguration{
+			RouteConfig: &route.RouteConfiguration{
 				Name:         routeName,
 				VirtualHosts: virtualHosts,
 			},
@@ -467,7 +465,7 @@ func (l *Listener) newManager(routeName string, virtualHosts []*route.VirtualHos
 func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *api.Listener {
 	var err error
 
-	tls, _, _, listenerName, listenerPort, _ := getListenerAttributes(params, paramsTLS)
+	isTls, _, _, listenerName, listenerPort, _ := getListenerAttributes(params, paramsTLS)
 
 	logger.Infof("Creating listener " + listenerName)
 
@@ -492,32 +490,32 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 				},
 			},
 		},
-		FilterChains: []*listener.FilterChain{{
-			Filters: []*listener.Filter{{
+		FilterChains: []*api.FilterChain{{
+			Filters: []*api.Filter{{
 				Name: wellknown.HTTPConnectionManager,
-				ConfigType: &listener.Filter_TypedConfig{
+				ConfigType: &api.Filter_TypedConfig{
 					TypedConfig: pbst,
 				},
 			}},
 		}},
 	}
-	if tls {
+	if isTls {
 		// this should never happen:
 		if params.Conditions.Hostname == "" {
 			panic("This should never happen: tls enabled and no hostname set (earlier validation must have failed)")
 		}
-		newListener.ListenerFilters = []*listener.ListenerFilter{
+		newListener.ListenerFilters = []*api.ListenerFilter{
 			{
 				Name: "envoy.listener.tls_inspector",
 			},
 		}
-		newListener.FilterChains[0].FilterChainMatch = &listener.FilterChainMatch{
+		newListener.FilterChains[0].FilterChainMatch = &api.FilterChainMatch{
 			ServerNames: []string{params.Conditions.Hostname},
 		}
 		// add cert and key to tls listener
-		tlsContext, err := ptypes.MarshalAny(&auth.DownstreamTlsContext{
-			CommonTlsContext: &auth.CommonTlsContext{
-				TlsCertificates: []*auth.TlsCertificate{
+		tlsContext, err := ptypes.MarshalAny(&tls.DownstreamTlsContext{
+			CommonTlsContext: &tls.CommonTlsContext{
+				TlsCertificates: []*tls.TlsCertificate{
 					{
 						CertificateChain: &core.DataSource{
 							Specifier: &core.DataSource_InlineString{
@@ -629,7 +627,7 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 		filterId = 0
 	}
 
-	ll.FilterChains[filterId].Filters[0].ConfigType = &listener.Filter_TypedConfig{
+	ll.FilterChains[filterId].Filters[0].ConfigType = &api.Filter_TypedConfig{
 		TypedConfig: pbst,
 	}
 
@@ -653,7 +651,7 @@ func (l *Listener) validateListeners(listeners []cacheTypes.Resource, clusterNam
 			for _, virtualHostRoute := range virtualHost.Routes {
 				if virtualHostRoute.Action != nil {
 					switch reflect.TypeOf(virtualHostRoute.Action).String() {
-					case "*envoy_api_v3_route.Route_Route":
+					case "*envoy_config_route_v3.Route_Route":
 						clusterFound := false
 						virtualHostRouteClusterName := virtualHostRoute.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
 						for _, clusterName := range clusterNames {
@@ -664,7 +662,7 @@ func (l *Listener) validateListeners(listeners []cacheTypes.Resource, clusterNam
 						if !clusterFound {
 							return false, fmt.Errorf("Cluster not found: %s", virtualHostRouteClusterName)
 						}
-					case "*envoy_api_v3_route.Route_DirectResponse":
+					case "*envoy_config_route_v3.Route_DirectResponse":
 						logger.Debugf("Validation: DirectResponse, no cluster validation necessary")
 						// no validation necessary
 					default:
@@ -724,9 +722,9 @@ func (l *Listener) printListener(cache *WorkQueueCache) (string, error) {
 				}
 				if virtualHostRoute.Action != nil {
 					switch reflect.TypeOf(virtualHostRoute.Action).String() {
-					case "*envoy_api_v3_route.Route_Route":
+					case "*envoy_config_route_v3.Route_Route":
 						res += "Route action (cluster): " + virtualHostRoute.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster + "\n"
-					case "*envoy_api_v3_route.Route_DirectResponse":
+					case "*envoy_config_route_v3.Route_DirectResponse":
 						res += "Route action (directResponse): "
 						res += fmt.Sprint(virtualHostRoute.Action.(*route.Route_DirectResponse).DirectResponse.GetStatus()) + " "
 						res += virtualHostRoute.Action.(*route.Route_DirectResponse).DirectResponse.Body.GetInlineString() + "\n"

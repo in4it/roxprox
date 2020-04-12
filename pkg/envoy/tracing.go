@@ -1,10 +1,9 @@
 package envoy
 
 import (
-	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
+	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
-	listener "github.com/envoyproxy/go-control-plane/envoy/service/listener/v3"
-	envoyType "github.com/envoyproxy/go-control-plane/envoy/type"
+	envoyType "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 	"github.com/golang/protobuf/ptypes"
 )
 
@@ -21,7 +20,7 @@ func (t *Tracing) updateListenersWithTracing(cache *WorkQueueCache, tracing Trac
 		for filterchainID := range ll.FilterChains {
 			for filterID := range ll.FilterChains[filterchainID].Filters {
 				// get manager
-				manager, err := getManager((ll.FilterChains[filterchainID].Filters[filterID].ConfigType).(*listener.Filter_TypedConfig))
+				manager, err := getManager((ll.FilterChains[filterchainID].Filters[filterID].ConfigType).(*api.Filter_TypedConfig))
 				if err != nil {
 					return err
 				}
@@ -37,7 +36,7 @@ func (t *Tracing) updateListenersWithTracing(cache *WorkQueueCache, tracing Trac
 				if err != nil {
 					return err
 				}
-				ll.FilterChains[filterchainID].Filters[filterID].ConfigType = &listener.Filter_TypedConfig{
+				ll.FilterChains[filterchainID].Filters[filterID].ConfigType = &api.Filter_TypedConfig{
 					TypedConfig: pbst,
 				}
 

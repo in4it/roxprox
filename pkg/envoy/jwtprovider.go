@@ -5,12 +5,12 @@ import (
 	"sort"
 	"time"
 
-	corev2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
-	route "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
-	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
+	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
+	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
+	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/jwt_authn/v3"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
-	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher"
+	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
 	"github.com/golang/protobuf/ptypes"
 )
 
@@ -159,10 +159,10 @@ func (j *JwtProvider) getJwtConfig(auth Auth) *jwtAuth.JwtAuthentication {
 				Forward: auth.Forward,
 				JwksSourceSpecifier: &jwtAuth.JwtProvider_RemoteJwks{
 					RemoteJwks: &jwtAuth.RemoteJwks{
-						HttpUri: &corev2.HttpUri{
+						HttpUri: &core.HttpUri{
 							Uri:     auth.RemoteJwks,
 							Timeout: ptypes.DurationProto(30 * time.Second),
-							HttpUpstreamType: &corev2.HttpUri_Cluster{
+							HttpUpstreamType: &core.HttpUri_Cluster{
 								Cluster: "jwtProvider_" + auth.JwtProvider,
 							},
 						},

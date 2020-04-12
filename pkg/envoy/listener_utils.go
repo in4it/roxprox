@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"reflect"
 
-	auth "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
-	route "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
-	extAuthz "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/ext_authz/v2"
-	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
 	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
+	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
+	extAuthz "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/ext_authz/v3"
+	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/jwt_authn/v3"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
-	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher"
+	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
+	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
 )
@@ -43,8 +43,8 @@ func getManager(typedConfig *api.Filter_TypedConfig) (hcm.HttpConnectionManager,
 	return manager, nil
 }
 
-func getTransportSocketDownStreamTlsSocket(typedConfig *core.TransportSocket_TypedConfig) (auth.DownstreamTlsContext, error) {
-	var tlsContext auth.DownstreamTlsContext
+func getTransportSocketDownStreamTlsSocket(typedConfig *core.TransportSocket_TypedConfig) (tls.DownstreamTlsContext, error) {
+	var tlsContext tls.DownstreamTlsContext
 
 	err := ptypes.UnmarshalAny(typedConfig.TypedConfig, &tlsContext)
 	if err != nil {
@@ -307,13 +307,13 @@ func routeActionEqual(a, b *route.Route) bool {
 		return false
 	}
 	switch reflect.TypeOf(a.Action).String() {
-	case "*envoy_api_v3_route.Route_Route":
+	case "*envoy_config_route_v3.Route_Route":
 		cluster1 := a.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
 		cluster2 := b.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
 		if cluster1 != cluster2 {
 			return false
 		}
-	case "*envoy_api_v3_route.Route_DirectResponse":
+	case "*envoy_config_route_v3.Route_DirectResponse":
 		status1 := a.Action.(*route.Route_DirectResponse).DirectResponse.GetStatus()
 		status2 := b.Action.(*route.Route_DirectResponse).DirectResponse.GetStatus()
 		if status1 != status2 {

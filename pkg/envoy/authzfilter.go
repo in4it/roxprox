@@ -3,9 +3,9 @@ package envoy
 import (
 	"time"
 
-	corev2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
-	extAuthz "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/ext_authz/v2"
+	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
+	extAuthz "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/ext_authz/v3"
 	"github.com/golang/protobuf/ptypes"
 	any "github.com/golang/protobuf/ptypes/any"
 )
@@ -74,10 +74,10 @@ func (a *AuthzFilter) getAuthzFilter(params ListenerParams) (*extAuthz.ExtAuthz,
 	return &extAuthz.ExtAuthz{
 		FailureModeAllow: params.Authz.FailureModeAllow,
 		Services: &extAuthz.ExtAuthz_GrpcService{
-			GrpcService: &corev2.GrpcService{
+			GrpcService: &core.GrpcService{
 				Timeout: ptypes.DurationProto(timeout),
-				TargetSpecifier: &corev2.GrpcService_EnvoyGrpc_{
-					EnvoyGrpc: &corev2.GrpcService_EnvoyGrpc{
+				TargetSpecifier: &core.GrpcService_EnvoyGrpc_{
+					EnvoyGrpc: &core.GrpcService_EnvoyGrpc{
 						ClusterName: params.Name,
 					},
 				},

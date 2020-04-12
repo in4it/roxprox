@@ -8,15 +8,14 @@ import (
 	"testing"
 	"time"
 
-	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	route "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
-	extAuthz "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/ext_authz/v2"
-	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
+	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
+	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
+	extAuthz "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/ext_authz/v3"
+	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/jwt_authn/v3"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
-	listener "github.com/envoyproxy/go-control-plane/envoy/service/listener/v3"
-	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher"
-	cache "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
+	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
+	cacheTypes "github.com/envoyproxy/go-control-plane/pkg/cache/types"
 	"github.com/gogo/protobuf/types"
 	"github.com/juju/loggo"
 )
@@ -524,7 +523,7 @@ func TestUpdateListener(t *testing.T) {
 	}
 }
 
-func validateDeleteRoute(listeners []cache.Resource, params ListenerParams, tlsParams TLSParams) error {
+func validateDeleteRoute(listeners []cacheTypes.Resource, params ListenerParams, tlsParams TLSParams) error {
 	if len(listeners) != 2 {
 		return fmt.Errorf("Expected 2 listeners (l_http and l_tls) (got %d)", len(listeners))
 	}
@@ -569,7 +568,7 @@ func validateDeleteRoute(listeners []cache.Resource, params ListenerParams, tlsP
 	return nil
 }
 
-func validateChallenge(listeners []cache.Resource, params ChallengeParams) error {
+func validateChallenge(listeners []cacheTypes.Resource, params ChallengeParams) error {
 	l := newListener()
 	if len(listeners) == 0 {
 		return fmt.Errorf("Listener is empty (got %d)", len(listeners))
@@ -615,7 +614,7 @@ func validateChallenge(listeners []cache.Resource, params ChallengeParams) error
 	return nil
 }
 
-func validateDomainTLS(listeners []cache.Resource, params ListenerParams, tlsParams TLSParams) error {
+func validateDomainTLS(listeners []cacheTypes.Resource, params ListenerParams, tlsParams TLSParams) error {
 	if len(listeners) == 0 {
 		return fmt.Errorf("Listener is empty (got %d)", len(listeners))
 	}
@@ -659,7 +658,7 @@ func validateDomainTLS(listeners []cache.Resource, params ListenerParams, tlsPar
 	return nil
 }
 
-func validateDomain(listeners []cache.Resource, params ListenerParams) error {
+func validateDomain(listeners []cacheTypes.Resource, params ListenerParams) error {
 	if len(listeners) == 0 {
 		return fmt.Errorf("Listener is empty (got %d)", len(listeners))
 	}
@@ -703,15 +702,15 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 				domainFound = true
 				for _, r := range virtualhost.Routes {
 					switch reflect.TypeOf(r.Match.PathSpecifier).String() {
-					case "*envoy_api_v3_route.RouteMatch_Prefix":
+					case "*envoy_config_route_v3.RouteMatch_Prefix":
 						if r.Match.PathSpecifier.(*route.RouteMatch_Prefix).Prefix == params.Conditions.Prefix {
 							prefixFound = true
 						}
-					case "*envoy_api_v3_route.RouteMatch_Path":
+					case "*envoy_config_route_v3.RouteMatch_Path":
 						if r.Match.PathSpecifier.(*route.RouteMatch_Path).Path == params.Conditions.Path {
 							pathFound = true
 						}
-					case "*envoy_api_v3_route.RouteMatch_SafeRegex":
+					case "*envoy_config_route_v3.RouteMatch_SafeRegex":
 						if r.Match.PathSpecifier.(*route.RouteMatch_SafeRegex).SafeRegex.GetRegex() == params.Conditions.Regex {
 							regexFound = true
 						}
@@ -728,9 +727,9 @@ func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams
 						}
 					}
 					switch reflect.TypeOf(r.Action).String() {
-					case "*envoy_api_v3_route.Route_Route":
+					case "*envoy_config_route_v3.Route_Route":
 						// do nothing here
-					case "*envoy_api_v3_route.Route_DirectResponse":
+					case "*envoy_config_route_v3.Route_DirectResponse":
 						d := r.Action.(*route.Route_DirectResponse).DirectResponse
 						if params.DirectResponse.Status == d.GetStatus() && params.DirectResponse.Body == d.GetBody().GetInlineString() {
 							directResponseFound = true
@@ -799,7 +798,7 @@ func validateMethods(headers []*route.HeaderMatcher, methods []string) bool {
 	return false
 }
 
-func validateJWTProvider(listeners []cache.Resource, auth Auth) error {
+func validateJWTProvider(listeners []cacheTypes.Resource, auth Auth) error {
 	if len(listeners) == 0 {
 		return fmt.Errorf("Listener is empty (got %d)", len(listeners))
 	}
@@ -822,7 +821,7 @@ func validateJWTProvider(listeners []cache.Resource, auth Auth) error {
 				if len(filterChain.Filters) == 0 {
 					return fmt.Errorf("No filters found in listener %s", cachedListener.Name)
 				}
-				manager, err := getManager((filterChain.Filters[0].ConfigType).(*listener.Filter_TypedConfig))
+				manager, err := getManager((filterChain.Filters[0].ConfigType).(*api.Filter_TypedConfig))
 				if err != nil {
 					return fmt.Errorf("Could not extract manager from listener %s", cachedListener.Name)
 				}
@@ -889,15 +888,15 @@ func validateJWT(manager hcm.HttpConnectionManager, params ListenerParams) error
 		matchedEntries := 0
 		for _, rule := range jwtConfig.Rules {
 			switch reflect.TypeOf(rule.Match.PathSpecifier).String() {
-			case "*envoy_api_v3_route.RouteMatch_Prefix":
+			case "*envoy_config_route_v3.RouteMatch_Prefix":
 				if rule.Match.PathSpecifier.(*route.RouteMatch_Prefix).Prefix == params.Conditions.Prefix {
 					prefixFound = true
 				}
-			case "*envoy_api_v3_route.RouteMatch_Path":
+			case "*envoy_config_route_v3.RouteMatch_Path":
 				if rule.Match.PathSpecifier.(*route.RouteMatch_Path).Path == params.Conditions.Path {
 					pathFound = true
 				}
-			case "*envoy_api_v3_route.RouteMatch_SafeRegex":
+			case "*envoy_config_route_v3.RouteMatch_SafeRegex":
 				if rule.Match.PathSpecifier.(*route.RouteMatch_SafeRegex).SafeRegex.GetRegex() == params.Conditions.Regex {
 					regexFound = true
 				}
@@ -973,7 +972,7 @@ func testEqualityString(a, b []string) bool {
 	return true
 }
 
-func validateAuthz(listeners []cache.Resource, params ListenerParams) error {
+func validateAuthz(listeners []cacheTypes.Resource, params ListenerParams) error {
 	if len(listeners) == 0 {
 		return fmt.Errorf("Listener is empty (got %d)", len(listeners))
 	}
@@ -996,7 +995,7 @@ func validateAuthz(listeners []cache.Resource, params ListenerParams) error {
 				if len(filterChain.Filters) == 0 {
 					return fmt.Errorf("No filters found in listener %s", cachedListener.Name)
 				}
-				manager, err := getManager((filterChain.Filters[0].ConfigType).(*listener.Filter_TypedConfig))
+				manager, err := getManager((filterChain.Filters[0].ConfigType).(*api.Filter_TypedConfig))
 				if err != nil {
 					return fmt.Errorf("Could not extract manager from listener %s", cachedListener.Name)
 				}
