@@ -10,7 +10,11 @@ import (
 	"strconv"
 	"strings"
 
+	clusterservice "github.com/envoyproxy/go-control-plane/envoy/service/cluster/v3"
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
+	endpointservice "github.com/envoyproxy/go-control-plane/envoy/service/endpoint/v3"
+	listenerservice "github.com/envoyproxy/go-control-plane/envoy/service/listener/v3"
+	routeservice "github.com/envoyproxy/go-control-plane/envoy/service/route/v3"
 	xds "github.com/envoyproxy/go-control-plane/pkg/server/v3"
 	"github.com/google/go-cmp/cmp"
 	pkgApi "github.com/in4it/roxprox/pkg/api"
@@ -48,10 +52,10 @@ func NewXDS(s storage.Storage, acmeContact, port string) *XDS {
 		lis, _ := net.Listen("tcp", ":"+port)
 
 		discovery.RegisterAggregatedDiscoveryServiceServer(grpcServer, server)
-		//api.RegisterEndpointDiscoveryServiceServer(grpcServer, server)
-		//api.RegisterClusterDiscoveryServiceServer(grpcServer, server)
-		//api.RegisterRouteDiscoveryServiceServer(grpcServer, server)
-		//api.RegisterListenerDiscoveryServiceServer(grpcServer, server)
+		endpointservice.RegisterEndpointDiscoveryServiceServer(grpcServer, server)
+		clusterservice.RegisterClusterDiscoveryServiceServer(grpcServer, server)
+		routeservice.RegisterRouteDiscoveryServiceServer(grpcServer, server)
+		listenerservice.RegisterListenerDiscoveryServiceServer(grpcServer, server)
 		go func() {
 			if err := grpcServer.Serve(lis); err != nil {
 				panic(err)

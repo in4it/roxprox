@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	auth "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
 	api "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	endpoint "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
+	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	cacheTypes "github.com/envoyproxy/go-control-plane/pkg/cache/types"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/wrappers"
@@ -46,7 +46,7 @@ func (c *Cluster) getAllClusterNames(clusters []cacheTypes.Resource) []string {
 func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 	var transportSocket *core.TransportSocket
 	if params.Port == 443 {
-		tlsContext, err := ptypes.MarshalAny(&auth.UpstreamTlsContext{
+		tlsContext, err := ptypes.MarshalAny(&tls.UpstreamTlsContext{
 			Sni: params.TargetHostname,
 		})
 		if err != nil {

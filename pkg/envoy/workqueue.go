@@ -57,7 +57,8 @@ func NewWorkQueue(s storage.Storage, acmeContact string) (*WorkQueue, error) {
 	return w, nil
 }
 func (w *WorkQueue) InitCache() cache.SnapshotCache {
-	w.cache.snapshotCache = cache.NewSnapshotCache(false, cache.IDHash{}, nil)
+	enableAds := false
+	w.cache.snapshotCache = cache.NewSnapshotCache(enableAds, cache.IDHash{}, nil)
 	return w.cache.snapshotCache
 }
 func (w *WorkQueue) InitCallback() *Callback {

@@ -31,7 +31,7 @@ func newListener() *Listener {
 	listener := &Listener{}
 	listener.httpFilter = []*hcm.HttpFilter{
 		{
-			Name: wellknown.Router,
+			Name: "envoy.filters.http.router",
 		},
 	}
 	return listener
