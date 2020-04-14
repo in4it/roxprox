@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"time"
 
-	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	auth "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
-	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
-	endpoint "github.com/envoyproxy/go-control-plane/envoy/api/v2/endpoint"
-	cache "github.com/envoyproxy/go-control-plane/pkg/cache"
+	api "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
+	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	endpoint "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
+	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
+	cacheTypes "github.com/envoyproxy/go-control-plane/pkg/cache/types"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/wrappers"
 )
@@ -19,7 +19,7 @@ func newCluster() *Cluster {
 	return &Cluster{}
 }
 
-func (c *Cluster) findCluster(clusters []cache.Resource, params ClusterParams) (int, error) {
+func (c *Cluster) findCluster(clusters []cacheTypes.Resource, params ClusterParams) (int, error) {
 	for k, v := range clusters {
 		if v.(*api.Cluster).Name == params.Name {
 			return k, nil
@@ -27,7 +27,7 @@ func (c *Cluster) findCluster(clusters []cache.Resource, params ClusterParams) (
 	}
 	return -1, fmt.Errorf("Cluster not found")
 }
-func (c *Cluster) findClusterByName(clusters []cache.Resource, name string) (int, error) {
+func (c *Cluster) findClusterByName(clusters []cacheTypes.Resource, name string) (int, error) {
 	for k, v := range clusters {
 		if v.(*api.Cluster).Name == name {
 			return k, nil
@@ -35,7 +35,7 @@ func (c *Cluster) findClusterByName(clusters []cache.Resource, name string) (int
 	}
 	return -1, fmt.Errorf("Cluster not found")
 }
-func (c *Cluster) getAllClusterNames(clusters []cache.Resource) []string {
+func (c *Cluster) getAllClusterNames(clusters []cacheTypes.Resource) []string {
 	var clusterNames []string
 	for _, v := range clusters {
 		clusterNames = append(clusterNames, v.(*api.Cluster).Name)
@@ -46,7 +46,7 @@ func (c *Cluster) getAllClusterNames(clusters []cache.Resource) []string {
 func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 	var transportSocket *core.TransportSocket
 	if params.Port == 443 {
-		tlsContext, err := ptypes.MarshalAny(&auth.UpstreamTlsContext{
+		tlsContext, err := ptypes.MarshalAny(&tls.UpstreamTlsContext{
 			Sni: params.TargetHostname,
 		})
 		if err != nil {
@@ -120,7 +120,7 @@ func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 		LbPolicy:        api.Cluster_ROUND_ROBIN,
 		HealthChecks:    healthChecks,
 		TransportSocket: transportSocket,
-		LoadAssignment: &api.ClusterLoadAssignment{
+		LoadAssignment: &endpoint.ClusterLoadAssignment{
 			ClusterName: params.Name,
 			Endpoints: []*endpoint.LocalityLbEndpoints{
 				{
@@ -147,7 +147,7 @@ func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 
 }
 
-func (c *Cluster) GetClusterNames(clusters []cache.Resource) []string {
+func (c *Cluster) GetClusterNames(clusters []cacheTypes.Resource) []string {
 	var clusterNames []string
 	for _, v := range clusters {
 		clusterNames = append(clusterNames, v.(*api.Cluster).Name)

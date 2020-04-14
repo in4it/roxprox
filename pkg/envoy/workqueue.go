@@ -6,7 +6,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/envoyproxy/go-control-plane/pkg/cache"
+	cacheTypes "github.com/envoyproxy/go-control-plane/pkg/cache/types"
+	cache "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
 	"github.com/google/uuid"
 	storage "github.com/in4it/roxprox/pkg/storage"
 )
@@ -56,7 +57,8 @@ func NewWorkQueue(s storage.Storage, acmeContact string) (*WorkQueue, error) {
 	return w, nil
 }
 func (w *WorkQueue) InitCache() cache.SnapshotCache {
-	w.cache.snapshotCache = cache.NewSnapshotCache(false, Hasher{}, nil)
+	enableAds := false
+	w.cache.snapshotCache = cache.NewSnapshotCache(enableAds, cache.IDHash{}, nil)
 	return w.cache.snapshotCache
 }
 func (w *WorkQueue) InitCallback() *Callback {
@@ -68,7 +70,7 @@ func (w *WorkQueue) WaitForFirstEnvoy() {
 	<-w.callback.waitForEnvoy
 }
 
-func removeResource(slice []cache.Resource, s int) []cache.Resource {
+func removeResource(slice []cacheTypes.Resource, s int) []cacheTypes.Resource {
 	return append(slice[:s], slice[s+1:]...)
 }
 

@@ -3,10 +3,9 @@ package envoy
 import (
 	"time"
 
-	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
-	listener "github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
-	extAuthz "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/ext_authz/v2"
+	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
+	extAuthz "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/ext_authz/v3"
 	"github.com/golang/protobuf/ptypes"
 	any "github.com/golang/protobuf/ptypes/any"
 )
@@ -24,7 +23,7 @@ func (a *AuthzFilter) updateListenersWithAuthzFilter(cache *WorkQueueCache, para
 		for filterchainID := range ll.FilterChains {
 			for filterID := range ll.FilterChains[filterchainID].Filters {
 				// get manager
-				manager, err := getManager((ll.FilterChains[filterchainID].Filters[filterID].ConfigType).(*listener.Filter_TypedConfig))
+				manager, err := getManager((ll.FilterChains[filterchainID].Filters[filterID].ConfigType).(*api.Filter_TypedConfig))
 				if err != nil {
 					return err
 				}
@@ -43,7 +42,7 @@ func (a *AuthzFilter) updateListenersWithAuthzFilter(cache *WorkQueueCache, para
 				if err != nil {
 					return err
 				}
-				ll.FilterChains[filterchainID].Filters[filterID].ConfigType = &listener.Filter_TypedConfig{
+				ll.FilterChains[filterchainID].Filters[filterID].ConfigType = &api.Filter_TypedConfig{
 					TypedConfig: pbst,
 				}
 

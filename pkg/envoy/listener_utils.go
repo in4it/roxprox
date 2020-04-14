@@ -4,15 +4,14 @@ import (
 	"fmt"
 	"reflect"
 
-	api "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	auth "github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
-	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
-	listener "github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
-	route "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
-	extAuthz "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/ext_authz/v2"
-	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/jwt_authn/v2alpha"
-	hcm "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
-	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher"
+	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
+	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
+	extAuthz "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/ext_authz/v3"
+	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/jwt_authn/v3"
+	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
+	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
+	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
 )
@@ -27,13 +26,13 @@ func getListenerHTTPConnectionManager(ll *api.Listener) (hcm.HttpConnectionManag
 	if len(ll.FilterChains[0].Filters) == 0 {
 		return manager, fmt.Errorf("No filters found in listener %s", ll.Name)
 	}
-	manager, err = getManager((ll.FilterChains[0].Filters[0].ConfigType).(*listener.Filter_TypedConfig))
+	manager, err = getManager((ll.FilterChains[0].Filters[0].ConfigType).(*api.Filter_TypedConfig))
 	if err != nil {
 		return manager, err
 	}
 	return manager, nil
 }
-func getManager(typedConfig *listener.Filter_TypedConfig) (hcm.HttpConnectionManager, error) {
+func getManager(typedConfig *api.Filter_TypedConfig) (hcm.HttpConnectionManager, error) {
 	var manager hcm.HttpConnectionManager
 
 	err := ptypes.UnmarshalAny(typedConfig.TypedConfig, &manager)
@@ -44,8 +43,8 @@ func getManager(typedConfig *listener.Filter_TypedConfig) (hcm.HttpConnectionMan
 	return manager, nil
 }
 
-func getTransportSocketDownStreamTlsSocket(typedConfig *core.TransportSocket_TypedConfig) (auth.DownstreamTlsContext, error) {
-	var tlsContext auth.DownstreamTlsContext
+func getTransportSocketDownStreamTlsSocket(typedConfig *core.TransportSocket_TypedConfig) (tls.DownstreamTlsContext, error) {
+	var tlsContext tls.DownstreamTlsContext
 
 	err := ptypes.UnmarshalAny(typedConfig.TypedConfig, &tlsContext)
 	if err != nil {
@@ -67,7 +66,7 @@ func getListenerHTTPConnectionManagerTLS(ll *api.Listener, hostname string) (hcm
 		if len(ll.FilterChains[filterId].Filters) == 0 {
 			return manager, fmt.Errorf(Error_NoFilterFound)
 		}
-		manager, err = getManager(ll.FilterChains[filterId].Filters[0].ConfigType.(*listener.Filter_TypedConfig))
+		manager, err = getManager(ll.FilterChains[filterId].Filters[0].ConfigType.(*api.Filter_TypedConfig))
 		if err != nil {
 			return manager, err
 		}
@@ -75,7 +74,7 @@ func getListenerHTTPConnectionManagerTLS(ll *api.Listener, hostname string) (hcm
 
 	return manager, nil
 }
-func getFilterChainId(filterChains []*listener.FilterChain, hostname string) int {
+func getFilterChainId(filterChains []*api.FilterChain, hostname string) int {
 	filterId := -1
 
 	for k, filter := range filterChains {
@@ -308,13 +307,13 @@ func routeActionEqual(a, b *route.Route) bool {
 		return false
 	}
 	switch reflect.TypeOf(a.Action).String() {
-	case "*envoy_api_v2_route.Route_Route":
+	case "*envoy_config_route_v3.Route_Route":
 		cluster1 := a.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
 		cluster2 := b.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
 		if cluster1 != cluster2 {
 			return false
 		}
-	case "*envoy_api_v2_route.Route_DirectResponse":
+	case "*envoy_config_route_v3.Route_DirectResponse":
 		status1 := a.Action.(*route.Route_DirectResponse).DirectResponse.GetStatus()
 		status2 := b.Action.(*route.Route_DirectResponse).DirectResponse.GetStatus()
 		if status1 != status2 {

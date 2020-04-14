@@ -3,8 +3,8 @@ package envoy
 import (
 	"context"
 
-	v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
+	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 )
 
 type Callback struct {
@@ -32,7 +32,7 @@ func (c *Callback) OnStreamOpen(ctx context.Context, id int64, typ string) error
 func (c *Callback) OnStreamClosed(id int64) {
 	logger.Tracef("OnStreamClosed %d closed", id)
 }
-func (c *Callback) OnStreamRequest(id int64, req *v2.DiscoveryRequest) error {
+func (c *Callback) OnStreamRequest(id int64, req *discovery.DiscoveryRequest) error {
 	logger.Tracef("OnStreamRequest: %d %+v", id, req)
 	if _, ok := c.connections[id]; !ok {
 		c.connections[id] = req.Node
@@ -44,7 +44,7 @@ func (c *Callback) OnStreamRequest(id int64, req *v2.DiscoveryRequest) error {
 	}
 	return nil
 }
-func (c *Callback) OnFetchRequest(ctx context.Context, req *v2.DiscoveryRequest) error {
+func (c *Callback) OnFetchRequest(ctx context.Context, req *discovery.DiscoveryRequest) error {
 	logger.Tracef("OnFetchRequest...")
 	if c.waitForEnvoy != nil {
 		close(c.waitForEnvoy)
@@ -52,6 +52,7 @@ func (c *Callback) OnFetchRequest(ctx context.Context, req *v2.DiscoveryRequest)
 	}
 	return nil
 }
-func (c *Callback) OnStreamResponse(int64, *v2.DiscoveryRequest, *v2.DiscoveryResponse) {}
+func (c *Callback) OnStreamResponse(int64, *discovery.DiscoveryRequest, *discovery.DiscoveryResponse) {
+}
 
-func (c *Callback) OnFetchResponse(*v2.DiscoveryRequest, *v2.DiscoveryResponse) {}
+func (c *Callback) OnFetchResponse(*discovery.DiscoveryRequest, *discovery.DiscoveryResponse) {}
