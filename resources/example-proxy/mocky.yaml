@@ -9,4 +9,4 @@ spec:
   actions:
     - proxy:
         hostname: www.mocky.io
-        port: 80
+        port: 443
