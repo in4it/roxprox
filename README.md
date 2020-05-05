@@ -25,7 +25,7 @@ docker run --rm -it --name envoy-control-plane --network roxprox in4it/roxprox -
 ```
 
 ## Run envoy
-There is an example envoy.yaml in the resources/ directory. Make sure to change the "address: $IP" to the ip/host of the control-plane. If you used the above commands, you can use the following docker commands to replace the IP:
+There is an example envoy.yaml in the resources/ directory. Make sure to change the "address: $IP" to the ip/host of the control-plane. If you used the docker command above to create the network, you can use the following command to replace the IP:
 ```
 cat resources/envoy.yaml |sed 's/$IP/'$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' envoy-control-plane |xargs)/ > resources/envoy-withip.yaml
 ```
