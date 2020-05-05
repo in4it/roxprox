@@ -1,5 +1,5 @@
 vendor/
 envoy-control-plane-darwin-amd64
-resources/example-config/pki/
-resources/example-config/challenges/
+resources/*/pki/
+resources/*/challenges/
 /*.sh

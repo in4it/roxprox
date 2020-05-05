@@ -10,19 +10,29 @@ Envoy autocert is an envoy control plane with AWS Cloud support.
 * Works stand-alone or serverless with AWS Fargate
 * Traffic only passes the envoy proxy
 
-## Run roxprox
-* You can download the server binary from the releases, or use the docker image.
-* You can find configuration examples in resources/example-config
-* You can use local storage (default) or s3 storage. To use s3 storage, use:
+## Run roxprox (local storage)
 
 ```
-./envoy-control-plane-linux-amd64 -acme-contact <your-email-address> -storage-type s3 -storage-bucket your-bucket-name -aws-region your-aws-region
+docker network create roxprox
+docker run --rm -it --name envoy-control-plane --network roxprox -v $(PWD)/resources/example-proxy:/app/config in4it/roxprox -storage-type local -storage-path config -loglevel debug
+```
+
+## Run roxprox (s3 storage)
+
+```
+docker network create roxprox
+docker run --rm -it --name envoy-control-plane --network roxprox in4it/roxprox -acme-contact <your-email-address> -storage-type s3 -storage-bucket your-bucket-name -aws-region your-aws-region
 ```
 
 ## Run envoy
-There is an example envoy.yaml in the resources/ directory. Make sure to change the "address: 127.0.0.1" to the ip/host of the control-plane. You can start envoy with
+There is an example envoy.yaml in the resources/ directory. Make sure to change the "address: $IP" to the ip/host of the control-plane. If you used the above commands, you can use the following docker commands to replace the IP:
 ```
-docker run --rm -it --network="host" -v "${PWD}/resources/envoy.yaml":/etc/envoy/envoy.yaml envoyproxy/envoy:v1.11.1
+cat resources/envoy.yaml |sed 's/$IP/'$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' envoy-control-plane |xargs)/ > resources/envoy-withip.yaml
+```
+
+Then run the envoy proxy:
+```
+docker run --rm -it -p 10000:10000 -p 10001:10001 -p 9901:9901 --network roxprox -v "$(PWD)/resources/envoy-withip.yaml":/etc/envoy/envoy.yaml envoyproxy/envoy:v1.14.1
 ```
 ## Configuration
 You can configure endpoints using yaml definitions. Below are example yaml definitions that you can put in your data/ folder.

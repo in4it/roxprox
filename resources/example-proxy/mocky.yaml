@@ -1,0 +1,12 @@
+api: proxy.in4it.io/v1
+kind: rule
+metadata:
+  name: simple-reverse-proxy
+spec:
+  conditions:
+    - hostname: test.example.com
+      prefix: /
+  actions:
+    - proxy:
+        hostname: www.mocky.io
+        port: 80
