@@ -57,12 +57,12 @@ resource "aws_security_group" "roxprox-envoy-alb" {
   description = "roxprox envoy proxy"
 
   ingress {
-    from_port   = 10000
-    to_port     = 10001
-    protocol    = "tcp"
-    security_groups = [aws_security_group.roxprox-alb[0].id]
+    from_port       = 10000
+    to_port         = 10001
+    protocol        = "tcp"
+    security_groups = var.envoy_proxy_extra_sg == "" ? [aws_security_group.roxprox-alb[0].id] : [aws_security_group.roxprox-alb[0].id, var.envoy_proxy_extra_sg]
   }
-    
+
   ingress {
     from_port       = 9909
     to_port         = 9909
