@@ -169,6 +169,13 @@ func (s *S3Storage) GetObject(filename string) ([]api.Object, error) {
 					return objects, err
 				}
 				object.Data = tracing
+			case "compression":
+				var compression api.Compression
+				err = yaml.Unmarshal([]byte(contentsSplitted), &compression)
+				if err != nil {
+					return objects, err
+				}
+				object.Data = compression
 			default:
 				return objects, errors.New("Object in wrong format")
 			}

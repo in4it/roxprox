@@ -700,6 +700,20 @@ func (l *Listener) updateDefaultTracingSetting(tracing TracingParams) {
 	}
 }
 
+func (l *Listener) updateDefaultCompressionSetting(compressionParams CompressionParams) {
+	c := newCompression()
+	compressorFilterEncoded, err := c.getCompressionFilterEncoded(compressionParams)
+	if err != nil {
+		logger.Errorf("Couldn't update default compression filter: %s", err)
+		return
+	}
+	if compressorFilterEncoded == nil {
+		return
+	}
+
+	updateHTTPFilterWithConfig(&l.httpFilter, "compressor", compressorFilterEncoded)
+}
+
 func (l *Listener) newHTTPRouterFilter() []*hcm.HttpFilter {
 	return l.httpFilter
 }

@@ -6,17 +6,18 @@ import (
 )
 
 type WorkQueueItem struct {
-	id               string
-	Action           string
-	DependsOn        string
-	DependsOnItemIDs []string
-	TLSParams        TLSParams
-	ClusterParams    ClusterParams
-	ListenerParams   ListenerParams
-	ChallengeParams  ChallengeParams
-	CreateCertParams CreateCertParams
-	TracingParams    TracingParams
-	state            string
+	id                string
+	Action            string
+	DependsOn         string
+	DependsOnItemIDs  []string
+	TLSParams         TLSParams
+	ClusterParams     ClusterParams
+	ListenerParams    ListenerParams
+	ChallengeParams   ChallengeParams
+	CreateCertParams  CreateCertParams
+	TracingParams     TracingParams
+	CompressionParams CompressionParams
+	state             string
 }
 
 type WorkQueueCache struct {
@@ -122,6 +123,13 @@ type TracingParams struct {
 	ClientSampling  float64
 	RandomSampling  float64
 	OverallSampling float64
+}
+
+type CompressionParams struct {
+	Type                string
+	ContentLength       uint32
+	ContentType         []string
+	DisableOnEtagHeader bool
 }
 
 type DirectResponse struct {
