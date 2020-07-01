@@ -711,7 +711,7 @@ func (l *Listener) updateDefaultCompressionSetting(compressionParams Compression
 		return
 	}
 
-	updateHTTPFilterWithConfig(&l.httpFilter, "compressor", compressorFilterEncoded)
+	updateHTTPFilterWithConfig(&l.httpFilter, "envoy.filters.http.compressor", compressorFilterEncoded)
 }
 
 func (l *Listener) newHTTPRouterFilter() []*hcm.HttpFilter {

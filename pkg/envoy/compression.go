@@ -5,7 +5,6 @@ import (
 	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	gzip "github.com/envoyproxy/go-control-plane/envoy/extensions/compression/gzip/compressor/v3"
 	compressor "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/compressor/v3"
-	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	"github.com/golang/protobuf/ptypes"
 	any "github.com/golang/protobuf/ptypes/any"
 	"github.com/golang/protobuf/ptypes/wrappers"
@@ -36,7 +35,7 @@ func (c *Compression) updateListenersWithCompression(cache *WorkQueueCache, para
 				}
 
 				// update http filter
-				updateHTTPFilterWithConfig(&manager.HttpFilters, "compressor", compressorConfigEncoded)
+				updateHTTPFilterWithConfig(&manager.HttpFilters, "envoy.filters.http.compressor", compressorConfigEncoded)
 
 				// update manager in cache
 				pbst, err := ptypes.MarshalAny(&manager)
@@ -68,7 +67,7 @@ func (c *Compression) getCompressionFilterEncoded(params CompressionParams) (*an
 	return compressionFilterEncoded, nil
 }
 
-func (c *Compression) getCompressionFilter(compression CompressionParams) (*hcm.HttpFilter, error) {
+func (c *Compression) getCompressionFilter(compression CompressionParams) (*compressor.Compressor, error) {
 	if compression.Type == "gzip" {
 		// set gzip config
 		gzip := gzip.Gzip{
@@ -96,17 +95,7 @@ func (c *Compression) getCompressionFilter(compression CompressionParams) (*hcm.
 		}
 		httpFilterConfig.DisableOnEtagHeader = compression.DisableOnEtagHeader
 
-		encoded, err := ptypes.MarshalAny(&httpFilterConfig)
-		if err != nil {
-			panic(err)
-		}
-		// add compressor config in http filter
-		return &hcm.HttpFilter{
-			Name: "compressor",
-			ConfigType: &hcm.HttpFilter_TypedConfig{
-				TypedConfig: encoded,
-			},
-		}, nil
+		return &httpFilterConfig, nil
 	}
 	return nil, nil
 }
