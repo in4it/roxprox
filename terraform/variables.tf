@@ -157,6 +157,11 @@ variable "extra_task_role_policy" {
   default     = ""
 }
 
+variable "envoy_proxy_extra_sg" {
+  description = "additional security group allowing access to roxprox envoy"
+  default     = ""
+}
+
 variable "enable_datadog" {
   description = "flag to enable datadog integration"
   default     = false
