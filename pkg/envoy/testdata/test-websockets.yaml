@@ -1,0 +1,13 @@
+api: proxy.in4it.io/v1
+kind: rule
+metadata:
+  name: test-websockets
+spec:
+  conditions:
+    - hostname: test-websockets.example.com
+      path: /test-websockets
+  actions:
+    - proxy:
+        hostname: target-example.com
+        port: 443
+        enableWebsockets: true

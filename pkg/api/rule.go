@@ -30,9 +30,10 @@ type RuleActions struct {
 	DirectResponse RuleActionsDirectResponse `json:"directResponse" yaml:"directResponse"`
 }
 type RuleActionsProxy struct {
-	Hostname    string                `json:"hostname"`
-	Port        int64                 `json:"port"`
-	HealthCheck RuleActionHealthCheck `json:"healthCheck" yaml:"healthCheck"`
+	Hostname         string                `json:"hostname"`
+	Port             int64                 `json:"port"`
+	HealthCheck      RuleActionHealthCheck `json:"healthCheck" yaml:"healthCheck"`
+	EnableWebsockets bool                  `json:"enableWebsockets" yaml:"enableWebsockets"`
 }
 
 type RuleActionHealthCheck struct {

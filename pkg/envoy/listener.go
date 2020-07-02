@@ -17,6 +17,7 @@ import (
 	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
 	"github.com/golang/protobuf/ptypes"
 	any "github.com/golang/protobuf/ptypes/any"
+	"github.com/golang/protobuf/ptypes/wrappers"
 )
 
 const Error_NoFilterChainFound = "NoFilterChainFound"
@@ -161,11 +162,11 @@ func (l *Listener) getListenerRouteSpecifier(manager hcm.HttpConnectionManager) 
 	return routeSpecifier, nil
 }
 
-func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, clusterName, virtualHostName string, methods []string, matchType string, directResponse DirectResponse) *route.VirtualHost {
+func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, clusterName, virtualHostName string, methods []string, matchType string, directResponse DirectResponse, enableWebsocket bool) *route.VirtualHost {
 	var hostRewriteSpecifier *route.RouteAction_HostRewriteLiteral
 	var routes []*route.Route
 	var routeAction *route.Route_Route
-
+	var upgradeConfigs []*route.RouteAction_UpgradeConfig
 	if hostname == "" {
 		hostname = "*"
 	}
@@ -174,12 +175,22 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 		hostRewriteSpecifier = &route.RouteAction_HostRewriteLiteral{
 			HostRewriteLiteral: targetHostname,
 		}
+		if enableWebsocket {
+			upgradeConfigs = []*route.RouteAction_UpgradeConfig{
+				{
+					Enabled: &wrappers.BoolValue{
+						Value: true,
+					},
+				},
+			}
+		}
 		routeAction = &route.Route_Route{
 			Route: &route.RouteAction{
 				HostRewriteSpecifier: hostRewriteSpecifier,
 				ClusterSpecifier: &route.RouteAction_Cluster{
 					Cluster: clusterName,
 				},
+				UpgradeConfigs: upgradeConfigs,
 			},
 		}
 	} else {
@@ -377,7 +388,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	}
 
 	// create new virtualhost
-	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname, params.Conditions.Methods, matchType, params.DirectResponse)
+	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname, params.Conditions.Methods, matchType, params.DirectResponse, params.EnableWebSockets)
 
 	// check if we need to overwrite the virtualhost
 	virtualHostKey := -1
@@ -586,7 +597,7 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 		return err
 	}
 
-	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname, params.Conditions.Methods, matchType, params.DirectResponse)
+	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname, params.Conditions.Methods, matchType, params.DirectResponse, params.EnableWebSockets)
 
 	virtualHostKey := -1
 	for k, curVirtualHost := range routeSpecifier.RouteConfig.VirtualHosts {
