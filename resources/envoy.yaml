@@ -6,19 +6,11 @@ dynamic_resources:
       envoy_grpc:
         cluster_name: xds_cluster
   cds_config:
+    ads: {}
     resource_api_version: V3
-    api_config_source:
-      api_type: GRPC
-      grpc_services:
-        envoy_grpc:
-          cluster_name: xds_cluster
   lds_config:
+    ads: {}
     resource_api_version: V3
-    api_config_source:
-      api_type: GRPC
-      grpc_services:
-        envoy_grpc:
-          cluster_name: xds_cluster
 node:
   cluster: ingress-gateway
   id: ingress-gateway-2

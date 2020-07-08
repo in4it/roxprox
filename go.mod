@@ -4,7 +4,7 @@ go 1.12
 
 require (
 	github.com/aws/aws-sdk-go v1.32.10
-	github.com/envoyproxy/go-control-plane v0.9.5
+	github.com/envoyproxy/go-control-plane v0.9.6-0.20200618221453-226baa5cddab
 	github.com/ghodss/yaml v1.0.0
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/protobuf v1.4.2

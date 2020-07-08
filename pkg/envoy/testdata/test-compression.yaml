@@ -1,0 +1,7 @@
+api: proxy.in4it.io/v1
+kind: compression
+metadata:
+  name: compression
+spec:
+  type: gzip
+  disableOnEtagHeader: true

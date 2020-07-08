@@ -22,6 +22,7 @@ type WorkQueue struct {
 	jwtProvider    *JwtProvider
 	authzFilter    *AuthzFilter
 	tracing        *Tracing
+	compression    *Compression
 	cluster        *Cluster
 	acmeContact    string
 	latestSnapshot cache.Snapshot
@@ -49,6 +50,7 @@ func NewWorkQueue(s storage.Storage, acmeContact string) (*WorkQueue, error) {
 		jwtProvider: newJwtProvider(),
 		authzFilter: newAuthzFilter(),
 		tracing:     newTracing(),
+		compression: newCompression(),
 	}
 
 	// run queue to resolve dependencies
@@ -194,6 +196,18 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 			} else {
 				// update default listener route
 				w.listener.updateDefaultTracingSetting(item.TracingParams)
+				item.state = "finished"
+			}
+			updateXds = true
+		case "updateListenersWithCompression":
+			// update default listener route
+			w.listener.updateDefaultCompressionSetting(item.CompressionParams)
+			// update existing listeners
+			err := w.compression.updateListenersWithCompression(&w.cache, item.CompressionParams)
+			if err != nil {
+				item.state = "error"
+				logger.Errorf("updateListenersWithCompression error: %s", err)
+			} else {
 				item.state = "finished"
 			}
 			updateXds = true

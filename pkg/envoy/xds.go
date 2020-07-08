@@ -219,6 +219,13 @@ func (x *XDS) ImportObject(object pkgApi.Object) ([]WorkQueueItem, error) {
 			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
 		}
 		return items, nil
+	case "compression":
+		compression := object.Data.(pkgApi.Compression)
+		items, err := x.importCompression(compression)
+		if err != nil {
+			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
+		}
+		return items, nil
 	}
 
 	return []WorkQueueItem{}, nil
@@ -257,6 +264,20 @@ func (x *XDS) importTracing(tracing pkgApi.Tracing) ([]WorkQueueItem, error) {
 				ClientSampling:  tracing.Spec.ClientSampling,
 				RandomSampling:  tracing.Spec.RandomSampling,
 				OverallSampling: tracing.Spec.OverallSampling,
+			},
+		},
+	}, nil
+}
+
+func (x *XDS) importCompression(compression pkgApi.Compression) ([]WorkQueueItem, error) {
+	return []WorkQueueItem{
+		{
+			Action: "updateListenersWithCompression",
+			CompressionParams: CompressionParams{
+				Type:                compression.Spec.Type,
+				ContentLength:       compression.Spec.ContentLength,
+				ContentType:         compression.Spec.ContentType,
+				DisableOnEtagHeader: compression.Spec.DisableOnEtagHeader,
 			},
 		},
 	}, nil

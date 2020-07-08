@@ -530,6 +530,7 @@ func TestClusterWithHealthcheck(t *testing.T) {
 	}
 	fmt.Printf("%s\n", out)
 }
+
 func TestClusterWithWebsockets(t *testing.T) {
 	logger.SetLogLevel(loggo.DEBUG)
 	s, err := initStorage()
@@ -585,5 +586,36 @@ func TestClusterWithWebsockets(t *testing.T) {
 			t.Errorf("Upgrade config is not set to enabled")
 			return
 		}
+	}
+}
+func TestCompressionObject(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test-compression.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+	httpFilters := x.workQueue.listener.newHTTPRouterFilter()
+	if len(httpFilters) == 0 {
+		t.Errorf("Filters in empty")
+		return
+	}
+	if httpFilters[0].Name != "envoy.filters.http.compressor" {
+		t.Errorf("Compressor filter not found")
+		return
 	}
 }
