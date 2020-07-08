@@ -45,13 +45,14 @@ type ClusterParams struct {
 	HealthCheck    HealthCheck
 }
 type ListenerParams struct {
-	Name           string
-	Protocol       string
-	TargetHostname string
-	Conditions     Conditions
-	Auth           Auth
-	Authz          Authz
-	DirectResponse DirectResponse
+	Name             string
+	Protocol         string
+	TargetHostname   string
+	EnableWebSockets bool
+	Conditions       Conditions
+	Auth             Auth
+	Authz            Authz
+	DirectResponse   DirectResponse
 }
 
 type ChallengeParams struct {
@@ -89,9 +90,10 @@ type Action struct {
 }
 
 type ActionProxy struct {
-	TargetHostname string
-	Port           int64
-	HealthCheck    HealthCheck
+	TargetHostname   string
+	Port             int64
+	HealthCheck      HealthCheck
+	EnableWebsockets bool
 }
 
 type HealthCheck struct {

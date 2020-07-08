@@ -2,9 +2,11 @@ package envoy
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
+	listenerAPI "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	"github.com/in4it/roxprox/pkg/storage"
 	localStorage "github.com/in4it/roxprox/pkg/storage/local"
@@ -527,4 +529,61 @@ func TestClusterWithHealthcheck(t *testing.T) {
 		return
 	}
 	fmt.Printf("%s\n", out)
+}
+func TestClusterWithWebsockets(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test-websockets.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+
+	var upgradeConfigs []*route.RouteAction_UpgradeConfig
+
+	for _, listener := range x.workQueue.cache.listeners {
+		ll := listener.(*listenerAPI.Listener)
+		manager, err := getListenerHTTPConnectionManager(ll)
+		if err != nil {
+			t.Errorf("Error while getting listener: %s", err)
+			return
+		}
+		l := newListener()
+		routeSpecifier, err := l.getListenerRouteSpecifier(manager)
+		if err != nil {
+			t.Errorf("Error while getting routes: %s", err)
+			return
+		}
+		for _, virtualHost := range routeSpecifier.RouteConfig.VirtualHosts {
+			for _, virtualHostRoute := range virtualHost.Routes {
+				if virtualHostRoute.Action != nil {
+					switch reflect.TypeOf(virtualHostRoute.Action).String() {
+					case "*envoy_config_route_v3.Route_Route":
+						upgradeConfigs = virtualHostRoute.Action.(*route.Route_Route).Route.GetUpgradeConfigs()
+					}
+				}
+			}
+		}
+		if len(upgradeConfigs) == 0 {
+			t.Errorf("Upgrade config is empty")
+			return
+		}
+		if !upgradeConfigs[0].Enabled.Value {
+			t.Errorf("Upgrade config is not set to enabled")
+			return
+		}
+	}
 }

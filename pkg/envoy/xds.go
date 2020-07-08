@@ -387,6 +387,9 @@ func (x *XDS) getAction(ruleName string, actions []pkgApi.RuleActions) Action {
 				action.Proxy.HealthCheck.UnhealthyThreshold = ruleAction.Proxy.HealthCheck.UnhealthyThreshold
 				action.Proxy.HealthCheck.UnhealthyInterval = ruleAction.Proxy.HealthCheck.UnhealthyInterval
 			}
+			if ruleAction.Proxy.EnableWebsockets {
+				action.Proxy.EnableWebsockets = ruleAction.Proxy.EnableWebsockets
+			}
 		} else if ruleAction.DirectResponse.Status > 0 {
 			action.Type = "directResponse"
 			action.RuleName = ruleName
@@ -400,8 +403,9 @@ func (x *XDS) getListenerParams(action Action, condition pkgApi.RuleConditions) 
 	switch action.Type {
 	case "proxy":
 		return ListenerParams{
-			Name:           action.RuleName,
-			TargetHostname: action.Proxy.TargetHostname,
+			Name:             action.RuleName,
+			TargetHostname:   action.Proxy.TargetHostname,
+			EnableWebSockets: action.Proxy.EnableWebsockets,
 			Conditions: Conditions{
 				Hostname: condition.Hostname,
 				Prefix:   condition.Prefix,
