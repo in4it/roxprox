@@ -293,15 +293,6 @@ func (x *XDS) importCompression(compression pkgApi.Compression) ([]WorkQueueItem
 func (x *XDS) importAccessLogServer(accessLogServer pkgApi.AccessLogServer) ([]WorkQueueItem, error) {
 	return []WorkQueueItem{
 		{
-			Action: "createCluster",
-			ClusterParams: ClusterParams{
-				Name:           "als_" + accessLogServer.Metadata.Name,
-				TargetHostname: accessLogServer.Spec.Address,
-				Port:           accessLogServer.Spec.Port,
-				HTTP2:          true,
-			},
-		},
-		{
 			Action: "updateListenersWithAccessLogServer",
 			AccessLogServerParams: AccessLogServerParams{
 				Name:                           "als_" + accessLogServer.Metadata.Name,

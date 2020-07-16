@@ -10,3 +10,11 @@ spec:
     - proxy:
         hostname: www.mocky.io
         port: 443
+---
+api: proxy.in4it.io/v1
+kind: accessLogServer
+metadata:
+    name: accessLogServerExample
+spec:
+    address: "als"
+    port: 9001
