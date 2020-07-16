@@ -29,14 +29,14 @@ static_resources:
                 address: $IP
                 port_value: 8080
 
-  - name: als_accessLogServerExample
+  - name: accessLogServerExample
     connect_timeout: 5s
     type: LOGICAL_DNS
     http2_protocol_options: {}
     dns_lookup_family: V4_ONLY
     lb_policy: ROUND_ROBIN
     load_assignment:
-      cluster_name: als_accessLogServerExample
+      cluster_name: accessLogServerExample # must to be the same name as the metadata in the `api: proxy.in4it.io/v1` for `kind: accessLogServer`
       endpoints:
       - lb_endpoints:
         - endpoint:

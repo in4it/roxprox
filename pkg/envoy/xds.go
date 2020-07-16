@@ -295,7 +295,7 @@ func (x *XDS) importAccessLogServer(accessLogServer pkgApi.AccessLogServer) ([]W
 		{
 			Action: "updateListenersWithAccessLogServer",
 			AccessLogServerParams: AccessLogServerParams{
-				Name:                           "als_" + accessLogServer.Metadata.Name,
+				Name:                           accessLogServer.Metadata.Name,
 				AdditionalRequestHeadersToLog:  accessLogServer.Spec.AdditionalRequestHeadersToLog,
 				AdditionalResponseHeadersToLog: accessLogServer.Spec.AdditionalResponseHeadersToLog,
 			},
