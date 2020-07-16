@@ -8,6 +8,9 @@ import (
 
 	listenerAPI "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
+	als "github.com/envoyproxy/go-control-plane/envoy/extensions/access_loggers/grpc/v3"
+	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
+	"github.com/golang/protobuf/ptypes"
 	"github.com/in4it/roxprox/pkg/storage"
 	localStorage "github.com/in4it/roxprox/pkg/storage/local"
 	"github.com/juju/loggo"
@@ -617,5 +620,60 @@ func TestCompressionObject(t *testing.T) {
 	if httpFilters[0].Name != "envoy.filters.http.compressor" {
 		t.Errorf("Compressor filter not found")
 		return
+	}
+}
+func TestAccessLogServer(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test1.yaml", "test-accesslogserver.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+
+	if len(x.workQueue.cache.listeners) == 0 {
+		t.Errorf("No Listeners")
+		return
+	}
+
+	for _, listener := range x.workQueue.cache.listeners {
+		ll := listener.(*listenerAPI.Listener)
+		manager, err := getListenerHTTPConnectionManager(ll)
+		if err != nil {
+			t.Errorf("Error while getting listener: %s", err)
+			return
+		}
+		if len(manager.AccessLog) == 0 {
+			t.Errorf("No Access Log Configuration found")
+			return
+		}
+		if manager.AccessLog[0].Name != wellknown.HTTPGRPCAccessLog {
+			t.Errorf("Access log has wrong name")
+			return
+		}
+		var alsConfig als.HttpGrpcAccessLogConfig
+		err = ptypes.UnmarshalAny(manager.AccessLog[0].GetTypedConfig(), &alsConfig)
+		if err != nil {
+			t.Errorf("Cannot unmarshal HttpGrpcAccessLogConfig typed config")
+			return
+		}
+		if alsConfig.CommonConfig.LogName != "als_accessLogServerExample" {
+			t.Errorf("LogName is not correct within alsConfig: %s", alsConfig.CommonConfig.LogName)
+			return
+		}
+
 	}
 }

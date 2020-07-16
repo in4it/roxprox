@@ -147,6 +147,13 @@ func (l *LocalStorage) GetObject(name string) ([]api.Object, error) {
 					return objects, err
 				}
 				object.Data = compression
+			case "accessLogServer":
+				var accessLogServer api.AccessLogServer
+				err = yaml.Unmarshal([]byte(contentsSplitted), &accessLogServer)
+				if err != nil {
+					return objects, err
+				}
+				object.Data = accessLogServer
 			default:
 				return objects, errors.New("Rule in wrong format")
 			}

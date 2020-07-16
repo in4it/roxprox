@@ -226,6 +226,13 @@ func (x *XDS) ImportObject(object pkgApi.Object) ([]WorkQueueItem, error) {
 			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
 		}
 		return items, nil
+	case "accessLogServer":
+		accessLogServer := object.Data.(pkgApi.AccessLogServer)
+		items, err := x.importAccessLogServer(accessLogServer)
+		if err != nil {
+			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
+		}
+		return items, nil
 	}
 
 	return []WorkQueueItem{}, nil
@@ -278,6 +285,28 @@ func (x *XDS) importCompression(compression pkgApi.Compression) ([]WorkQueueItem
 				ContentLength:       compression.Spec.ContentLength,
 				ContentType:         compression.Spec.ContentType,
 				DisableOnEtagHeader: compression.Spec.DisableOnEtagHeader,
+			},
+		},
+	}, nil
+}
+
+func (x *XDS) importAccessLogServer(accessLogServer pkgApi.AccessLogServer) ([]WorkQueueItem, error) {
+	return []WorkQueueItem{
+		{
+			Action: "createCluster",
+			ClusterParams: ClusterParams{
+				Name:           "als_" + accessLogServer.Metadata.Name,
+				TargetHostname: accessLogServer.Spec.Address,
+				Port:           accessLogServer.Spec.Port,
+				HTTP2:          true,
+			},
+		},
+		{
+			Action: "updateListenersWithAccessLogServer",
+			AccessLogServerParams: AccessLogServerParams{
+				Name:                           "als_" + accessLogServer.Metadata.Name,
+				AdditionalRequestHeadersToLog:  accessLogServer.Spec.AdditionalRequestHeadersToLog,
+				AdditionalResponseHeadersToLog: accessLogServer.Spec.AdditionalResponseHeadersToLog,
 			},
 		},
 	}, nil
