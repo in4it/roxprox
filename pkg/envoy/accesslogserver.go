@@ -53,7 +53,8 @@ func (c *AccessLogServer) getAccessLoggerConfig(params AccessLogServerParams) ([
 	if params.Name != "" {
 		alsConfig := &als.HttpGrpcAccessLogConfig{
 			CommonConfig: &als.CommonGrpcAccessLogConfig{
-				LogName: params.Name,
+				TransportApiVersion: core.ApiVersion_V3,
+				LogName:             params.Name,
 				GrpcService: &core.GrpcService{
 					TargetSpecifier: &core.GrpcService_EnvoyGrpc_{
 						EnvoyGrpc: &core.GrpcService_EnvoyGrpc{

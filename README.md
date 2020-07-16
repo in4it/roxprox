@@ -32,7 +32,7 @@ cat resources/envoy.yaml |sed 's/$IP/'$(docker inspect -f '{{range .NetworkSetti
 
 Then run the envoy proxy:
 ```
-docker run --rm -it -p 10000:10000 -p 10001:10001 -p 9901:9901 --network roxprox -v "$(PWD)/resources/envoy-withip.yaml":/etc/envoy/envoy.yaml envoyproxy/envoy:v1.14.1
+docker run --rm -it -p 10000:10000 -p 10001:10001 -p 9901:9901 --network roxprox -v "$(PWD)/resources/envoy-withip.yaml":/etc/envoy/envoy.yaml envoyproxy/envoy:v1.15-latest
 ```
 
 ## Run access log serve
