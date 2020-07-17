@@ -5,11 +5,15 @@
 data "template_file" "envoy-config-http" {
   template = var.enable_datadog ? file("${path.module}/templates/envoy-datadog.yml") : file("${path.module}/templates/envoy.yml")
   vars = {
-    CLUSTER    = "roxprox"
-    ID         = "roxprox-http"
-    ADDRESS    = "roxprox.roxprox.local"
-    DATADOG    = "datadog.roxprox.local"
-    ADMIN_PORT = "9909"
+    CLUSTER          = "roxprox"
+    ID               = "roxprox-http"
+    ADDRESS          = "roxprox.roxprox.local"
+    DATADOG          = "datadog.roxprox.local"
+    ADMIN_PORT       = "9909"
+    ALS_CLUSTER_NAME = var.envoy_als_cluster_name
+    ALS_ADDRESS      = var.envoy_als_address
+    ALS_PORT         = var.envoy_als_port
+
   }
 }
 
