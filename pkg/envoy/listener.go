@@ -181,6 +181,7 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 					Enabled: &wrappers.BoolValue{
 						Value: true,
 					},
+					UpgradeType: "websocket",
 				},
 			}
 		}

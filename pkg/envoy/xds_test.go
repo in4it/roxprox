@@ -586,6 +586,10 @@ func TestClusterWithWebsockets(t *testing.T) {
 			t.Errorf("Upgrade config is not set to enabled")
 			return
 		}
+		if upgradeConfigs[0].UpgradeType != "websocket" {
+			t.Errorf("Upgrade config type is not set to websocket")
+			return
+		}
 	}
 }
 func TestCompressionObject(t *testing.T) {
