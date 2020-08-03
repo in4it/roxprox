@@ -2,9 +2,8 @@
 # envoy (http)
 #
 
-data "template_file" "envoy-config-http" {
-  template = var.enable_datadog ? file("${path.module}/templates/envoy-datadog.yml") : file("${path.module}/templates/envoy.yml")
-  vars = {
+locals {
+  envoy_config_vars = {
     CLUSTER          = "roxprox"
     ID               = "roxprox-http"
     ADDRESS          = "roxprox.roxprox.local"
@@ -13,14 +12,15 @@ data "template_file" "envoy-config-http" {
     ALS_CLUSTER_NAME = var.envoy_als_cluster_name
     ALS_ADDRESS      = var.envoy_als_address
     ALS_PORT         = var.envoy_als_port
-
+    ENABLE_ALS       = var.enable_als
+    ENABLE_DATADOG   = var.enable_datadog
   }
 }
 
 resource "aws_ssm_parameter" "envoy-config-http" {
   name  = "/roxprox/envoy.yaml"
   type  = "String"
-  value = base64encode(trimspace(data.template_file.envoy-config-http.rendered))
+  value = base64encode(jsonencode(jsondecode(templatefile("${path.module}/templates/envoy-config.tmpl", local.envoy_config_vars))))
 }
 
 
@@ -103,18 +103,6 @@ resource "aws_ecs_service" "envoy-proxy" {
 # envoy (https)
 #
 
-data "template_file" "envoy-config-https" {
-  count = var.tls_listener ? 1 : 0
-  template = var.enable_datadog ? file("${path.module}/templates/envoy-datadog.yml") : file("${path.module}/templates/envoy.yml")
-  vars = {
-    CLUSTER    = "roxprox"
-    ID         = "roxprox-https"
-    ADDRESS    = "roxprox.roxprox.local"
-    DATADOG    = "datadog.roxprox.local"
-    ADMIN_PORT = "9909"
-  }
-}
-
 data "template_file" "envoy-proxy-https" {
   count = var.tls_listener ? 1 : 0
   template =  var.enable_appmesh ? file("${path.module}/templates/envoy-appmesh.json.tpl") : file("${path.module}/templates/envoy.json.tpl")
@@ -122,19 +110,12 @@ data "template_file" "envoy-proxy-https" {
   vars = {
     AWS_REGION            = data.aws_region.current.name
     ENVOY_RELEASE         = var.envoy_release
-    ENVOY_CONFIG          = aws_ssm_parameter.envoy-config-https[0].arn
+    ENVOY_CONFIG          = aws_ssm_parameter.envoy-config-http.arn
     APPMESH_NAME          = var.appmesh_name
     APPMESH_ENVOY_RELEASE = var.appmesh_envoy_release
     EXTRA_CONTAINERS      = var.extra_containers == "" ? "" : ",${var.extra_containers}"
     EXTRA_DEPENDENCY      = var.extra_dependency == "" ? "" : ",${var.extra_dependency}"
   }
-}
-
-resource "aws_ssm_parameter" "envoy-config-https" {
-  count = var.tls_listener ? 1 : 0
-  name = "/roxprox/envoy-https.yaml"
-  type = "String"
-  value = base64encode(trimspace(data.template_file.envoy-config-https[0].rendered))
 }
 
 resource "aws_ecs_task_definition" "envoy-proxy-https" {

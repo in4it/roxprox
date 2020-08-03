@@ -40,6 +40,11 @@ variable "envoy_proxy_appmesh_memory" {
   default     = 1024
 }
 
+variable "enable_als" {
+  description = "flag to enable ALS integration"
+  default     = false
+}
+
 variable "envoy_als_cluster_name" {
   description = "envoy access log server cluster name"
   default     = "als_cluster"
