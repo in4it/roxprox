@@ -13,19 +13,20 @@ import (
 )
 
 type WorkQueue struct {
-	cs             chan WorkQueueSubmissionState
-	c              chan WorkQueueItem
-	callback       *Callback
-	cache          WorkQueueCache
-	cert           *Cert
-	listener       *Listener
-	jwtProvider    *JwtProvider
-	authzFilter    *AuthzFilter
-	tracing        *Tracing
-	compression    *Compression
-	cluster        *Cluster
-	acmeContact    string
-	latestSnapshot cache.Snapshot
+	cs              chan WorkQueueSubmissionState
+	c               chan WorkQueueItem
+	callback        *Callback
+	cache           WorkQueueCache
+	cert            *Cert
+	listener        *Listener
+	jwtProvider     *JwtProvider
+	authzFilter     *AuthzFilter
+	tracing         *Tracing
+	compression     *Compression
+	accessLogServer *AccessLogServer
+	cluster         *Cluster
+	acmeContact     string
+	latestSnapshot  cache.Snapshot
 }
 
 func NewWorkQueue(s storage.Storage, acmeContact string) (*WorkQueue, error) {
@@ -42,15 +43,16 @@ func NewWorkQueue(s storage.Storage, acmeContact string) (*WorkQueue, error) {
 	}
 
 	w := &WorkQueue{
-		c:           c,
-		cs:          cs,
-		cert:        cert,
-		listener:    newListener(),
-		cluster:     newCluster(),
-		jwtProvider: newJwtProvider(),
-		authzFilter: newAuthzFilter(),
-		tracing:     newTracing(),
-		compression: newCompression(),
+		c:               c,
+		cs:              cs,
+		cert:            cert,
+		listener:        newListener(),
+		cluster:         newCluster(),
+		jwtProvider:     newJwtProvider(),
+		authzFilter:     newAuthzFilter(),
+		tracing:         newTracing(),
+		compression:     newCompression(),
+		accessLogServer: newAccessLogServer(),
 	}
 
 	// run queue to resolve dependencies
@@ -207,6 +209,18 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 			if err != nil {
 				item.state = "error"
 				logger.Errorf("updateListenersWithCompression error: %s", err)
+			} else {
+				item.state = "finished"
+			}
+			updateXds = true
+		case "updateListenersWithAccessLogServer":
+			// update default listener route
+			w.listener.updateDefaultAccessLogServer(item.AccessLogServerParams)
+			// update existing listeners
+			err := w.accessLogServer.updateListenersWithAccessLogServer(&w.cache, item.AccessLogServerParams)
+			if err != nil {
+				item.state = "error"
+				logger.Errorf("updateListenersWithAccessLogServer error: %s", err)
 			} else {
 				item.state = "finished"
 			}

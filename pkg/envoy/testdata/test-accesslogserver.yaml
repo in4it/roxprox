@@ -1,0 +1,7 @@
+api: proxy.in4it.io/v1
+kind: accessLogServer
+metadata:
+  name: accessLogServerExample
+spec:
+  address: "localhost"
+  port: 9001

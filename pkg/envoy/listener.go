@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	alf "github.com/envoyproxy/go-control-plane/envoy/config/accesslog/v3"
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
@@ -24,8 +25,9 @@ const Error_NoFilterChainFound = "NoFilterChainFound"
 const Error_NoFilterFound = "NoFilterFound"
 
 type Listener struct {
-	httpFilter []*hcm.HttpFilter
-	tracing    *hcm.HttpConnectionManager_Tracing
+	httpFilter         []*hcm.HttpFilter
+	tracing            *hcm.HttpConnectionManager_Tracing
+	accessLoggerConfig []*alf.AccessLog
 }
 
 func newListener() *Listener {
@@ -35,6 +37,8 @@ func newListener() *Listener {
 			Name: "envoy.filters.http.router",
 		},
 	}
+	listener.accessLoggerConfig = []*alf.AccessLog{}
+
 	return listener
 }
 
@@ -467,6 +471,7 @@ func (l *Listener) newManager(routeName string, virtualHosts []*route.VirtualHos
 			},
 		},
 		HttpFilters: httpFilters,
+		AccessLog:   l.accessLoggerConfig,
 	}
 	if l.tracing != nil {
 		httpConnectionManager.Tracing = l.tracing
@@ -713,6 +718,21 @@ func (l *Listener) updateDefaultCompressionSetting(compressionParams Compression
 	}
 
 	updateHTTPFilterWithConfig(&l.httpFilter, "envoy.filters.http.compressor", compressorFilterEncoded)
+}
+
+func (l *Listener) updateDefaultAccessLogServer(accessLogServerParams AccessLogServerParams) {
+	c := newAccessLogServer()
+	accessLoggerConfig, err := c.getAccessLoggerConfig(accessLogServerParams)
+	if err != nil {
+		logger.Errorf("Couldn't get access logger config: %s", err)
+		return
+	}
+	if accessLoggerConfig == nil {
+		return
+	}
+
+	l.accessLoggerConfig = accessLoggerConfig
+
 }
 
 func (l *Listener) newHTTPRouterFilter() []*hcm.HttpFilter {

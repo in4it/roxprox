@@ -1,0 +1,118 @@
+{
+    "dynamic_resources": {
+        "ads_config": {
+            "api_type": "GRPC",
+            "transport_api_version": "V3",
+            "grpc_services": {
+                "envoy_grpc": {
+                    "cluster_name": "xds_cluster"
+                }
+            }
+        },
+        "cds_config": {
+            "ads": {},
+            "resource_api_version": "V3"
+        },
+        "lds_config": {
+            "ads": {},
+            "resource_api_version": "V3"
+        }
+    },
+    "node": {
+        "cluster": "${CLUSTER}",
+        "id": "${ID}"
+    },
+    "static_resources": {
+        "clusters": [
+            %{ if ENABLE_ALS }
+            {
+                "name": "${ALS_CLUSTER_NAME}",
+                "type": "LOGICAL_DNS",
+                "connect_timeout": "5s",
+                "http2_protocol_options": {},
+                "dns_lookup_family": "V4_ONLY",
+                "load_assignment": {
+                    "cluster_name": "${ALS_CLUSTER_NAME}",
+                    "endpoints": [
+                        {
+                            "lb_endpoints": [
+                                {
+                                    "endpoint": {
+                                        "address": {
+                                            "socket_address": {
+                                                "address": "${ALS_ADDRESS}",
+                                                "port_value": "${ALS_PORT}"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            },
+            %{ endif }
+            %{ if ENABLE_DATADOG }
+            {
+                "name": "datadog_agent",
+                "connect_timeout": "1s",
+                "type": "strict_dns",
+                "lb_policy": "round_robin",
+                "hosts": [
+                    {
+                        "socket_address": {
+                            "address": "${DATADOG}",
+                            "port_value": 8126
+                        }
+                    }
+                ]
+            },
+            %{ endif }
+            {
+                "name": "xds_cluster",
+                "connect_timeout": "1s",
+                "type": "strict_dns",
+                "http2_protocol_options": {},
+                "load_assignment": {
+                    "cluster_name": "xds_cluster",
+                    "endpoints": [
+                        {
+                            "lb_endpoints": [
+                                {
+                                    "endpoint": {
+                                        "address": {
+                                            "socket_address": {
+                                                "address": "${ADDRESS}",
+                                                "port_value": 8080
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    %{ if ENABLE_DATADOG }
+    "tracing": {
+        "http": {
+            "name": "envoy.tracers.datadog",
+            "config": {
+                "collector_cluster": "datadog_agent",
+                "service_name": "envoy"
+            }
+        }
+    },
+    %{ endif }
+    "admin": {
+        "access_log_path": "/tmp/admin_access.log",
+        "address": {
+            "socket_address": {
+                "address": "0.0.0.0",
+                "port_value": ${ADMIN_PORT}
+            }
+        }
+    }
+}

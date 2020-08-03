@@ -1,6 +1,6 @@
 variable "envoy_release" {
   description = "docker tag of envoy release"
-  default     = "v1.14.1"
+  default     = "v1.15.0"
 }
 
 variable "release" {
@@ -38,6 +38,26 @@ variable "envoy_proxy_appmesh_cpu" {
 variable "envoy_proxy_appmesh_memory" {
   description = "fargate task memory when appmesh is enabled"
   default     = 1024
+}
+
+variable "enable_als" {
+  description = "flag to enable ALS integration"
+  default     = false
+}
+
+variable "envoy_als_cluster_name" {
+  description = "envoy access log server cluster name"
+  default     = "als_cluster"
+}
+
+variable "envoy_als_address" {
+  description = "envoy access log server address"
+  default     = "als"
+}
+
+variable "envoy_als_port" {
+  description = "envoiy access log server port"
+  default     = 9001
 }
 
 

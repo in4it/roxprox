@@ -6,18 +6,19 @@ import (
 )
 
 type WorkQueueItem struct {
-	id                string
-	Action            string
-	DependsOn         string
-	DependsOnItemIDs  []string
-	TLSParams         TLSParams
-	ClusterParams     ClusterParams
-	ListenerParams    ListenerParams
-	ChallengeParams   ChallengeParams
-	CreateCertParams  CreateCertParams
-	TracingParams     TracingParams
-	CompressionParams CompressionParams
-	state             string
+	id                    string
+	Action                string
+	DependsOn             string
+	DependsOnItemIDs      []string
+	TLSParams             TLSParams
+	ClusterParams         ClusterParams
+	ListenerParams        ListenerParams
+	ChallengeParams       ChallengeParams
+	CreateCertParams      CreateCertParams
+	TracingParams         TracingParams
+	CompressionParams     CompressionParams
+	AccessLogServerParams AccessLogServerParams
+	state                 string
 }
 
 type WorkQueueCache struct {
@@ -130,6 +131,12 @@ type CompressionParams struct {
 	ContentLength       uint32
 	ContentType         []string
 	DisableOnEtagHeader bool
+}
+
+type AccessLogServerParams struct {
+	Name                           string
+	AdditionalRequestHeadersToLog  []string
+	AdditionalResponseHeadersToLog []string
 }
 
 type DirectResponse struct {

@@ -32,8 +32,16 @@ cat resources/envoy.yaml |sed 's/$IP/'$(docker inspect -f '{{range .NetworkSetti
 
 Then run the envoy proxy:
 ```
-docker run --rm -it -p 10000:10000 -p 10001:10001 -p 9901:9901 --network roxprox -v "$(PWD)/resources/envoy-withip.yaml":/etc/envoy/envoy.yaml envoyproxy/envoy:v1.14.1
+docker run --rm -it -p 10000:10000 -p 10001:10001 -p 9901:9901 --network roxprox -v "$(PWD)/resources/envoy-withip.yaml":/etc/envoy/envoy.yaml envoyproxy/envoy:v1.15-latest
 ```
+
+## Run access log serve
+```
+cd  resources/access-log-server
+make docker
+docker run --rm -it -p 9001:9001 --network roxprox --name als als
+```
+
 ## Configuration
 You can configure endpoints using yaml definitions. Below are example yaml definitions that you can put in your data/ folder.
 
@@ -82,6 +90,17 @@ spec:
     - proxy:
         hostname: target-example.com
         port: 443
+```
+
+### ALS
+```
+api: proxy.in4it.io/v1
+kind: accessLogServer
+metadata:
+    name: accessLogServerExample
+spec:
+    address: "als"
+    port: 9001
 ```
 
 ### Authn
