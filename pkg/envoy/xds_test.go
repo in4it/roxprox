@@ -565,8 +565,7 @@ func TestClusterWithWebsockets(t *testing.T) {
 			t.Errorf("Error while getting listener: %s", err)
 			return
 		}
-		l := newListener()
-		routeSpecifier, err := l.getListenerRouteSpecifier(manager)
+		routeSpecifier, err := getListenerRouteSpecifier(&manager)
 		if err != nil {
 			t.Errorf("Error while getting routes: %s", err)
 			return
@@ -679,5 +678,36 @@ func TestAccessLogServer(t *testing.T) {
 			return
 		}
 
+	}
+}
+func TestRateLimitObject(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test-ratelimit.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+	httpFilters := x.workQueue.listener.newHTTPRouterFilter()
+	if len(httpFilters) == 0 {
+		t.Errorf("Filters in empty")
+		return
+	}
+	if httpFilters[0].Name != "envoy.filters.http.ratelimit" {
+		t.Errorf("ratelimit filter not found")
+		return
 	}
 }

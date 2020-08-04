@@ -54,6 +54,12 @@ func getTransportSocketDownStreamTlsSocket(typedConfig *core.TransportSocket_Typ
 	return tlsContext, nil
 }
 
+func getListenerRouteSpecifier(manager *hcm.HttpConnectionManager) (*hcm.HttpConnectionManager_RouteConfig, error) {
+	var routeSpecifier *hcm.HttpConnectionManager_RouteConfig
+	routeSpecifier = manager.RouteSpecifier.(*hcm.HttpConnectionManager_RouteConfig)
+	return routeSpecifier, nil
+}
+
 func getListenerHTTPConnectionManagerTLS(ll *api.Listener, hostname string) (hcm.HttpConnectionManager, error) {
 	var err error
 	var manager hcm.HttpConnectionManager
@@ -175,18 +181,22 @@ func updateHTTPFilterWithConfig(httpFilter *[]*hcm.HttpFilter, filterName string
 	httpFilterPos := getListenerHTTPFilterIndex(filterName, *httpFilter)
 
 	if httpFilterPos == -1 {
-		// prepend new httpFilter if the filter is not added yet
-		*httpFilter = append(
-			[]*hcm.HttpFilter{{
-				Name: filterName,
-				ConfigType: &hcm.HttpFilter_TypedConfig{
-					TypedConfig: filterConfig,
-				}},
-			}, *httpFilter...)
+		prependHTTPFilterWithConfig(httpFilter, filterName, filterConfig)
 	} else {
 		// filter exists: copy filter and update config of the filter
 		(*httpFilter)[httpFilterPos].ConfigType = &hcm.HttpFilter_TypedConfig{TypedConfig: filterConfig}
 	}
+}
+
+func prependHTTPFilterWithConfig(httpFilter *[]*hcm.HttpFilter, filterName string, filterConfig *any.Any) {
+	// prepend new httpFilter if the filter is not added yet
+	*httpFilter = append(
+		[]*hcm.HttpFilter{{
+			Name: filterName,
+			ConfigType: &hcm.HttpFilter_TypedConfig{
+				TypedConfig: filterConfig,
+			}},
+		}, *httpFilter...)
 }
 
 func cmpMatch(a *route.RouteMatch, b *route.RouteMatch) bool {

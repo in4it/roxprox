@@ -28,7 +28,7 @@ func (c *Compression) updateListenersWithCompression(cache *WorkQueueCache, para
 					return err
 				}
 
-				// get authz config config
+				// get compression config
 				compressorConfigEncoded, err := c.getCompressionFilterEncoded(params)
 				if err != nil {
 					return err

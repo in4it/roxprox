@@ -24,6 +24,7 @@ type WorkQueue struct {
 	tracing         *Tracing
 	compression     *Compression
 	accessLogServer *AccessLogServer
+	rateLimit       *RateLimit
 	cluster         *Cluster
 	acmeContact     string
 	latestSnapshot  cache.Snapshot
@@ -53,6 +54,7 @@ func NewWorkQueue(s storage.Storage, acmeContact string) (*WorkQueue, error) {
 		tracing:         newTracing(),
 		compression:     newCompression(),
 		accessLogServer: newAccessLogServer(),
+		rateLimit:       newRateLimit(),
 	}
 
 	// run queue to resolve dependencies
@@ -221,6 +223,18 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 			if err != nil {
 				item.state = "error"
 				logger.Errorf("updateListenersWithAccessLogServer error: %s", err)
+			} else {
+				item.state = "finished"
+			}
+			updateXds = true
+		case "updateListenersWithRateLimit":
+			// update default listener
+			w.listener.updateDefaultRateLimit(item.RateLimitParams)
+			// update existing listeners
+			err := w.rateLimit.updateListenersWithRateLimit(&w.cache, item.RateLimitParams, w.listener.rateLimits)
+			if err != nil {
+				item.state = "error"
+				logger.Errorf("updateListenersWithRateLimit error: %s", err)
 			} else {
 				item.state = "finished"
 			}

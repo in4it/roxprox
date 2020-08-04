@@ -68,7 +68,7 @@ func TestDomainAlreadyExists(t *testing.T) {
 	}
 
 	manager, err := getListenerHTTPConnectionManager(cachedListener)
-	routeSpecifier, err := l.getListenerRouteSpecifier(manager)
+	routeSpecifier, err := getListenerRouteSpecifier(&manager)
 	if err != nil {
 		t.Errorf("Error: %s", err)
 		return
@@ -136,7 +136,7 @@ func TestDoubleEntry(t *testing.T) {
 		return
 	}
 
-	routeSpecifier, err := l.getListenerRouteSpecifier(manager)
+	routeSpecifier, err := getListenerRouteSpecifier(&manager)
 	if err != nil {
 		t.Errorf("Error: %s", err)
 		return
@@ -569,7 +569,6 @@ func validateDeleteRoute(listeners []cacheTypes.Resource, params ListenerParams,
 }
 
 func validateChallenge(listeners []cacheTypes.Resource, params ChallengeParams) error {
-	l := newListener()
 	if len(listeners) == 0 {
 		return fmt.Errorf("Listener is empty (got %d)", len(listeners))
 	}
@@ -583,7 +582,7 @@ func validateChallenge(listeners []cacheTypes.Resource, params ChallengeParams) 
 		return err
 	}
 
-	routeSpecifier, err := l.getListenerRouteSpecifier(manager)
+	routeSpecifier, err := getListenerRouteSpecifier(&manager)
 	if err != nil {
 		return fmt.Errorf("Error: %s", err)
 	}
@@ -675,8 +674,7 @@ func validateDomain(listeners []cacheTypes.Resource, params ListenerParams) erro
 }
 
 func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams) error {
-	l := newListener()
-	routeSpecifier, err := l.getListenerRouteSpecifier(manager)
+	routeSpecifier, err := getListenerRouteSpecifier(&manager)
 	if err != nil {
 		return fmt.Errorf("Error: %s", err)
 	}

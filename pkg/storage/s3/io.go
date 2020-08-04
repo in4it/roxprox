@@ -183,6 +183,13 @@ func (s *S3Storage) GetObject(filename string) ([]api.Object, error) {
 					return objects, err
 				}
 				object.Data = accessLogServer
+			case "rateLimit":
+				var rateLimit api.RateLimit
+				err = yaml.Unmarshal([]byte(contentsSplitted), &rateLimit)
+				if err != nil {
+					return objects, err
+				}
+				object.Data = rateLimit
 			default:
 				return objects, errors.New("Object in wrong format")
 			}
