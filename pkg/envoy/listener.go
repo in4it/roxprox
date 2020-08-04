@@ -195,7 +195,6 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 					Cluster: clusterName,
 				},
 				UpgradeConfigs: upgradeConfigs,
-				RateLimits:     l.rateLimits,
 			},
 		}
 	} else {
@@ -309,10 +308,10 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 	}
 
 	return &route.VirtualHost{
-		Name:    virtualHostName,
-		Domains: []string{hostname},
-
-		Routes: routes,
+		Name:       virtualHostName,
+		Domains:    []string{hostname},
+		Routes:     routes,
+		RateLimits: l.rateLimits,
 	}
 }
 
