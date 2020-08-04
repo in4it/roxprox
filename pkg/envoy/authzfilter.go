@@ -38,7 +38,7 @@ func (a *AuthzFilter) updateListenersWithAuthzFilter(cache *WorkQueueCache, para
 				updateHTTPFilterWithConfig(&manager.HttpFilters, "envoy.ext_authz", authzConfigEncoded)
 
 				// update manager in cache
-				pbst, err := ptypes.MarshalAny(&manager)
+				pbst, err := ptypes.MarshalAny(manager)
 				if err != nil {
 					return err
 				}

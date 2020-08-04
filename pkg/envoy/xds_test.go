@@ -565,7 +565,7 @@ func TestClusterWithWebsockets(t *testing.T) {
 			t.Errorf("Error while getting listener: %s", err)
 			return
 		}
-		routeSpecifier, err := getListenerRouteSpecifier(&manager)
+		routeSpecifier, err := getListenerRouteSpecifier(manager)
 		if err != nil {
 			t.Errorf("Error while getting routes: %s", err)
 			return
@@ -673,7 +673,7 @@ func TestAccessLogServer(t *testing.T) {
 			t.Errorf("Cannot unmarshal HttpGrpcAccessLogConfig typed config")
 			return
 		}
-		if alsConfig.CommonConfig.LogName != "als_accessLogServerExample" {
+		if alsConfig.CommonConfig.LogName != "accessLogServerExample" {
 			t.Errorf("LogName is not correct within alsConfig: %s", alsConfig.CommonConfig.LogName)
 			return
 		}

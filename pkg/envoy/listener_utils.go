@@ -17,8 +17,8 @@ import (
 )
 
 // static listener functions
-func getListenerHTTPConnectionManager(ll *api.Listener) (hcm.HttpConnectionManager, error) {
-	var manager hcm.HttpConnectionManager
+func getListenerHTTPConnectionManager(ll *api.Listener) (*hcm.HttpConnectionManager, error) {
+	var manager *hcm.HttpConnectionManager
 	var err error
 	if len(ll.FilterChains) == 0 {
 		return manager, fmt.Errorf("No filterchains found in listener %s", ll.Name)
@@ -32,26 +32,26 @@ func getListenerHTTPConnectionManager(ll *api.Listener) (hcm.HttpConnectionManag
 	}
 	return manager, nil
 }
-func getManager(typedConfig *api.Filter_TypedConfig) (hcm.HttpConnectionManager, error) {
+func getManager(typedConfig *api.Filter_TypedConfig) (*hcm.HttpConnectionManager, error) {
 	var manager hcm.HttpConnectionManager
 
 	err := ptypes.UnmarshalAny(typedConfig.TypedConfig, &manager)
 	if err != nil {
-		return manager, err
+		return &manager, err
 	}
 
-	return manager, nil
+	return &manager, nil
 }
 
-func getTransportSocketDownStreamTlsSocket(typedConfig *core.TransportSocket_TypedConfig) (tls.DownstreamTlsContext, error) {
+func getTransportSocketDownStreamTlsSocket(typedConfig *core.TransportSocket_TypedConfig) (*tls.DownstreamTlsContext, error) {
 	var tlsContext tls.DownstreamTlsContext
 
 	err := ptypes.UnmarshalAny(typedConfig.TypedConfig, &tlsContext)
 	if err != nil {
-		return tlsContext, err
+		return &tlsContext, err
 	}
 
-	return tlsContext, nil
+	return &tlsContext, nil
 }
 
 func getListenerRouteSpecifier(manager *hcm.HttpConnectionManager) (*hcm.HttpConnectionManager_RouteConfig, error) {
@@ -60,9 +60,9 @@ func getListenerRouteSpecifier(manager *hcm.HttpConnectionManager) (*hcm.HttpCon
 	return routeSpecifier, nil
 }
 
-func getListenerHTTPConnectionManagerTLS(ll *api.Listener, hostname string) (hcm.HttpConnectionManager, error) {
+func getListenerHTTPConnectionManagerTLS(ll *api.Listener, hostname string) (*hcm.HttpConnectionManager, error) {
 	var err error
-	var manager hcm.HttpConnectionManager
+	var manager *hcm.HttpConnectionManager
 
 	filterId := getFilterChainId(ll.FilterChains, hostname)
 
@@ -102,29 +102,29 @@ func getListenerHTTPFilterIndex(filterName string, httpFilter []*hcm.HttpFilter)
 	return -1
 }
 
-func getListenerHTTPFilterJwtAuth(httpFilter []*hcm.HttpFilter) (jwtAuth.JwtAuthentication, error) {
+func getListenerHTTPFilterJwtAuth(httpFilter []*hcm.HttpFilter) (*jwtAuth.JwtAuthentication, error) {
 	var jwtConfig jwtAuth.JwtAuthentication
 	httpFilterPos := getListenerHTTPFilterIndex("envoy.filters.http.jwt_authn", httpFilter)
 	if httpFilterPos == -1 {
-		return jwtConfig, fmt.Errorf("HttpFilter for jwt missing")
+		return &jwtConfig, fmt.Errorf("HttpFilter for jwt missing")
 	}
 	err := ptypes.UnmarshalAny(httpFilter[httpFilterPos].GetTypedConfig(), &jwtConfig)
 	if err != nil {
-		return jwtConfig, err
+		return &jwtConfig, err
 	}
-	return jwtConfig, nil
+	return &jwtConfig, nil
 }
-func getListenerHTTPFilterAuthz(httpFilter []*hcm.HttpFilter) (extAuthz.ExtAuthz, error) {
+func getListenerHTTPFilterAuthz(httpFilter []*hcm.HttpFilter) (*extAuthz.ExtAuthz, error) {
 	var authzConfig extAuthz.ExtAuthz
 	httpFilterPos := getListenerHTTPFilterIndex("envoy.ext_authz", httpFilter)
 	if httpFilterPos == -1 {
-		return authzConfig, fmt.Errorf("HttpFilter for authz missing")
+		return &authzConfig, fmt.Errorf("HttpFilter for authz missing")
 	}
 	err := ptypes.UnmarshalAny(httpFilter[httpFilterPos].GetTypedConfig(), &authzConfig)
 	if err != nil {
-		return authzConfig, err
+		return &authzConfig, err
 	}
-	return authzConfig, nil
+	return &authzConfig, nil
 }
 
 func getListenerAttributes(params ListenerParams, paramsTLS TLSParams) (bool, string, string, string, uint32, string) {

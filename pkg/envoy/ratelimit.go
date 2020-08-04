@@ -44,7 +44,7 @@ func (r *RateLimit) updateListenersWithRateLimit(cache *WorkQueueCache, params R
 				}
 
 				// update virtualhosts
-				routeSpecifier, err := getListenerRouteSpecifier(&manager)
+				routeSpecifier, err := getListenerRouteSpecifier(manager)
 				if err != nil {
 					return err
 				}
@@ -56,7 +56,7 @@ func (r *RateLimit) updateListenersWithRateLimit(cache *WorkQueueCache, params R
 				manager.RouteSpecifier = routeSpecifier
 
 				// update manager in cache
-				pbst, err := ptypes.MarshalAny(&manager)
+				pbst, err := ptypes.MarshalAny(manager)
 				if err != nil {
 					return err
 				}

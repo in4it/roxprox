@@ -35,7 +35,7 @@ func (c *AccessLogServer) updateListenersWithAccessLogServer(cache *WorkQueueCac
 				manager.AccessLog = accessLogConfig
 
 				// update manager in cache
-				pbst, err := ptypes.MarshalAny(&manager)
+				pbst, err := ptypes.MarshalAny(manager)
 				if err != nil {
 					return err
 				}

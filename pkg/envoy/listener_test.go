@@ -68,7 +68,7 @@ func TestDomainAlreadyExists(t *testing.T) {
 	}
 
 	manager, err := getListenerHTTPConnectionManager(cachedListener)
-	routeSpecifier, err := getListenerRouteSpecifier(&manager)
+	routeSpecifier, err := getListenerRouteSpecifier(manager)
 	if err != nil {
 		t.Errorf("Error: %s", err)
 		return
@@ -136,7 +136,7 @@ func TestDoubleEntry(t *testing.T) {
 		return
 	}
 
-	routeSpecifier, err := getListenerRouteSpecifier(&manager)
+	routeSpecifier, err := getListenerRouteSpecifier(manager)
 	if err != nil {
 		t.Errorf("Error: %s", err)
 		return
@@ -536,7 +536,7 @@ func validateDeleteRoute(listeners []cacheTypes.Resource, params ListenerParams,
 		return fmt.Errorf("Expected l_tls (got %s)", cachedListenerTLS.Name)
 	}
 
-	var manager hcm.HttpConnectionManager
+	var manager *hcm.HttpConnectionManager
 	var err error
 	if tlsParams.Name == "" {
 		manager, err = getListenerHTTPConnectionManager(cachedListener)
@@ -582,7 +582,7 @@ func validateChallenge(listeners []cacheTypes.Resource, params ChallengeParams) 
 		return err
 	}
 
-	routeSpecifier, err := getListenerRouteSpecifier(&manager)
+	routeSpecifier, err := getListenerRouteSpecifier(manager)
 	if err != nil {
 		return fmt.Errorf("Error: %s", err)
 	}
@@ -673,8 +673,8 @@ func validateDomain(listeners []cacheTypes.Resource, params ListenerParams) erro
 	return validateAttributes(manager, params)
 }
 
-func validateAttributes(manager hcm.HttpConnectionManager, params ListenerParams) error {
-	routeSpecifier, err := getListenerRouteSpecifier(&manager)
+func validateAttributes(manager *hcm.HttpConnectionManager, params ListenerParams) error {
+	routeSpecifier, err := getListenerRouteSpecifier(manager)
 	if err != nil {
 		return fmt.Errorf("Error: %s", err)
 	}
@@ -837,7 +837,7 @@ func validateJWTProvider(listeners []cacheTypes.Resource, auth Auth) error {
 	return nil
 }
 
-func validateJWTProviderWithJWTConfig(jwtConfig jwtAuth.JwtAuthentication, auth Auth, listenerName string) error {
+func validateJWTProviderWithJWTConfig(jwtConfig *jwtAuth.JwtAuthentication, auth Auth, listenerName string) error {
 	providerFound := false
 	for k := range jwtConfig.Providers {
 		if k == auth.JwtProvider {
@@ -860,7 +860,7 @@ func validateJWTProviderWithJWTConfig(jwtConfig jwtAuth.JwtAuthentication, auth 
 	return nil
 }
 
-func validateJWT(manager hcm.HttpConnectionManager, params ListenerParams) error {
+func validateJWT(manager *hcm.HttpConnectionManager, params ListenerParams) error {
 	// validate jwt
 	if params.Auth.JwtProvider != "" {
 		jwtConfig, err := getListenerHTTPFilterJwtAuth(manager.HttpFilters)
@@ -1019,7 +1019,7 @@ func validateNewHTTPRouterFilter(httpFilter []*hcm.HttpFilter, params ListenerPa
 	validateAuthzConfig(authzConfig, params, "newHTTPRouterFilter")
 	return nil
 }
-func validateAuthzConfig(authzConfig extAuthz.ExtAuthz, params ListenerParams, listenerName string) error {
+func validateAuthzConfig(authzConfig *extAuthz.ExtAuthz, params ListenerParams, listenerName string) error {
 	if authzConfig.FailureModeAllow != params.Authz.FailureModeAllow {
 		return fmt.Errorf("Failuremode allow is not correct")
 	}
@@ -1030,7 +1030,7 @@ func validateAuthzConfig(authzConfig extAuthz.ExtAuthz, params ListenerParams, l
 	if err != nil {
 		return fmt.Errorf("Could not parse timeout %s for listener %s", params.Authz.Timeout, listenerName)
 	}
-	if !types.DurationProto(timeout).Equal(*(authzConfig.GetGrpcService().GetTimeout())) {
+	if !types.DurationProto(timeout).Equal(authzConfig.GetGrpcService().GetTimeout()) {
 		return fmt.Errorf("authz has wrong timeout for listener %s", listenerName)
 	}
 

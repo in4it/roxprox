@@ -133,7 +133,7 @@ func (l *Listener) updateListenerWithChallenge(cache *WorkQueueCache, challenge 
 			if err != nil {
 				return err
 			}
-			routeSpecifier, err := getListenerRouteSpecifier(&manager)
+			routeSpecifier, err := getListenerRouteSpecifier(manager)
 			if err != nil {
 				return err
 			}
@@ -153,7 +153,7 @@ func (l *Listener) updateListenerWithChallenge(cache *WorkQueueCache, challenge 
 				})
 			}
 			manager.RouteSpecifier = routeSpecifier
-			pbst, err := ptypes.MarshalAny(&manager)
+			pbst, err := ptypes.MarshalAny(manager)
 			if err != nil {
 				panic(err)
 			}
@@ -353,7 +353,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	}
 
 	// update listener
-	var manager hcm.HttpConnectionManager
+	var manager *hcm.HttpConnectionManager
 	var err error
 
 	ll := cache.listeners[listenerKey].(*api.Listener)
@@ -387,7 +387,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 		}
 	}
 
-	routeSpecifier, err := getListenerRouteSpecifier(&manager)
+	routeSpecifier, err := getListenerRouteSpecifier(manager)
 	if err != nil {
 		return err
 	}
@@ -418,7 +418,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	}
 
 	manager.RouteSpecifier = routeSpecifier
-	pbst, err := ptypes.MarshalAny(&manager)
+	pbst, err := ptypes.MarshalAny(manager)
 	if err != nil {
 		panic(err)
 	}
@@ -583,7 +583,7 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 	tls, targetPrefix, virtualHostname, _, _, matchType := getListenerAttributes(params, paramsTLS)
 
 	// http listener
-	var manager hcm.HttpConnectionManager
+	var manager *hcm.HttpConnectionManager
 	var err error
 
 	var ll *api.Listener
@@ -598,7 +598,7 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 		}
 	}
 
-	routeSpecifier, err := getListenerRouteSpecifier(&manager)
+	routeSpecifier, err := getListenerRouteSpecifier(manager)
 	if err != nil {
 		return err
 	}
@@ -632,7 +632,7 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 	}
 
 	manager.RouteSpecifier = routeSpecifier
-	pbst, err := ptypes.MarshalAny(&manager)
+	pbst, err := ptypes.MarshalAny(manager)
 	if err != nil {
 		panic(err)
 	}
@@ -660,7 +660,7 @@ func (l *Listener) validateListeners(listeners []cacheTypes.Resource, clusterNam
 		if err != nil {
 			return false, err
 		}
-		routeSpecifier, err := getListenerRouteSpecifier(&manager)
+		routeSpecifier, err := getListenerRouteSpecifier(manager)
 		if err != nil {
 			return false, err
 		}
@@ -777,7 +777,7 @@ func (l *Listener) printListener(cache *WorkQueueCache) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		routeSpecifier, err := getListenerRouteSpecifier(&manager)
+		routeSpecifier, err := getListenerRouteSpecifier(manager)
 		if err != nil {
 			return "", err
 		}
