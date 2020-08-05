@@ -23,11 +23,12 @@ const (
 var notificationLogger = loggo.GetLogger("storage.notifications")
 
 type Notifications struct {
-	config    Config
-	queueName string
-	sqsSvc    *sqs.SQS
-	peers     map[Peer]pbN.NotificationClient
-	eTags     map[string]string
+	config               Config
+	queueName            string
+	sqsSvc               *sqs.SQS
+	peers                map[Peer]pbN.NotificationClient
+	eTags                map[string]string
+	storageNotifications []string
 }
 
 type Peer struct {
@@ -36,12 +37,16 @@ type Peer struct {
 }
 
 func newNotifications(config Config) *Notifications {
-
+	storageNotifications := []string{serviceDiscovery}
+	for _, v := range config.StorageNotifications {
+		storageNotifications = append(storageNotifications, v)
+	}
 	return &Notifications{
-		config:    config,
-		queueName: config.Bucket + "-notifications",
-		peers:     make(map[Peer]pbN.NotificationClient),
-		eTags:     make(map[string]string),
+		config:               config,
+		queueName:            config.Bucket + "-notifications",
+		peers:                make(map[Peer]pbN.NotificationClient),
+		eTags:                make(map[string]string),
+		storageNotifications: storageNotifications,
 	}
 }
 
@@ -170,20 +175,22 @@ func (n *Notifications) SendNotificationToPeers(req pbN.NotificationRequest, pee
 
 func (n *Notifications) lookupPeers() []Peer {
 	peers := []Peer{}
-	ips, err := net.LookupIP(serviceDiscovery)
-	if err != nil {
-		logger.Infof("LookupPeers: couldn't do DNS lookup on %s (using local only instead)", serviceDiscovery)
-		peers = append(peers, Peer{
-			address: "127.0.0.1",
-			port:    managementPort,
-		})
-		return peers
-	}
-	for _, ip := range ips {
-		peers = append(peers, Peer{
-			address: ip.String(),
-			port:    managementPort,
-		})
+	for _, storageNotification := range n.storageNotifications {
+		ips, err := net.LookupIP(storageNotification)
+		if err != nil {
+			logger.Infof("LookupPeers: couldn't do DNS lookup on %s (using local only instead)", serviceDiscovery)
+			peers = append(peers, Peer{
+				address: "127.0.0.1",
+				port:    managementPort,
+			})
+			return peers
+		}
+		for _, ip := range ips {
+			peers = append(peers, Peer{
+				address: ip.String(),
+				port:    managementPort,
+			})
+		}
 	}
 	return peers
 }

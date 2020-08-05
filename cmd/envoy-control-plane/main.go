@@ -15,19 +15,21 @@ var logger = loggo.GetLogger("envoy-control-plane")
 
 func main() {
 	var (
-		err           error
-		loglevel      string
-		storageType   string
-		storagePath   string
-		storageBucket string
-		awsRegion     string
-		acmeContact   string
-		s             storage.Storage
+		err                  error
+		loglevel             string
+		storageType          string
+		storagePath          string
+		storageBucket        string
+		storageNotifications string
+		awsRegion            string
+		acmeContact          string
+		s                    storage.Storage
 	)
 	flag.StringVar(&loglevel, "loglevel", "INFO", "log level")
 	flag.StringVar(&storageType, "storage-type", "local", "storage type")
 	flag.StringVar(&storagePath, "storage-path", "", "storage path")
 	flag.StringVar(&storageBucket, "storage-bucket", "", "s3 storage bucket")
+	flag.StringVar(&storageNotifications, "storage-notifications", "", "s3 storage notifications")
 	flag.StringVar(&awsRegion, "aws-region", "", "AWS region")
 	flag.StringVar(&acmeContact, "acme-contact", "", "acme contact for TLS certs")
 
@@ -48,7 +50,7 @@ func main() {
 			os.Exit(1)
 		}
 	} else if storageType == "s3" {
-		s, err = storage.NewS3Storage(storageBucket, storagePath, awsRegion)
+		s, err = storage.NewS3Storage(storageBucket, storagePath, awsRegion, storageNotifications)
 		if err != nil {
 			logger.Errorf("Couldn't inialize storage: %s", err)
 			os.Exit(1)
