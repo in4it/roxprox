@@ -3,6 +3,7 @@ package storage
 import (
 	"crypto/rsa"
 	"fmt"
+	"strings"
 
 	"github.com/in4it/roxprox/pkg/api"
 	"github.com/in4it/roxprox/pkg/storage/local"
@@ -46,4 +47,27 @@ func NewStorage(t string, config interface{}) (Storage, error) {
 	} else {
 		return nil, fmt.Errorf("Unknown storage type supplied")
 	}
+}
+
+func NewLocalStorage(storagePath string) (Storage, error) {
+	storage, err := NewStorage("local", local.Config{Path: storagePath})
+	if err != nil {
+		return nil, fmt.Errorf("Couldn't inialize storage: %s", err)
+	}
+
+	return storage, nil
+}
+func NewS3Storage(storageBucket, storagePath, awsRegion string) (Storage, error) {
+	if storageBucket == "" {
+		return nil, fmt.Errorf("No bucket specified")
+	}
+	if strings.HasSuffix(storagePath, "/") {
+		storagePath = storagePath[:len(storagePath)-1]
+	}
+	storage, err := NewStorage("s3", s3.Config{Prefix: storagePath, Bucket: storageBucket, Region: awsRegion})
+	if err != nil {
+		return nil, fmt.Errorf("Couldn't inialize storage: %s", err)
+	}
+
+	return storage, nil
 }
