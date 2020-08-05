@@ -134,19 +134,17 @@ func (r *RateLimit) getRateLimitVirtualHostConfig(params RateLimitParams) (*rout
 					},
 				},
 			})
-
 		}
-
+		actions = append(actions, &route.RateLimit_Action{
+			ActionSpecifier: &route.RateLimit_Action_GenericKey_{
+				GenericKey: &route.RateLimit_Action_GenericKey{
+					DescriptorValue: "__identifier:" + params.Name,
+				},
+			},
+		})
 	}
 	return &route.RateLimit{
 		Actions: actions,
-		/*Limit: &route.RateLimit_Override{
-			OverrideSpecifier: &route.RateLimit_Override_DynamicMetadata_{
-				DynamicMetadata: &route.RateLimit_Override_DynamicMetadata{
-					MetadataKey: ,
-				},
-			},
-		},*/
 	}, nil
 
 }

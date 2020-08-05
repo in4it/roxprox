@@ -7,7 +7,7 @@ spec:
   descriptors:
     - remoteAddress: true
   requestPerUnit: 1
-  Unit: hour
+  Unit: minute
 ---
 api: proxy.in4it.io/v1
 kind: rateLimit
@@ -16,5 +16,6 @@ metadata:
 spec:
   descriptors:
     - requestHeader: "Authorization"
+    - destinationCluster: true
   requestPerUnit: 5
-  Unit: hour
+  Unit: minute

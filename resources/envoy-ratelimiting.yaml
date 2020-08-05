@@ -28,18 +28,18 @@ static_resources:
               socket_address:
                 address: $IP
                 port_value: 8080
-  - name: ratelimiting
+  - name: ratelimit
     connect_timeout: 1s
     http2_protocol_options: {}
     load_assignment:
-      cluster_name: ratelimiting
+      cluster_name: ratelimit
       endpoints:
       - lb_endpoints:
         - endpoint:
             address:
               socket_address:
-                address: ratelimiting
-                port_value: 8080
+                address: $IP
+                port_value: 8081
 #admin:
 #  access_log_path: /tmp/admin_access.log
 #  address:
