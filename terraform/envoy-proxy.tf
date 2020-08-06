@@ -4,16 +4,18 @@
 
 locals {
   envoy_config_vars = {
-    CLUSTER          = "roxprox"
-    ID               = "roxprox-http"
-    ADDRESS          = "roxprox.roxprox.local"
-    DATADOG          = "datadog.roxprox.local"
-    ADMIN_PORT       = "9909"
-    ALS_CLUSTER_NAME = var.envoy_als_cluster_name
-    ALS_ADDRESS      = var.envoy_als_address
-    ALS_PORT         = var.envoy_als_port
-    ENABLE_ALS       = var.enable_als
-    ENABLE_DATADOG   = var.enable_datadog
+    CLUSTER           = "roxprox"
+    ID                = "roxprox-http"
+    ADDRESS           = "roxprox.roxprox.local"
+    DATADOG           = "datadog.roxprox.local"
+    ADMIN_PORT        = "9909"
+    ALS_CLUSTER_NAME  = var.envoy_als_cluster_name
+    ALS_ADDRESS       = var.envoy_als_address
+    ALS_PORT          = var.envoy_als_port
+    RATELIMIT_ADDRESS = var.ratelimit_address
+    ENABLE_ALS        = var.enable_als
+    ENABLE_DATADOG    = var.enable_datadog
+    ENABLE_RATELIMIT  = var.enable_ratelimit
   }
 }
 

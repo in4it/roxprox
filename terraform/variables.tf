@@ -235,3 +235,6 @@ variable "ratelimit_debug" {
 variable "ratelimit_count" {
   default = 1
 }
+variable "ratelimit_address" {
+  default = "roxprox-ratelimit.roxprox.local"
+}

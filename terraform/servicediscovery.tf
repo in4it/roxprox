@@ -63,7 +63,7 @@ resource "aws_service_discovery_service" "roxprox-datadog" {
 
 resource "aws_service_discovery_service" "roxprox-ratelimit" {
   count = var.enable_ratelimit ? 1 : 0
-  name  = "roxprox-ratelimit"
+  name  = replace(var.ratelimit_address, ".roxprox.local", "")
 
   dns_config {
     namespace_id = aws_service_discovery_private_dns_namespace.roxprox.id
