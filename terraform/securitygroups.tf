@@ -149,4 +149,10 @@ resource "aws_security_group" "roxprox-ratelimit" {
     protocol        = "tcp"
     security_groups = concat(var.management_access_sg, [aws_security_group.roxprox.id])
   }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
