@@ -50,7 +50,8 @@ func main() {
 			os.Exit(1)
 		}
 	} else if storageType == "s3" {
-		s, err = storage.NewS3Storage(storageBucket, storagePath, awsRegion, storageNotifications)
+		startNotificationQueue := true
+		s, err = storage.NewS3Storage(storageBucket, storagePath, awsRegion, storageNotifications, startNotificationQueue)
 		if err != nil {
 			logger.Errorf("Couldn't inialize storage: %s", err)
 			os.Exit(1)

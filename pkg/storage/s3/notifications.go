@@ -37,7 +37,7 @@ type Peer struct {
 	port    string
 }
 
-func newNotifications(config Config) *Notifications {
+func NewNotifications(config Config) *Notifications {
 	storageNotifications := []string{serviceDiscovery}
 	for _, v := range strings.Split(config.StorageNotifications, ",") {
 		storageNotifications = append(storageNotifications, v)

@@ -57,16 +57,29 @@ func NewLocalStorage(storagePath string) (Storage, error) {
 
 	return storage, nil
 }
-func NewS3Storage(storageBucket, storagePath, awsRegion, storageNotifications string) (Storage, error) {
+func NewS3Storage(storageBucket, storagePath, awsRegion, storageNotifications string, startQueue bool) (Storage, error) {
 	if storageBucket == "" {
 		return nil, fmt.Errorf("No bucket specified")
 	}
 	if strings.HasSuffix(storagePath, "/") {
 		storagePath = storagePath[:len(storagePath)-1]
 	}
-	storage, err := NewStorage("s3", s3.Config{Prefix: storagePath, Bucket: storageBucket, Region: awsRegion, StorageNotifications: storageNotifications})
+
+	config := s3.Config{Prefix: storagePath, Bucket: storageBucket, Region: awsRegion, StorageNotifications: storageNotifications}
+
+	storage, err := NewStorage("s3", config)
 	if err != nil {
 		return nil, fmt.Errorf("Couldn't inialize storage: %s", err)
+	}
+
+	// start queue
+	if startQueue {
+		notifications := s3.NewNotifications(config)
+		err = notifications.StartQueue()
+
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return storage, nil
