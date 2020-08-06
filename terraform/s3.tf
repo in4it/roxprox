@@ -4,7 +4,7 @@ resource "aws_s3_bucket" "roxprox" {
 }
 
 resource "aws_s3_bucket_public_access_block" "roxprox" {
-  bucket = "${aws_s3_bucket.roxprox.id}"
+  bucket = aws_s3_bucket.roxprox.id
 
   block_public_acls       = true
   block_public_policy     = true

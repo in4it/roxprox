@@ -43,7 +43,7 @@
       "image": "in4it/roxprox:${ROXPROX_RELEASE}",
       "name": "roxprox",
       "command": [
-         %{ if ENABLE_RATELIMIT }]
+         %{ if ENABLE_RATELIMIT }
          "-storage-notifications", "roxprox-ratelimit.roxprox.local",
          %{ endif }
          "-acme-contact", "${ACME_CONTACT}",
