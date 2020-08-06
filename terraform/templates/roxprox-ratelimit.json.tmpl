@@ -46,8 +46,7 @@
          "-storage-path", "/config",
          "-storage-type", "s3",
          "-storage-bucket", "${S3_BUCKET}",
-         "-aws-region", "${AWS_REGION}",
-         "-loglevel", "${LOGLEVEL}"
+         "-aws-region", "${AWS_REGION}"
       ],
       "environment" : [
           %{ if RATELIMIT_DEBUG }
