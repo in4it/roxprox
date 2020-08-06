@@ -63,6 +63,6 @@ resource "aws_ecs_service" "roxprox-ratelimit" {
   }
 
   service_registries {
-    registry_arn = aws_service_discovery_service.roxprox-ratelimit.arn
+    registry_arn = aws_service_discovery_service.roxprox-ratelimit[0].arn
   }
 }
