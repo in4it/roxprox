@@ -18,6 +18,7 @@ type WorkQueueItem struct {
 	TracingParams         TracingParams
 	CompressionParams     CompressionParams
 	AccessLogServerParams AccessLogServerParams
+	RateLimitParams       RateLimitParams
 	state                 string
 }
 
@@ -146,4 +147,16 @@ type DirectResponse struct {
 type DirectResponseAction struct {
 	Status uint32
 	Body   string
+}
+
+type RateLimitParams struct {
+	Name        string
+	Descriptors []RateLimitDescriptor
+}
+
+type RateLimitDescriptor struct {
+	DestinationCluster bool
+	SourceCluster      bool
+	RemoteAddress      bool
+	RequestHeader      string
 }

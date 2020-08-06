@@ -180,7 +180,7 @@ func (j *JwtProvider) updateListenerWithJwtProvider(cache *WorkQueueCache, param
 			return err
 		}
 		// add routes to jwtProvider
-		var jwtConfig jwtAuth.JwtAuthentication
+		jwtConfig := &jwtAuth.JwtAuthentication{}
 		if getListenerHTTPFilterIndex("envoy.filters.http.jwt_authn", manager.HttpFilters) != -1 {
 			jwtConfig, err = getListenerHTTPFilterJwtAuth(manager.HttpFilters)
 			if err != nil {
@@ -194,14 +194,14 @@ func (j *JwtProvider) updateListenerWithJwtProvider(cache *WorkQueueCache, param
 		jwtConfig.Providers[params.Auth.JwtProvider] = jwtNewConfig.Providers[params.Auth.JwtProvider]
 		logger.Debugf("Adding/updating %s to jwt config", params.Auth.JwtProvider)
 
-		jwtConfigEncoded, err := ptypes.MarshalAny(&jwtConfig)
+		jwtConfigEncoded, err := ptypes.MarshalAny(jwtConfig)
 		if err != nil {
 			panic(err)
 		}
 
 		updateHTTPFilterWithConfig(&manager.HttpFilters, "envoy.filters.http.jwt_authn", jwtConfigEncoded)
 
-		pbst, err := ptypes.MarshalAny(&manager)
+		pbst, err := ptypes.MarshalAny(manager)
 		if err != nil {
 			panic(err)
 		}
@@ -231,7 +231,7 @@ func (j *JwtProvider) UpdateJwtRule(cache *WorkQueueCache, params ListenerParams
 	}
 
 	// update listener
-	var manager hcm.HttpConnectionManager
+	var manager *hcm.HttpConnectionManager
 	var err error
 
 	ll := cache.listeners[listenerKey].(*api.Listener)
@@ -246,7 +246,7 @@ func (j *JwtProvider) UpdateJwtRule(cache *WorkQueueCache, params ListenerParams
 	}
 
 	// add routes to jwtProvider
-	var jwtConfig jwtAuth.JwtAuthentication
+	jwtConfig := &jwtAuth.JwtAuthentication{}
 	if getListenerHTTPFilterIndex("envoy.filters.http.jwt_authn", manager.HttpFilters) != -1 {
 		jwtConfig, err = getListenerHTTPFilterJwtAuth(manager.HttpFilters)
 		if err != nil {
@@ -282,14 +282,14 @@ func (j *JwtProvider) UpdateJwtRule(cache *WorkQueueCache, params ListenerParams
 			jwtConfig.Rules = append(jwtConfig.Rules, newJwtRule)
 		}
 	}
-	jwtConfigEncoded, err := ptypes.MarshalAny(&jwtConfig)
+	jwtConfigEncoded, err := ptypes.MarshalAny(jwtConfig)
 	if err != nil {
 		panic(err)
 	}
 
 	updateHTTPFilterWithConfig(&manager.HttpFilters, "envoy.filters.http.jwt_authn", jwtConfigEncoded)
 
-	pbst, err := ptypes.MarshalAny(&manager)
+	pbst, err := ptypes.MarshalAny(manager)
 	if err != nil {
 		panic(err)
 	}
@@ -332,7 +332,7 @@ func (j *JwtProvider) DeleteJwtRule(cache *WorkQueueCache, params ListenerParams
 	}
 
 	// http listener
-	var manager hcm.HttpConnectionManager
+	var manager *hcm.HttpConnectionManager
 	var err error
 
 	var ll *api.Listener
@@ -359,7 +359,7 @@ func (j *JwtProvider) DeleteJwtRule(cache *WorkQueueCache, params ListenerParams
 			index := j.requirementRuleIndex(jwtConfig.Rules, rule)
 			jwtConfig.Rules = append(jwtConfig.Rules[:index], jwtConfig.Rules[index+1:]...)
 		}
-		jwtConfigEncoded, err := ptypes.MarshalAny(&jwtConfig)
+		jwtConfigEncoded, err := ptypes.MarshalAny(jwtConfig)
 		if err != nil {
 			panic(err)
 		}
@@ -369,7 +369,7 @@ func (j *JwtProvider) DeleteJwtRule(cache *WorkQueueCache, params ListenerParams
 		logger.Debugf("Couldn't find jwt provider %s during deleteRoute", params.Auth.JwtProvider)
 	}
 
-	pbst, err := ptypes.MarshalAny(&manager)
+	pbst, err := ptypes.MarshalAny(manager)
 	if err != nil {
 		panic(err)
 	}

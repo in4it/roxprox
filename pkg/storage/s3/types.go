@@ -5,9 +5,10 @@ import (
 )
 
 type Config struct {
-	Prefix string
-	Bucket string
-	Region string
+	Prefix               string
+	Bucket               string
+	Region               string
+	StorageNotifications string
 }
 
 type NotificationEntry struct {

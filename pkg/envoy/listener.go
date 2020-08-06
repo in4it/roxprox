@@ -28,6 +28,8 @@ type Listener struct {
 	httpFilter         []*hcm.HttpFilter
 	tracing            *hcm.HttpConnectionManager_Tracing
 	accessLoggerConfig []*alf.AccessLog
+	rateLimits         []*route.RateLimit
+	rateLimitsMapping  map[string]uint
 }
 
 func newListener() *Listener {
@@ -38,6 +40,8 @@ func newListener() *Listener {
 		},
 	}
 	listener.accessLoggerConfig = []*alf.AccessLog{}
+	listener.rateLimits = []*route.RateLimit{}
+	listener.rateLimitsMapping = make(map[string]uint)
 
 	return listener
 }
@@ -129,7 +133,7 @@ func (l *Listener) updateListenerWithChallenge(cache *WorkQueueCache, challenge 
 			if err != nil {
 				return err
 			}
-			routeSpecifier, err := l.getListenerRouteSpecifier(manager)
+			routeSpecifier, err := getListenerRouteSpecifier(manager)
 			if err != nil {
 				return err
 			}
@@ -149,7 +153,7 @@ func (l *Listener) updateListenerWithChallenge(cache *WorkQueueCache, challenge 
 				})
 			}
 			manager.RouteSpecifier = routeSpecifier
-			pbst, err := ptypes.MarshalAny(&manager)
+			pbst, err := ptypes.MarshalAny(manager)
 			if err != nil {
 				panic(err)
 			}
@@ -159,11 +163,6 @@ func (l *Listener) updateListenerWithChallenge(cache *WorkQueueCache, challenge 
 		}
 	}
 	return nil
-}
-func (l *Listener) getListenerRouteSpecifier(manager hcm.HttpConnectionManager) (*hcm.HttpConnectionManager_RouteConfig, error) {
-	var routeSpecifier *hcm.HttpConnectionManager_RouteConfig
-	routeSpecifier = manager.RouteSpecifier.(*hcm.HttpConnectionManager_RouteConfig)
-	return routeSpecifier, nil
 }
 
 func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, clusterName, virtualHostName string, methods []string, matchType string, directResponse DirectResponse, enableWebsocket bool) *route.VirtualHost {
@@ -309,10 +308,10 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 	}
 
 	return &route.VirtualHost{
-		Name:    virtualHostName,
-		Domains: []string{hostname},
-
-		Routes: routes,
+		Name:       virtualHostName,
+		Domains:    []string{hostname},
+		Routes:     routes,
+		RateLimits: l.rateLimits,
 	}
 }
 
@@ -353,7 +352,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	}
 
 	// update listener
-	var manager hcm.HttpConnectionManager
+	var manager *hcm.HttpConnectionManager
 	var err error
 
 	ll := cache.listeners[listenerKey].(*api.Listener)
@@ -387,7 +386,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 		}
 	}
 
-	routeSpecifier, err := l.getListenerRouteSpecifier(manager)
+	routeSpecifier, err := getListenerRouteSpecifier(manager)
 	if err != nil {
 		return err
 	}
@@ -418,7 +417,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	}
 
 	manager.RouteSpecifier = routeSpecifier
-	pbst, err := ptypes.MarshalAny(&manager)
+	pbst, err := ptypes.MarshalAny(manager)
 	if err != nil {
 		panic(err)
 	}
@@ -583,7 +582,7 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 	tls, targetPrefix, virtualHostname, _, _, matchType := getListenerAttributes(params, paramsTLS)
 
 	// http listener
-	var manager hcm.HttpConnectionManager
+	var manager *hcm.HttpConnectionManager
 	var err error
 
 	var ll *api.Listener
@@ -598,7 +597,7 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 		}
 	}
 
-	routeSpecifier, err := l.getListenerRouteSpecifier(manager)
+	routeSpecifier, err := getListenerRouteSpecifier(manager)
 	if err != nil {
 		return err
 	}
@@ -632,7 +631,7 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 	}
 
 	manager.RouteSpecifier = routeSpecifier
-	pbst, err := ptypes.MarshalAny(&manager)
+	pbst, err := ptypes.MarshalAny(manager)
 	if err != nil {
 		panic(err)
 	}
@@ -660,7 +659,7 @@ func (l *Listener) validateListeners(listeners []cacheTypes.Resource, clusterNam
 		if err != nil {
 			return false, err
 		}
-		routeSpecifier, err := l.getListenerRouteSpecifier(manager)
+		routeSpecifier, err := getListenerRouteSpecifier(manager)
 		if err != nil {
 			return false, err
 		}
@@ -732,6 +731,35 @@ func (l *Listener) updateDefaultAccessLogServer(accessLogServerParams AccessLogS
 	}
 
 	l.accessLoggerConfig = accessLoggerConfig
+}
+
+func (l *Listener) updateDefaultRateLimit(rateLimitParams RateLimitParams) {
+	r := newRateLimit()
+
+	if getListenerHTTPFilterIndex("envoy.filters.http.ratelimit", l.httpFilter) == -1 {
+		rateLimitConfigEncoded, err := r.getRateLimitConfigEncoded(rateLimitParams)
+		if err != nil {
+			logger.Errorf("Couldn't update default rateLimit filter: %s", err)
+			return
+		}
+		if rateLimitConfigEncoded == nil {
+			return
+		}
+
+		updateHTTPFilterWithConfig(&l.httpFilter, "envoy.filters.http.ratelimit", rateLimitConfigEncoded)
+	}
+
+	rateLimitVirtualHostConfig, err := r.getRateLimitVirtualHostConfig(rateLimitParams)
+	if err != nil {
+		logger.Errorf("Couldn't update ratelimit: %s", err)
+		return
+	}
+	if val, ok := l.rateLimitsMapping[rateLimitParams.Name]; ok {
+		l.rateLimits[val] = rateLimitVirtualHostConfig
+	} else {
+		l.rateLimits = append(l.rateLimits, rateLimitVirtualHostConfig)
+		l.rateLimitsMapping[rateLimitParams.Name] = uint(len(l.rateLimits) - 1)
+	}
 
 }
 
@@ -748,7 +776,7 @@ func (l *Listener) printListener(cache *WorkQueueCache) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		routeSpecifier, err := l.getListenerRouteSpecifier(manager)
+		routeSpecifier, err := getListenerRouteSpecifier(manager)
 		if err != nil {
 			return "", err
 		}

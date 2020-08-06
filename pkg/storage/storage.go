@@ -3,6 +3,7 @@ package storage
 import (
 	"crypto/rsa"
 	"fmt"
+	"strings"
 
 	"github.com/in4it/roxprox/pkg/api"
 	"github.com/in4it/roxprox/pkg/storage/local"
@@ -46,4 +47,40 @@ func NewStorage(t string, config interface{}) (Storage, error) {
 	} else {
 		return nil, fmt.Errorf("Unknown storage type supplied")
 	}
+}
+
+func NewLocalStorage(storagePath string) (Storage, error) {
+	storage, err := NewStorage("local", local.Config{Path: storagePath})
+	if err != nil {
+		return nil, fmt.Errorf("Couldn't inialize storage: %s", err)
+	}
+
+	return storage, nil
+}
+func NewS3Storage(storageBucket, storagePath, awsRegion, storageNotifications string, startQueue bool) (Storage, error) {
+	if storageBucket == "" {
+		return nil, fmt.Errorf("No bucket specified")
+	}
+	if strings.HasSuffix(storagePath, "/") {
+		storagePath = storagePath[:len(storagePath)-1]
+	}
+
+	config := s3.Config{Prefix: storagePath, Bucket: storageBucket, Region: awsRegion, StorageNotifications: storageNotifications}
+
+	storage, err := NewStorage("s3", config)
+	if err != nil {
+		return nil, fmt.Errorf("Couldn't inialize storage: %s", err)
+	}
+
+	// start queue
+	if startQueue {
+		notifications := s3.NewNotifications(config)
+		err = notifications.StartQueue()
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return storage, nil
 }

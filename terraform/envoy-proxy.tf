@@ -4,16 +4,18 @@
 
 locals {
   envoy_config_vars = {
-    CLUSTER          = "roxprox"
-    ID               = "roxprox-http"
-    ADDRESS          = "roxprox.roxprox.local"
-    DATADOG          = "datadog.roxprox.local"
-    ADMIN_PORT       = "9909"
-    ALS_CLUSTER_NAME = var.envoy_als_cluster_name
-    ALS_ADDRESS      = var.envoy_als_address
-    ALS_PORT         = var.envoy_als_port
-    ENABLE_ALS       = var.enable_als
-    ENABLE_DATADOG   = var.enable_datadog
+    CLUSTER           = "roxprox"
+    ID                = "roxprox-http"
+    ADDRESS           = "roxprox.roxprox.local"
+    DATADOG           = "datadog.roxprox.local"
+    ADMIN_PORT        = "9909"
+    ALS_CLUSTER_NAME  = var.envoy_als_cluster_name
+    ALS_ADDRESS       = var.envoy_als_address
+    ALS_PORT          = var.envoy_als_port
+    RATELIMIT_ADDRESS = var.ratelimit_address
+    ENABLE_ALS        = var.enable_als
+    ENABLE_DATADOG    = var.enable_datadog
+    ENABLE_RATELIMIT  = var.enable_ratelimit
   }
 }
 
@@ -25,7 +27,7 @@ resource "aws_ssm_parameter" "envoy-config-http" {
 
 
 data "template_file" "envoy-proxy" {
-  template =  var.enable_appmesh ? file("${path.module}/templates/envoy-appmesh.json.tpl") : file("${path.module}/templates/envoy.json.tpl")
+  template = var.enable_appmesh ? file("${path.module}/templates/envoy-appmesh.json.tpl") : file("${path.module}/templates/envoy.json.tpl")
 
   vars = {
     AWS_REGION            = data.aws_region.current.name
@@ -83,8 +85,8 @@ resource "aws_ecs_service" "envoy-proxy" {
   launch_type = "FARGATE"
 
   network_configuration {
-    subnets = var.subnets
-    security_groups = var.loadbalancer == "alb" ? [aws_security_group.roxprox-envoy-alb[0].id] : [aws_security_group.roxprox-envoy-nlb[0].id]
+    subnets          = var.subnets
+    security_groups  = var.loadbalancer == "alb" ? [aws_security_group.roxprox-envoy-alb[0].id] : [aws_security_group.roxprox-envoy-nlb[0].id]
     assign_public_ip = false
   }
 
@@ -94,8 +96,8 @@ resource "aws_ecs_service" "envoy-proxy" {
 
   load_balancer {
     target_group_arn = aws_lb_target_group.envoy-proxy-http.id
-    container_name = "envoy-proxy"
-    container_port = "10000"
+    container_name   = "envoy-proxy"
+    container_port   = "10000"
   }
 }
 
@@ -104,8 +106,8 @@ resource "aws_ecs_service" "envoy-proxy" {
 #
 
 data "template_file" "envoy-proxy-https" {
-  count = var.tls_listener ? 1 : 0
-  template =  var.enable_appmesh ? file("${path.module}/templates/envoy-appmesh.json.tpl") : file("${path.module}/templates/envoy.json.tpl")
+  count    = var.tls_listener ? 1 : 0
+  template = var.enable_appmesh ? file("${path.module}/templates/envoy-appmesh.json.tpl") : file("${path.module}/templates/envoy.json.tpl")
 
   vars = {
     AWS_REGION            = data.aws_region.current.name
@@ -127,7 +129,7 @@ resource "aws_ecs_task_definition" "envoy-proxy-https" {
   memory                   = var.envoy_proxy_memory
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  container_definitions = data.template_file.envoy-proxy-https[0].rendered
+  container_definitions    = data.template_file.envoy-proxy-https[0].rendered
 }
 
 resource "aws_ecs_task_definition" "envoy-proxy-https-appmesh" {
@@ -161,17 +163,17 @@ resource "aws_ecs_service" "envoy-proxy-https" {
   desired_count   = var.envoy_proxy_count
   task_definition = var.enable_appmesh ? aws_ecs_task_definition.envoy-proxy-https-appmesh[0].arn : aws_ecs_task_definition.envoy-proxy-https[0].arn
   launch_type     = "FARGATE"
-  
+
   network_configuration {
     subnets          = var.subnets
     security_groups  = var.loadbalancer == "alb" ? [aws_security_group.roxprox-envoy-alb[0].id] : [aws_security_group.roxprox-envoy-nlb[0].id]
     assign_public_ip = false
   }
-  
+
   service_registries {
     registry_arn = aws_service_discovery_service.roxprox-envoy.arn
   }
-  
+
   load_balancer {
     target_group_arn = aws_lb_target_group.envoy-proxy-https[0].id
     container_name   = "envoy-proxy-https"

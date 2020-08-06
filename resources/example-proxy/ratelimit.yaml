@@ -1,0 +1,21 @@
+# Uncomment to enable RateLimiting
+api: proxy.in4it.io/v1
+kind: rateLimit
+metadata:
+  name: ratelimit-1
+spec:
+  descriptors:
+    - remoteAddress: true
+  requestPerUnit: 1
+  Unit: minute
+---
+api: proxy.in4it.io/v1
+kind: rateLimit
+metadata:
+  name: ratelimit-authorized
+spec:
+  descriptors:
+    - requestHeader: "Authorization"
+    - destinationCluster: true
+  requestPerUnit: 5
+  Unit: minute

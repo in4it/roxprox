@@ -11,7 +11,7 @@ func TestLookupPeers(t *testing.T) {
 	config := Config{
 		Bucket: "bucket",
 	}
-	n := newNotifications(config)
+	n := NewNotifications(config)
 	peers := n.lookupPeers()
 	fmt.Printf("%+v", peers)
 	if len(peers) == 0 {
@@ -22,7 +22,7 @@ func TestSendNotificationToPeers(t *testing.T) {
 	config := Config{
 		Bucket: "bucket",
 	}
-	n := newNotifications(config)
+	n := NewNotifications(config)
 	peers := []Peer{
 		{
 			address: "192.168.199.123",

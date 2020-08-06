@@ -233,6 +233,13 @@ func (x *XDS) ImportObject(object pkgApi.Object) ([]WorkQueueItem, error) {
 			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
 		}
 		return items, nil
+	case "rateLimit":
+		rateLimit := object.Data.(pkgApi.RateLimit)
+		items, err := x.importRateLimit(rateLimit)
+		if err != nil {
+			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
+		}
+		return items, nil
 	}
 
 	return []WorkQueueItem{}, nil
@@ -298,6 +305,27 @@ func (x *XDS) importAccessLogServer(accessLogServer pkgApi.AccessLogServer) ([]W
 				Name:                           accessLogServer.Metadata.Name,
 				AdditionalRequestHeadersToLog:  accessLogServer.Spec.AdditionalRequestHeadersToLog,
 				AdditionalResponseHeadersToLog: accessLogServer.Spec.AdditionalResponseHeadersToLog,
+			},
+		},
+	}, nil
+}
+
+func (x *XDS) importRateLimit(rateLimit pkgApi.RateLimit) ([]WorkQueueItem, error) {
+	var descriptors []RateLimitDescriptor
+	for _, descriptor := range rateLimit.Spec.Descriptors {
+		descriptors = append(descriptors, RateLimitDescriptor{
+			DestinationCluster: descriptor.DestinationCluster,
+			SourceCluster:      descriptor.SourceCluster,
+			RemoteAddress:      descriptor.RemoteAddress,
+			RequestHeader:      descriptor.RequestHeader,
+		})
+	}
+	return []WorkQueueItem{
+		{
+			Action: "updateListenersWithRateLimit",
+			RateLimitParams: RateLimitParams{
+				Name:        rateLimit.Metadata.Name,
+				Descriptors: descriptors,
 			},
 		},
 	}, nil

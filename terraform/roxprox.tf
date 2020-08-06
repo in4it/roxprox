@@ -2,17 +2,17 @@ resource "aws_ecs_cluster" "roxprox" {
   name = "roxprox"
 }
 
-data "template_file" "roxprox" {
-  template =  var.enable_appmesh ? file("${path.module}/templates/roxprox-appmesh.json.tpl") : file("${path.module}/templates/roxprox.json.tpl")
-
-  vars = {
+locals {
+  roxprox_config_vars = {
     AWS_REGION            = data.aws_region.current.name
-    ROXPROX_RELEASE       = var.release        
+    ROXPROX_RELEASE       = var.release
     LOGLEVEL              = var.envoy_autocert_loglevel
     ACME_CONTACT          = var.acme_contact
     S3_BUCKET             = var.s3_bucket
     APPMESH_NAME          = var.appmesh_name
     APPMESH_ENVOY_RELEASE = var.appmesh_envoy_release
+    ENABLE_APPMESH        = var.enable_appmesh
+    ENABLE_RATELIMIT      = var.enable_ratelimit
   }
 }
 
@@ -25,9 +25,9 @@ resource "aws_ecs_task_definition" "roxprox" {
   memory                   = 512
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  container_definitions    =  data.template_file.roxprox.rendered
-
+  container_definitions    = templatefile("${path.module}/templates/roxprox.json.tmpl", local.roxprox_config_vars)
 }
+
 resource "aws_ecs_task_definition" "roxprox-appmesh" {
   count                    = var.enable_appmesh ? 1 : 0
   family                   = "roxprox"
@@ -37,7 +37,7 @@ resource "aws_ecs_task_definition" "roxprox-appmesh" {
   memory                   = 512
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  container_definitions    =  data.template_file.roxprox.rendered
+  container_definitions    = templatefile("${path.module}/templates/roxprox.json.tmpl", local.roxprox_config_vars)
 
   proxy_configuration {
     type           = "APPMESH"
@@ -54,16 +54,16 @@ resource "aws_ecs_task_definition" "roxprox-appmesh" {
 
 # service if type is alb/nlb
 resource "aws_ecs_service" "roxprox" {
-  name = "roxprox"
-  cluster = aws_ecs_cluster.roxprox.id
-  desired_count = var.control_plane_count
+  name            = "roxprox"
+  cluster         = aws_ecs_cluster.roxprox.id
+  desired_count   = var.control_plane_count
   task_definition = var.enable_appmesh ? aws_ecs_task_definition.roxprox-appmesh[0].arn : aws_ecs_task_definition.roxprox[0].arn
 
   launch_type = "FARGATE"
 
   network_configuration {
-    subnets = var.subnets
-    security_groups = [aws_security_group.roxprox.id]
+    subnets          = var.subnets
+    security_groups  = [aws_security_group.roxprox.id]
     assign_public_ip = false
   }
 

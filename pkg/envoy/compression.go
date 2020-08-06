@@ -28,7 +28,7 @@ func (c *Compression) updateListenersWithCompression(cache *WorkQueueCache, para
 					return err
 				}
 
-				// get authz config config
+				// get compression config
 				compressorConfigEncoded, err := c.getCompressionFilterEncoded(params)
 				if err != nil {
 					return err
@@ -38,7 +38,7 @@ func (c *Compression) updateListenersWithCompression(cache *WorkQueueCache, para
 				updateHTTPFilterWithConfig(&manager.HttpFilters, "envoy.filters.http.compressor", compressorConfigEncoded)
 
 				// update manager in cache
-				pbst, err := ptypes.MarshalAny(&manager)
+				pbst, err := ptypes.MarshalAny(manager)
 				if err != nil {
 					return err
 				}

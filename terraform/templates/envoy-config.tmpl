@@ -24,6 +24,33 @@
     },
     "static_resources": {
         "clusters": [
+              %{ if ENABLE_RATELIMIT }
+              {
+                "name": "ratelimit",
+                "type": "LOGICAL_DNS",
+                "connect_timeout": "1s",
+                "http2_protocol_options": {},
+                "load_assignment": {
+                    "cluster_name": "ratelimit",
+                    "endpoints": [
+                        {
+                            "lb_endpoints": [
+                                {
+                                    "endpoint": {
+                                        "address": {
+                                            "socket_address": {
+                                                "address": "${RATELIMIT_ADDRESS}",
+                                                "port_value": 8081
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            },
+            %{ endif }
             %{ if ENABLE_ALS }
             {
                 "name": "${ALS_CLUSTER_NAME}",

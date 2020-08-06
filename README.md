@@ -7,6 +7,9 @@ Envoy autocert is an envoy control plane with AWS Cloud support.
 * ACME support to automatically verify, issue and setup letsencrypt certificates
 * authn: support for JWT authentication
 * authz: support for external grpc service which can authorize a connection
+* Access Log Server support
+* Compression support
+* Ratelimit support
 * Works stand-alone or serverless with AWS Fargate
 * Traffic only passes the envoy proxy
 

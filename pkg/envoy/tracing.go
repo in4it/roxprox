@@ -32,7 +32,7 @@ func (t *Tracing) updateListenersWithTracing(cache *WorkQueueCache, tracing Trac
 				}
 
 				// update manager in cache
-				pbst, err := ptypes.MarshalAny(&manager)
+				pbst, err := ptypes.MarshalAny(manager)
 				if err != nil {
 					return err
 				}

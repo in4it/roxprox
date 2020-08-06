@@ -1,0 +1,72 @@
+[
+      %{ if ENABLE_APPMESH }
+       {
+        "name" : "envoy",
+        "image" : "111345817488.dkr.ecr.${AWS_REGION}.amazonaws.com/aws-appmesh-envoy:${APPMESH_ENVOY_RELEASE}",
+        "essential" : true,
+        "environment" : [
+          {
+              "name" : "APPMESH_VIRTUAL_NODE_NAME",
+              "value" : "mesh/${APPMESH_NAME}/virtualNode/roxprox"
+          }
+        ],
+        "logConfiguration": { 
+          "logDriver": "awslogs",
+          "options": { 
+             "awslogs-group" : "roxprox",
+             "awslogs-region": "${AWS_REGION}",
+             "awslogs-stream-prefix": "roxprox-sidecar"
+          }
+        },
+        "healthCheck" : {
+          "command" : [
+              "CMD-SHELL",
+              "curl -s http://localhost:9901/server_info | grep state | grep -q LIVE"
+          ],
+          "interval" : 5,
+          "retries" : 3,
+          "startPeriod" : 10,
+          "timeout" : 2
+        },
+        "memory" : 512,
+        "user" : "1337"
+    },
+    %{ endif }
+    {
+      %{ if ENABLE_APPMESH }
+      "dependsOn": [{
+        "containerName": "envoy",
+        "condition": "HEALTHY"
+      }],
+      %{ endif }
+      "essential": true,
+      "image": "in4it/roxprox:${ROXPROX_RELEASE}",
+      "name": "roxprox",
+      "command": [
+         %{ if ENABLE_RATELIMIT }
+         "-storage-notifications", "roxprox-ratelimit.roxprox.local",
+         %{ endif }
+         "-acme-contact", "${ACME_CONTACT}",
+         "-storage-path", "/config",
+         "-storage-type", "s3",
+         "-storage-bucket", "${S3_BUCKET}",
+         "-aws-region", "${AWS_REGION}",
+         "-loglevel", "${LOGLEVEL}"
+      ],
+      "logConfiguration": { 
+              "logDriver": "awslogs",
+              "options": { 
+                 "awslogs-group" : "roxprox",
+                 "awslogs-region": "${AWS_REGION}",
+                 "awslogs-stream-prefix": "roxprox"
+              }
+       },
+       "portMappings": [ 
+          { 
+             "containerPort": 8080,
+             "hostPort": 8080,
+             "protocol": "tcp"
+          }
+       ]
+    }
+  ]
