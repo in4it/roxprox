@@ -15,7 +15,7 @@ resource "aws_ecs_task_definition" "roxprox-ratelimit" {
   count                    = var.enable_ratelimit && ! var.enable_appmesh ? 1 : 0
   family                   = "roxprox-ratelimit"
   execution_role_arn       = aws_iam_role.roxprox-ecs-task-execution-role.arn
-  task_role_arn            = aws_iam_role.roxprox-ratelimit-task-role.arn
+  task_role_arn            = aws_iam_role.roxprox-ratelimit-task-role[0].arn
   cpu                      = var.ratelimit_cpu
   memory                   = var.ratelimit_memory
   network_mode             = "awsvpc"
@@ -27,7 +27,7 @@ resource "aws_ecs_task_definition" "roxprox-ratelimit-appmesh" {
   count                    = var.enable_ratelimit && var.enable_appmesh ? 1 : 0
   family                   = "roxprox-ratelimit"
   execution_role_arn       = aws_iam_role.roxprox-ecs-task-execution-role.arn
-  task_role_arn            = aws_iam_role.roxprox-ratelimit-task-role.arn
+  task_role_arn            = aws_iam_role.roxprox-ratelimit-task-role[0].arn
   cpu                      = var.ratelimit_cpu
   memory                   = var.ratelimit_memory
   network_mode             = "awsvpc"

@@ -147,6 +147,6 @@ resource "aws_security_group" "roxprox-ratelimit" {
     from_port       = 50051
     to_port         = 50051
     protocol        = "tcp"
-    security_groups = [var.management_access_sg, aws_security_group.roxprox.id]
+    security_groups = compact([var.management_access_sg, aws_security_group.roxprox.id])
   }
 }
