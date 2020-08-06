@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -38,7 +39,7 @@ type Peer struct {
 
 func newNotifications(config Config) *Notifications {
 	storageNotifications := []string{serviceDiscovery}
-	for _, v := range config.StorageNotifications {
+	for _, v := range strings.Split(config.StorageNotifications, ",") {
 		storageNotifications = append(storageNotifications, v)
 	}
 	return &Notifications{

@@ -45,6 +45,11 @@ variable "enable_als" {
   default     = false
 }
 
+variable "enable_ratelimit" {
+  description = "flag to enable ratelimit service"
+  default     = false
+}
+
 variable "envoy_als_cluster_name" {
   description = "envoy access log server cluster name"
   default     = "als_cluster"
@@ -213,4 +218,20 @@ variable "datadog_extra_task_execution_policy" {
 variable "datadog_env" {
   description = "datadog APM default enviroment"
   default     = "none"
+}
+
+variable "ratelimit_cpu" {
+  default = 1024
+}
+variable "ratelimit_memory" {
+  default = 2048
+}
+variable "ratelimit_release" {
+  default = "latest"
+}
+variable "ratelimit_debug" {
+  default = false
+}
+variable "ratelimit_count" {
+  default = 1
 }

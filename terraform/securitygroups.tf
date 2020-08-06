@@ -130,3 +130,22 @@ resource "aws_security_group_rule" "roxprox-datadog-allow-apm" {
   security_group_id        = aws_security_group.roxprox-datadog[0].id
   source_security_group_id = var.loadbalancer == "alb" ? aws_security_group.roxprox-envoy-alb[0].id : aws_security_group.roxprox-envoy-nlb[0].id
 }
+
+resource "aws_security_group" "roxprox-ratelimit" {
+  count       = var.enable_ratelimit ? 1 : 0
+  name        = "roxprox-ratelimit"
+  vpc_id      = data.aws_subnet.subnet.vpc_id
+  description = "roxprox-ratelimit"
+
+  ingress {
+    from_port       = 8081
+    to_port         = 8081
+    protocol        = "tcp"
+    security_groups = var.loadbalancer == "alb" ? [aws_security_group.roxprox-envoy-alb[0].id] : [aws_security_group.roxprox-envoy-nlb[0].id]
+  }
+  ingress {
+    from_port       = 50051
+    to_port         = 50051
+    protocol        = "tcp"
+    security_groups = [var.management_access_sg, aws_security_group.roxprox.id]
+  }
