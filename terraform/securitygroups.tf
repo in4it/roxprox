@@ -149,3 +149,4 @@ resource "aws_security_group" "roxprox-ratelimit" {
     protocol        = "tcp"
     security_groups = [var.management_access_sg, aws_security_group.roxprox.id]
   }
+}

@@ -1,7 +1,7 @@
 locals {
   ratelimit_config_vars = {
     AWS_REGION            = data.aws_region.current.name
-    RATELIMIT_RELEASE     = var.ratelimit_release        
+    RATELIMIT_RELEASE     = var.ratelimit_release
     S3_BUCKET             = var.s3_bucket
     APPMESH_NAME          = var.appmesh_name
     APPMESH_ENVOY_RELEASE = var.appmesh_envoy_release
@@ -12,7 +12,7 @@ locals {
 }
 
 resource "aws_ecs_task_definition" "roxprox-ratelimit" {
-  count                    = var.enable_ratelimit && !var.enable_appmesh ? 1 : 0
+  count                    = var.enable_ratelimit && ! var.enable_appmesh ? 1 : 0
   family                   = "roxprox-ratelimit"
   execution_role_arn       = aws_iam_role.roxprox-ecs-task-execution-role.arn
   task_role_arn            = aws_iam_role.roxprox-ratelimit-task-role.arn
@@ -20,7 +20,7 @@ resource "aws_ecs_task_definition" "roxprox-ratelimit" {
   memory                   = var.ratelimit_memory
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  container_definitions    = templatefile("${path.module}/templates/roxprox-ratelimit.json.tmpl", local.roxprox_config_vars))
+  container_definitions    = templatefile("${path.module}/templates/roxprox-ratelimit.json.tmpl", local.ratelimit_config_vars)
 }
 
 resource "aws_ecs_task_definition" "roxprox-ratelimit-appmesh" {
@@ -32,8 +32,8 @@ resource "aws_ecs_task_definition" "roxprox-ratelimit-appmesh" {
   memory                   = var.ratelimit_memory
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  container_definitions    = templatefile("${path.module}/templates/roxprox-ratelimit.json.tmpl", local.roxprox_config_vars))
-  
+  container_definitions    = templatefile("${path.module}/templates/roxprox-ratelimit.json.tmpl", local.ratelimit_config_vars)
+
   proxy_configuration {
     type           = "APPMESH"
     container_name = "envoy"
@@ -57,8 +57,8 @@ resource "aws_ecs_service" "roxprox-ratelimit" {
   launch_type = "FARGATE"
 
   network_configuration {
-    subnets = var.subnets
-    security_groups = [aws_security_group.roxprox-ratelimit[0].id]
+    subnets          = var.subnets
+    security_groups  = [aws_security_group.roxprox-ratelimit[0].id]
     assign_public_ip = false
   }
 
