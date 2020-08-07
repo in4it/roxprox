@@ -84,3 +84,7 @@ func NewS3Storage(storageBucket, storagePath, awsRegion, storageNotifications st
 
 	return storage, nil
 }
+
+func NewNotificationReceiver() *s3.NotificationReceiver {
+	return s3.NewNotificationReceiver()
+}
