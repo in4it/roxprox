@@ -96,6 +96,8 @@ spec:
 ```
 
 ### ALS
+ALS enables the Access Log Server. You'll need to define a grpc cluster in envoy.yaml, because the access log server can only defined statically (a limitation in envoy). There is an example ALS server in [resources/access-log-server/](https://github.com/in4it/roxprox/tree/master/resources/access-log-server).
+
 ```
 api: proxy.in4it.io/v1
 kind: accessLogServer
@@ -173,6 +175,45 @@ spec:
   overallSampling: 100
 ```
 
+### Compression
+Compression can automatically compress the traffic between the backend clusters and the clients. The client only has to pass the "Content-Encoding" header.
+
+```
+api: proxy.in4it.io/v1
+kind: compression
+metadata:
+  name: compression
+spec:
+  type: gzip
+  disableOnEtagHeader: true
+```
+
+### Ratelimiting
+Ratelimit allows you to ratelimit requests using descriptors (remote address, request headers, destination/source cluster). You define requestPerUnit and a unit type (second/minute/hour/day).
+
+```
+api: proxy.in4it.io/v1
+kind: rateLimit
+metadata:
+  name: ratelimit-example
+spec:
+  descriptors:
+    - remoteAddress: true
+  requestPerUnit: 1
+  Unit: hour
+---
+api: proxy.in4it.io/v1
+kind: rateLimit
+metadata:
+  name: ratelimit-example-authorized
+spec:
+  descriptors:
+    - requestHeader: "Authorization"
+    - destinationCluster: true
+  requestPerUnit: 5
+  Unit: minute
+```
+
 ### TLS using letsencrypt
 ```
 api: proxy.in4it.io/v1
@@ -204,7 +245,7 @@ module "roxprox" {
   control_plane_count = 1                                            # desired controle plane instances
   envoy_proxy_count   = 1                                            # envoy proxy count (there will be still one for http and one for https, due to the AWS Fargate/NLB limitations)
   subnets             = ["subnet-1234abcd"]                          # AWS subnet to use
-  s3_bucket           = "roxprox"                             # s3 bucket to use
+  s3_bucket           = "roxprox"                                    # s3 bucket to use
 }
 ```
 
