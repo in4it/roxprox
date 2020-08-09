@@ -13,6 +13,7 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/in4it/roxprox/pkg/storage"
 	localStorage "github.com/in4it/roxprox/pkg/storage/local"
+	"github.com/in4it/roxprox/proto/notification"
 	"github.com/juju/loggo"
 )
 
@@ -708,6 +709,27 @@ func TestRateLimitObject(t *testing.T) {
 	}
 	if httpFilters[0].Name != "envoy.filters.http.ratelimit" {
 		t.Errorf("ratelimit filter not found")
+		return
+	}
+}
+
+func TestReceiveNotification(t *testing.T) {
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+
+	req := []*notification.NotificationRequest_NotificationItem{
+		{
+			Filename:  "test1.yaml",
+			EventName: "ObjectCreated:Put",
+		},
+	}
+	err = x.ReceiveNotification(req)
+	if err != nil {
+		t.Errorf("Error when executing ReceiveNotification: %s", err)
 		return
 	}
 }

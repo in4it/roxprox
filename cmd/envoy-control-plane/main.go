@@ -60,14 +60,6 @@ func main() {
 		panic("unknown storage")
 	}
 
-	// start management server
-	notificationReceiver := storage.NewNotificationReceiver()
-	err = management.NewServer(notificationReceiver)
-	if err != nil {
-		logger.Errorf("Couldn't start management interface: %s", err)
-		os.Exit(1)
-	}
-
 	xds := envoy.NewXDS(s, acmeContact, "8080")
 
 	logger.Infof("Importing Rules")
@@ -77,7 +69,13 @@ func main() {
 		logger.Errorf("Couldn't import rules: %s", err)
 	}
 
-	xds.StartObservingNotifications(notificationReceiver.GetQueue())
+	// start management server
+	notificationReceiver := management.NewNotificationReceiver(xds)
+	err = management.NewServer(notificationReceiver)
+	if err != nil {
+		logger.Errorf("Couldn't start management interface: %s", err)
+		os.Exit(1)
+	}
 
 	// Waiting for envoys to connect
 	logger.Infof("Waiting for envoys to connect...")
