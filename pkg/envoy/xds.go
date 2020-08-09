@@ -19,7 +19,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	pkgApi "github.com/in4it/roxprox/pkg/api"
 	storage "github.com/in4it/roxprox/pkg/storage"
-	n "github.com/in4it/roxprox/proto/notification"
+	"github.com/in4it/roxprox/proto/notification"
 	"github.com/juju/loggo"
 	"google.golang.org/grpc"
 )
@@ -694,45 +694,36 @@ func (x *XDS) launchCreateCert(name string, domains []string) WorkQueueItem {
 	return workQueueItem
 }
 
-func (x *XDS) StartObservingNotifications(queue chan []*n.NotificationRequest_NotificationItem) {
-	go x.receiveFromQueue(queue)
-}
+//ReceiveNotification receives notification items and will process them
+func (x *XDS) ReceiveNotification(notifications []*notification.NotificationRequest_NotificationItem) error {
+	var (
+		workQueueItems []WorkQueueItem
+	)
 
-func (x *XDS) receiveFromQueue(queue chan []*n.NotificationRequest_NotificationItem) {
-	for {
-		var (
-			workQueueItems []WorkQueueItem
-		)
-
-		notifications := <-queue
-
-		for _, v := range notifications {
-			if v.EventName == "ObjectCreated:Put" {
-				newItems, err := x.putObject(v.Filename)
-				if err != nil {
-					logger.Errorf("%s", err)
-				} else {
-					workQueueItems = append(workQueueItems, newItems...)
-				}
-			} else if v.EventName == "ObjectRemoved:Delete" {
-				newItems, err := x.deleteObject(v.Filename)
-				if err != nil {
-					logger.Errorf("%s", err)
-				} else {
-					workQueueItems = append(workQueueItems, newItems...)
-				}
-
-			}
-		}
-
-		if len(workQueueItems) > 0 {
-			_, err := x.workQueue.Submit(workQueueItems)
+	for _, v := range notifications {
+		if v.EventName == "ObjectCreated:Put" {
+			newItems, err := x.putObject(v.Filename)
 			if err != nil {
-				logger.Errorf("ReceiveFromQueue Error while Submitting WorkQueue: %s", err)
+				return err
 			}
-
+			workQueueItems = append(workQueueItems, newItems...)
+		} else if v.EventName == "ObjectRemoved:Delete" {
+			newItems, err := x.deleteObject(v.Filename)
+			if err != nil {
+				return err
+			}
+			workQueueItems = append(workQueueItems, newItems...)
 		}
 	}
+
+	if len(workQueueItems) > 0 {
+		_, err := x.workQueue.Submit(workQueueItems)
+		if err != nil {
+			return fmt.Errorf("ReceiveFromQueue Error while Submitting WorkQueue: %s", err)
+		}
+
+	}
+	return nil
 }
 
 func (x *XDS) putObject(filename string) ([]WorkQueueItem, error) {
