@@ -189,7 +189,7 @@ spec:
 ```
 
 ### Ratelimiting
-Ratelimit allows you to ratelimit requests using descriptors (remote address, request headers, destination/source cluster). You define requestPerUnit and a unit type (second/minute/hour/day).
+Ratelimit allows you to ratelimit requests using descriptors (remote address, request headers, destination/source cluster). You define requestPerUnit and a unit type (second/minute/hour/day). Ratelimiting needs a grpc server configured by the name "ratelimit". See [github.com/in4it/roxprox-ratelimit](https://github.com/in4it/roxprox-ratelimit) for an in-memory ratelimit server.
 
 ```
 api: proxy.in4it.io/v1
