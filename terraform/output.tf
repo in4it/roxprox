@@ -14,6 +14,10 @@ output "lb-arn-suffix" {
   value = aws_lb.lb.arn_suffix
 }
 
+output "roxprox-alb-sg" {
+  value = aws_security_group.roxprox-alb[0].id
+}
+
 output "roxprox-envoy-sg" {
   value = var.loadbalancer == "alb" ? aws_security_group.roxprox-envoy-alb[0].id : aws_security_group.roxprox-envoy-nlb[0].id
 }
