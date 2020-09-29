@@ -90,6 +90,11 @@ variable "s3_bucket" {
   description = "name of s3 bucket to use"
 }
 
+variable "s3_bucket_sse" {
+  description = "Enable SSE for roxprox bucket"
+  default = false
+}
+
 variable "envoy_autocert_loglevel" {
   description = "log level"
   default     = "info"
