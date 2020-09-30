@@ -125,6 +125,46 @@ EOF
 
 }
 
+resource "aws_kms_key" "roxprox-s3-sse-kms" {
+  count                   = var.s3_bucket_sse ? 1 : 0
+  description             = "roxprox-s3-sse-kms"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+}
+
+resource "aws_kms_alias" "roxprox-s3-sse-kms" {
+  count         = var.s3_bucket_sse ? 1 : 0
+  name          = "alias/roxprox-s3-sse-kms"
+  target_key_id = aws_kms_key.roxprox-s3-sse-kms[0].key_id
+}
+
+resource "aws_iam_role_policy" "roxprox-s3-sse-kms-task-role" {
+  count = var.s3_bucket_sse ? 1 : 0
+  name  = "roxprox-s3-sse-kms-task-role"
+  role  = aws_iam_role.roxprox-task-role.id
+
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+     {
+      "Effect": "Allow",
+      "Action": [
+        "kms:DescribeKey",
+        "kms:GenerateDataKey*",
+        "kms:Encrypt",
+        "kms:ReEncrypt*",
+        "kms:Decrypt"
+      ],
+      "Resource": [
+        "${aws_s3_bucket.roxprox.arn}"
+      ]
+    }
+  ]
+}
+EOF
+}
+
 resource "aws_iam_role" "roxprox-envoy-proxy-task-role" {
   name = "roxprox-envoy-proxy-task-role"
 

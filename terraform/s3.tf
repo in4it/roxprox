@@ -1,6 +1,27 @@
+locals {
+  s3_server_side_encryption_configuration_rules = var.s3_bucket_sse ? [
+    {
+      kms_master_key_id = aws_kms_key.roxprox-s3-sse-kms[0].arn
+      sse_algorithm     = "aws:kms"
+    }
+  ] : []
+}
+
+
 resource "aws_s3_bucket" "roxprox" {
   bucket = var.s3_bucket
   acl    = "private"
+  dynamic "server_side_encryption_configuration" {
+    for_each = local.s3_server_side_encryption_configuration_rules
+    content {
+      rule {
+        apply_server_side_encryption_by_default {
+          kms_master_key_id = server_side_encryption_configuration.value.kms_master_key_id
+          sse_algorithm     = server_side_encryption_configuration.value.sse_algorithm
+        }
+      }
+    }
+  }
 }
 
 resource "aws_s3_bucket_public_access_block" "roxprox" {
