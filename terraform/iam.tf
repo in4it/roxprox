@@ -157,7 +157,7 @@ resource "aws_iam_role_policy" "roxprox-s3-sse-kms-task-role" {
         "kms:Decrypt"
       ],
       "Resource": [
-        "${aws_s3_bucket.roxprox.arn}"
+        "${aws_kms_key.roxprox-s3-sse-kms[0].arn}"
       ]
     }
   ]
@@ -339,4 +339,29 @@ resource "aws_iam_role_policy" "roxprox-ratelimit-task-role" {
 }
 EOF
 
+}
+
+resource "aws_iam_role_policy" "roxprox-ratelimit-s3-sse-kms-task-role" {
+  count = var.s3_bucket_sse && var.enable_ratelimit ? 1 : 0
+  name  = "roxprox-ratelimit-s3-sse-kms-task-role"
+  role  = aws_iam_role.roxprox-ratelimit-task-role[0].id
+
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+     {
+      "Effect": "Allow",
+      "Action": [
+        "kms:DescribeKey",
+        "kms:GenerateDataKey*",
+        "kms:Decrypt"
+      ],
+      "Resource": [
+        "${aws_kms_key.roxprox-s3-sse-kms[0].arn}"
+      ]
+    }
+  ]
+}
+EOF
 }
