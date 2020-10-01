@@ -22,6 +22,6 @@ output "roxprox-envoy-sg" {
   value = var.loadbalancer == "alb" ? aws_security_group.roxprox-envoy-alb[0].id : aws_security_group.roxprox-envoy-nlb[0].id
 }
 
-output "roxprox-kms-arm" {
+output "roxprox-kms-arn" {
   value = var.s3_bucket_sse ? aws_kms_key.roxprox-s3-sse-kms[0].arn : ""
 }
