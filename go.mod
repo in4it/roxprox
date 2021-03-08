@@ -4,7 +4,6 @@ go 1.15
 
 require (
 	github.com/aws/aws-sdk-go v1.35.25
-	github.com/cncf/udpa/go v0.0.0-20201001150855-7e6fe0510fb5 // indirect
 	github.com/envoyproxy/go-control-plane v0.9.7
 	github.com/ghodss/yaml v1.0.0
 	github.com/gogo/protobuf v1.3.1
