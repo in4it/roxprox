@@ -1,0 +1,8 @@
+api: proxy.in4it.io/v1
+kind: mtls
+metadata:
+  name: test-mtls
+spec:
+  privateKey: replaceme
+  certificate: replaceme
+  port: 10002

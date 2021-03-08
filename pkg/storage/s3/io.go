@@ -183,6 +183,13 @@ func (s *S3Storage) GetObject(filename string) ([]api.Object, error) {
 					return objects, err
 				}
 				object.Data = rateLimit
+			case "mTLS":
+				var mTLS api.MTLS
+				err = yaml.Unmarshal([]byte(contentsSplitted), &mTLS)
+				if err != nil {
+					return objects, err
+				}
+				object.Data = mTLS
 			default:
 				return objects, errors.New("Object in wrong format")
 			}

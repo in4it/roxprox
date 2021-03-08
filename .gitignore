@@ -1,6 +1,7 @@
 vendor/
 /*-darwin-amd64
 /*-linux-amd64
+resources/pki/
 resources/*/pki/
 resources/*/challenges/
 /*.sh
