@@ -1,5 +1,5 @@
 api: proxy.in4it.io/v1
-kind: mtls
+kind: mTLS
 metadata:
   name: test-mtls
 spec:

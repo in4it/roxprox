@@ -14,6 +14,7 @@ type RuleSpec struct {
 	Certificate string           `json:"certificate"`
 	Conditions  []RuleConditions `json:"conditions"`
 	Actions     []RuleActions    `json:"actions"`
+	Listener    Listener         `json:"listener"`
 }
 type RuleAuth struct {
 	JwtProvider string `json:"jwtProvider" yaml:"jwtProvider"`
@@ -51,4 +52,8 @@ type HTTPHealthCheck struct {
 type RuleActionsDirectResponse struct {
 	Status uint32 `json:"status"`
 	Body   string `json:"body"`
+}
+
+type Listener struct {
+	MTLS string `json:"mTLS"`
 }

@@ -25,6 +25,7 @@ type WorkQueue struct {
 	compression     *Compression
 	accessLogServer *AccessLogServer
 	rateLimit       *RateLimit
+	mTLS            *MTLS
 	cluster         *Cluster
 	acmeContact     string
 	latestSnapshot  cache.Snapshot
@@ -55,6 +56,7 @@ func NewWorkQueue(s storage.Storage, acmeContact string) (*WorkQueue, error) {
 		compression:     newCompression(),
 		accessLogServer: newAccessLogServer(),
 		rateLimit:       newRateLimit(),
+		mTLS:            newMTLS(),
 	}
 
 	// run queue to resolve dependencies
@@ -112,7 +114,7 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 				logger.Errorf("createRule error: cluster not found: %s", item.ListenerParams.Name)
 				item.state = "error"
 			} else {
-				if len(w.cache.listeners) == 0 {
+				if !listenerExists(w.cache.listeners, item.ListenerParams, item.TLSParams) {
 					w.cache.listeners = append(w.cache.listeners, w.listener.createListener(item.ListenerParams, item.TLSParams))
 				}
 				err := w.listener.updateListener(&w.cache, item.ListenerParams, item.TLSParams)
@@ -125,7 +127,7 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 				updateXds = true
 			}
 		case "createRuleWithoutCluster":
-			if len(w.cache.listeners) == 0 {
+			if !listenerExists(w.cache.listeners, item.ListenerParams, item.TLSParams) {
 				w.cache.listeners = append(w.cache.listeners, w.listener.createListener(item.ListenerParams, item.TLSParams))
 			}
 			err := w.listener.updateListener(&w.cache, item.ListenerParams, item.TLSParams)
@@ -339,6 +341,18 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 					item.state = "finished"
 				}
 			}
+		case "updateListenersWithMTLS":
+			if !listenerExists(w.cache.listeners, item.ListenerParams, item.TLSParams) {
+				w.cache.listeners = append(w.cache.listeners, w.listener.createListener(item.ListenerParams, item.TLSParams))
+			}
+			err := w.mTLS.updateMTLSListener(&w.cache, item.ListenerParams, item.TLSParams, item.MTLSParams)
+			if err != nil {
+				logger.Errorf("updateListenersWithMTLS error: %s", err)
+				item.state = "error"
+			} else {
+				item.state = "finished"
+			}
+			updateXds = true
 		default:
 			logger.Errorf("Wrong action submitted to workingqueue")
 		}
