@@ -21,6 +21,21 @@ func newMTLS() *MTLS {
 
 func (l *MTLS) updateMTLSListener(cache *WorkQueueCache, params ListenerParams, paramsTLS TLSParams, mTLSParams MTLSParams) error {
 	_, _, _, listenerName, _, _ := getListenerAttributes(params, paramsTLS)
+
+	// validation
+	if mTLSParams.CACertificate == "" {
+		return fmt.Errorf("Cannot create/update mTLS listener: CA Certificate is empty")
+	}
+	if mTLSParams.Certificate == "" {
+		return fmt.Errorf("Cannot create/update mTLS listener: Server Certificate is empty")
+	}
+	if mTLSParams.PrivateKey == "" {
+		return fmt.Errorf("Cannot create/update mTLS listener: Private Key is empty")
+	}
+	if mTLSParams.Name == "" {
+		return fmt.Errorf("Cannot create/update mTLS listener: mTLS name is empty")
+	}
+
 	listenerIndex := getListenerIndex(cache.listeners, listenerName)
 	if listenerIndex == -1 {
 		return fmt.Errorf("Listener not found: %s", listenerName)

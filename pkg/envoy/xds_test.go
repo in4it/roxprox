@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	listenerAPI "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	als "github.com/envoyproxy/go-control-plane/envoy/extensions/access_loggers/grpc/v3"
@@ -755,4 +756,13 @@ func TestMTLSObject(t *testing.T) {
 		}
 	}
 	fmt.Printf("Listeners in cache: %+v", x.workQueue.cache.listeners)
+	if len(x.workQueue.cache.listeners) == 0 {
+		t.Errorf("No listeners found")
+		return
+	}
+	listener := x.workQueue.cache.listeners[0].(*api.Listener)
+	if listener.Name != "l_mtls_test-mtls" {
+		t.Errorf("Listener has wrong name: %s (expected l_mtls_test-mtls)", listener.Name)
+		return
+	}
 }

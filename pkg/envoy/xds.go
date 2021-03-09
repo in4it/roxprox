@@ -343,10 +343,17 @@ func (x *XDS) importMTLS(mTLS pkgApi.MTLS) ([]WorkQueueItem, error) {
 		{
 			Action: "updateListenersWithMTLS",
 			MTLSParams: MTLSParams{
-				Name:        mTLS.Metadata.Name,
-				PrivateKey:  mTLS.Spec.PrivateKey,
-				Certificate: mTLS.Spec.Certificate,
-				Port:        mTLS.Spec.Port,
+				Name:                   mTLS.Metadata.Name,
+				PrivateKey:             mTLS.Spec.PrivateKey,
+				Certificate:            mTLS.Spec.Certificate,
+				CACertificate:          mTLS.Spec.CACertificate,
+				AllowedSubjectAltNames: mTLS.Spec.AllowedSubjectAltNames,
+				Port:                   mTLS.Spec.Port,
+			},
+			ListenerParams: ListenerParams{
+				Listener: ListenerParamsListener{
+					MTLS: mTLS.Metadata.Name,
+				},
 			},
 		},
 	}, nil

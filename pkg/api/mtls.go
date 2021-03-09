@@ -7,7 +7,9 @@ type MTLS struct {
 	Spec     MTLSSpec `json:"spec" yaml:"spec"`
 }
 type MTLSSpec struct {
-	Certificate string `json:"certificate" yaml:"certificate"`
-	PrivateKey  string `json:"privateKey" yaml:"unprivateKeyit"`
-	Port        int64  `json:"port" yaml:"port"`
+	Certificate            string   `json:"certificate" yaml:"certificate"`
+	PrivateKey             string   `json:"privateKey" yaml:"privateKey"`
+	CACertificate          string   `json:"caCertificate" yaml:"caCertificate"`
+	Port                   int64    `json:"port" yaml:"port"`
+	AllowedSubjectAltNames []string `json:"allowedSubjectAltNames" yaml:"allowedSubjectAltNames"`
 }

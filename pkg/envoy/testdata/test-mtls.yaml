@@ -3,6 +3,7 @@ kind: mTLS
 metadata:
   name: test-mtls
 spec:
-  privateKey: replaceme
-  certificate: replaceme
+  privateKey: replaceme1
+  certificate: replaceme2
+  caCertificate: replaceme3
   port: 10002
