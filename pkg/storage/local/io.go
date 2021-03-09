@@ -104,7 +104,7 @@ func (l *LocalStorage) GetObject(name string) ([]api.Object, error) {
 	if err != nil {
 		return objects, err
 	}
-	for _, contentsSplitted := range strings.Split(string(contents), "---") {
+	for _, contentsSplitted := range strings.Split(string(contents), "\n---") {
 		if strings.TrimSpace(contentsSplitted) != "" {
 			var object api.Object
 			err = yaml.Unmarshal([]byte(contentsSplitted), &object)

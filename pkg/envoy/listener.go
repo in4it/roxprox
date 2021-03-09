@@ -522,7 +522,7 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 		}
 		newListener.ListenerFilters = []*api.ListenerFilter{
 			{
-				Name: "envoy.listener.tls_inspector",
+				Name: "envoy.filters.listener.tls_inspector",
 			},
 		}
 		newListener.FilterChains[0].FilterChainMatch = &api.FilterChainMatch{

@@ -755,7 +755,6 @@ func TestMTLSObject(t *testing.T) {
 			return
 		}
 	}
-	fmt.Printf("Listeners in cache: %+v", x.workQueue.cache.listeners)
 	if len(x.workQueue.cache.listeners) == 0 {
 		t.Errorf("No listeners found")
 		return
@@ -763,6 +762,10 @@ func TestMTLSObject(t *testing.T) {
 	listener := x.workQueue.cache.listeners[0].(*api.Listener)
 	if listener.Name != "l_mtls_test-mtls" {
 		t.Errorf("Listener has wrong name: %s (expected l_mtls_test-mtls)", listener.Name)
+		return
+	}
+	if listener.GetAddress().GetSocketAddress().GetPortValue() != 10002 {
+		t.Errorf("Listener has wrong port: %d (expected 10002)", listener.GetAddress().GetSocketAddress().GetPortValue())
 		return
 	}
 }

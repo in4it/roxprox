@@ -1,0 +1,27 @@
+api: proxy.in4it.io/v1
+kind: rule
+metadata:
+  name: simple-reverse-proxy
+spec:
+  listener:
+    mTLS: test-mtls
+  conditions:
+    - hostname: test.example.com
+      prefix: /
+  actions:
+    - proxy:
+        hostname: www.mocky.io
+        port: 443
+---
+api: proxy.in4it.io/v1
+kind: rule
+metadata:
+  name: simple-reverse-proxy-2
+spec:
+  conditions:
+    - hostname: test-2.example.com
+      prefix: /
+  actions:
+    - proxy:
+        hostname: www.mocky.io
+        port: 443

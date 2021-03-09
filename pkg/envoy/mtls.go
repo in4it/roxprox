@@ -43,7 +43,7 @@ func (l *MTLS) updateMTLSListener(cache *WorkQueueCache, params ListenerParams, 
 	ll := cache.listeners[listenerIndex].(*api.Listener)
 	ll.ListenerFilters = []*api.ListenerFilter{
 		{
-			Name: "envoy.listener.tls_inspector",
+			Name: "envoy.filters.listener.tls_inspector",
 		},
 	}
 	matchSubjectAltNames := make([]*matcher.StringMatcher, len(mTLSParams.AllowedSubjectAltNames))
