@@ -93,7 +93,7 @@ func (l *MTLS) updateMTLSListener(cache *WorkQueueCache, params ListenerParams, 
 		panic(err)
 	}
 	ll.FilterChains[0].TransportSocket = &core.TransportSocket{
-		Name: "tls",
+		Name: "mtls",
 		ConfigType: &core.TransportSocket_TypedConfig{
 			TypedConfig: tlsContext,
 		},
