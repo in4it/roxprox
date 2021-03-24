@@ -240,6 +240,13 @@ func (x *XDS) ImportObject(object pkgApi.Object) ([]WorkQueueItem, error) {
 			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
 		}
 		return items, nil
+	case "mTLS":
+		mTLS := object.Data.(pkgApi.MTLS)
+		items, err := x.importMTLS(mTLS)
+		if err != nil {
+			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
+		}
+		return items, nil
 	}
 
 	return []WorkQueueItem{}, nil
@@ -326,6 +333,28 @@ func (x *XDS) importRateLimit(rateLimit pkgApi.RateLimit) ([]WorkQueueItem, erro
 			RateLimitParams: RateLimitParams{
 				Name:        rateLimit.Metadata.Name,
 				Descriptors: descriptors,
+			},
+		},
+	}, nil
+}
+
+func (x *XDS) importMTLS(mTLS pkgApi.MTLS) ([]WorkQueueItem, error) {
+	return []WorkQueueItem{
+		{
+			Action: "updateListenersWithMTLS",
+			MTLSParams: MTLSParams{
+				Name:                   mTLS.Metadata.Name,
+				PrivateKey:             mTLS.Spec.PrivateKey,
+				Certificate:            mTLS.Spec.Certificate,
+				CACertificate:          mTLS.Spec.CACertificate,
+				AllowedSubjectAltNames: mTLS.Spec.AllowedSubjectAltNames,
+				Port:                   mTLS.Spec.Port,
+			},
+			ListenerParams: ListenerParams{
+				Listener: ListenerParamsListener{
+					MTLS: mTLS.Metadata.Name,
+					Port: mTLS.Spec.Port,
+				},
 			},
 		},
 	}, nil
@@ -518,6 +547,12 @@ func (x *XDS) getAuthParams(jwtProviderName string, jwtProvider pkgApi.JwtProvid
 		RemoteJwks:  jwtProvider.Spec.RemoteJwks,
 	}
 }
+func (x *XDS) getMTLSListenerParams(mTLSParams pkgApi.MTLS) ListenerParamsListener {
+	return ListenerParamsListener{
+		MTLS: mTLSParams.Metadata.Name,
+		Port: mTLSParams.Spec.Port,
+	}
+}
 
 func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 	var workQueueItems []WorkQueueItem
@@ -545,6 +580,14 @@ func (x *XDS) ImportRule(rule pkgApi.Rule) ([]WorkQueueItem, error) {
 		}
 		if condition.Hostname != "" || condition.Prefix != "" || condition.Path != "" || condition.Regex != "" {
 			listenerParams := x.getListenerParams(action, condition)
+			if rule.Spec.Listener.MTLS != "" {
+				object, err := x.getObject("mTLS", rule.Spec.Listener.MTLS)
+				if err != nil {
+					logger.Infof("Could not set Listener parameters: mTLS not found (error: %s)", err)
+					return workQueueItems, err
+				}
+				listenerParams.Listener = x.getMTLSListenerParams(object.Data.(pkgApi.MTLS))
+			}
 			if rule.Spec.Auth.JwtProvider != "" {
 				object, err := x.getObject("jwtProvider", rule.Spec.Auth.JwtProvider)
 				if err != nil {

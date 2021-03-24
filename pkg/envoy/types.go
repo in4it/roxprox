@@ -19,6 +19,7 @@ type WorkQueueItem struct {
 	CompressionParams     CompressionParams
 	AccessLogServerParams AccessLogServerParams
 	RateLimitParams       RateLimitParams
+	MTLSParams            MTLSParams
 	state                 string
 }
 
@@ -56,6 +57,12 @@ type ListenerParams struct {
 	Auth             Auth
 	Authz            Authz
 	DirectResponse   DirectResponse
+	Listener         ListenerParamsListener
+}
+
+type ListenerParamsListener struct {
+	MTLS string
+	Port int64
 }
 
 type ChallengeParams struct {
@@ -159,4 +166,13 @@ type RateLimitDescriptor struct {
 	SourceCluster      bool
 	RemoteAddress      bool
 	RequestHeader      string
+}
+
+type MTLSParams struct {
+	Name                   string
+	PrivateKey             string
+	Certificate            string
+	Port                   int64
+	AllowedSubjectAltNames []string
+	CACertificate          string
 }

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	listenerAPI "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	als "github.com/envoyproxy/go-control-plane/envoy/extensions/access_loggers/grpc/v3"
@@ -730,6 +731,41 @@ func TestReceiveNotification(t *testing.T) {
 	err = x.ReceiveNotification(req)
 	if err != nil {
 		t.Errorf("Error when executing ReceiveNotification: %s", err)
+		return
+	}
+}
+func TestMTLSObject(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test-mtls.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+	if len(x.workQueue.cache.listeners) == 0 {
+		t.Errorf("No listeners found")
+		return
+	}
+	listener := x.workQueue.cache.listeners[0].(*api.Listener)
+	if listener.Name != "l_mtls_test-mtls" {
+		t.Errorf("Listener has wrong name: %s (expected l_mtls_test-mtls)", listener.Name)
+		return
+	}
+	if listener.GetAddress().GetSocketAddress().GetPortValue() != 10002 {
+		t.Errorf("Listener has wrong port: %d (expected 10002)", listener.GetAddress().GetSocketAddress().GetPortValue())
 		return
 	}
 }

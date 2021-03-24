@@ -104,7 +104,7 @@ func (l *LocalStorage) GetObject(name string) ([]api.Object, error) {
 	if err != nil {
 		return objects, err
 	}
-	for _, contentsSplitted := range strings.Split(string(contents), "---") {
+	for _, contentsSplitted := range strings.Split(string(contents), "\n---") {
 		if strings.TrimSpace(contentsSplitted) != "" {
 			var object api.Object
 			err = yaml.Unmarshal([]byte(contentsSplitted), &object)
@@ -161,6 +161,13 @@ func (l *LocalStorage) GetObject(name string) ([]api.Object, error) {
 					return objects, err
 				}
 				object.Data = rateLimit
+			case "mTLS":
+				var mTLS api.MTLS
+				err = yaml.Unmarshal([]byte(contentsSplitted), &mTLS)
+				if err != nil {
+					return objects, err
+				}
+				object.Data = mTLS
 			default:
 				return objects, errors.New("Rule in wrong format")
 			}

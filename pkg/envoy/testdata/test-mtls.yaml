@@ -1,0 +1,10 @@
+api: proxy.in4it.io/v1
+kind: mTLS
+metadata:
+  name: test-mtls
+spec:
+  # these are dummy TLS certs for testing purposes only
+  privateKey: replaceme
+  certificate: replaceme
+  caCertificate: replaceme
+  port: 10002

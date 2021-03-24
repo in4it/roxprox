@@ -12,6 +12,7 @@ import (
 	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
+	cacheTypes "github.com/envoyproxy/go-control-plane/pkg/cache/types"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
 )
@@ -171,8 +172,13 @@ func getListenerAttributes(params ListenerParams, paramsTLS TLSParams) (bool, st
 		listenerName = "l_tls"
 		virtualHostName = virtualHostName + "_tls"
 	} else {
-		listenerPort = 10000
-		listenerName = "l_http"
+		if params.Listener.MTLS != "" {
+			listenerPort = uint32(params.Listener.Port)
+			listenerName = "l_mtls_" + params.Listener.MTLS
+		} else {
+			listenerPort = 10000
+			listenerName = "l_http"
+		}
 	}
 	return tls, targetPrefix, virtualHostName, listenerName, listenerPort, matchType
 }
@@ -334,4 +340,25 @@ func routeActionEqual(a, b *route.Route) bool {
 	}
 
 	return true
+}
+
+func listenerExists(listeners []cacheTypes.Resource, params ListenerParams, paramsTLS TLSParams) bool {
+	_, _, _, listenerName, _, _ := getListenerAttributes(params, paramsTLS)
+	for listenerKey := range listeners {
+		ll := listeners[listenerKey].(*api.Listener)
+		if ll.Name == listenerName {
+			return true
+		}
+	}
+	return false
+}
+
+func getListenerIndex(listeners []cacheTypes.Resource, listenerName string) int {
+	for listenerKey := range listeners {
+		ll := listeners[listenerKey].(*api.Listener)
+		if ll.Name == listenerName {
+			return listenerKey
+		}
+	}
+	return -1
 }
