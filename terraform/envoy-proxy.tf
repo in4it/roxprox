@@ -27,9 +27,9 @@ resource "aws_ssm_parameter" "envoy-config-http" {
 
 
 data "template_file" "envoy-proxy" {
-  template = var.enable_appmesh ? file("${path.module}/templates/envoy-appmesh.json.tpl") : file("${path.module}/templates/envoy.json.tpl")
 
-  vars = {
+  template = var.enable_appmesh ? templatefile("${path.module}/templates/envoy-appmesh.json.tpl") : templatefile("${path.module}/templates/envoy.json.tpl", {
+    mtls = var.mtls
     AWS_REGION            = data.aws_region.current.name
     ENVOY_RELEASE         = var.envoy_release
     ENVOY_CONFIG          = aws_ssm_parameter.envoy-config-http.arn
@@ -37,7 +37,7 @@ data "template_file" "envoy-proxy" {
     APPMESH_ENVOY_RELEASE = var.appmesh_envoy_release
     EXTRA_CONTAINERS      = var.extra_containers == "" ? "" : ",${var.extra_containers}"
     EXTRA_DEPENDENCY      = var.extra_dependency == "" ? "" : var.enable_appmesh ? ",${var.extra_dependency}" : var.extra_dependency
-  }
+  })
 }
 
 resource "aws_ecs_task_definition" "envoy-proxy" {
@@ -99,6 +99,15 @@ resource "aws_ecs_service" "envoy-proxy" {
     container_name   = "envoy-proxy"
     container_port   = "10000"
   }
+
+  dynamic "load_balancer" {
+    for_each = var.mtls
+      content {
+        target_group_arn = aws_lb_target_group.envoy-proxy-mtls[load_balancer.key].id
+        container_name   = "envoy-proxy"
+        container_port   = load_balancer.value.port
+      }
+  }
 }
 
 #
@@ -107,17 +116,16 @@ resource "aws_ecs_service" "envoy-proxy" {
 
 data "template_file" "envoy-proxy-https" {
   count    = var.tls_listener ? 1 : 0
-  template = var.enable_appmesh ? file("${path.module}/templates/envoy-appmesh.json.tpl") : file("${path.module}/templates/envoy.json.tpl")
-
-  vars = {
+  template = var.enable_appmesh ? templatefile("${path.module}/templates/envoy-appmesh.json.tpl") : templatefile("${path.module}/templates/envoy.json.tpl", {
+    mtls = var.mtls
     AWS_REGION            = data.aws_region.current.name
     ENVOY_RELEASE         = var.envoy_release
     ENVOY_CONFIG          = aws_ssm_parameter.envoy-config-http.arn
     APPMESH_NAME          = var.appmesh_name
     APPMESH_ENVOY_RELEASE = var.appmesh_envoy_release
     EXTRA_CONTAINERS      = var.extra_containers == "" ? "" : ",${var.extra_containers}"
-    EXTRA_DEPENDENCY      = var.extra_dependency == "" ? "" : ",${var.extra_dependency}"
-  }
+    EXTRA_DEPENDENCY      = var.extra_dependency == "" ? "" : var.enable_appmesh ? ",${var.extra_dependency}" : var.extra_dependency
+  })
 }
 
 resource "aws_ecs_task_definition" "envoy-proxy-https" {
@@ -179,5 +187,14 @@ resource "aws_ecs_service" "envoy-proxy-https" {
     container_name   = "envoy-proxy-https"
     container_port   = "10001"
   }
-}
 
+  dynamic "load_balancer" {
+    for_each = var.mtls
+      content {
+        target_group_arn = aws_lb_target_group.envoy-proxy-mtls[load_balancer.key].id
+        container_name   = "envoy-proxy"
+        container_port   = load_balancer.value.port
+      }
+  }
+
+}

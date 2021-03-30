@@ -243,3 +243,8 @@ variable "ratelimit_count" {
 variable "ratelimit_address" {
   default = "roxprox-ratelimit.roxprox.local"
 }
+
+variable "mtls" {
+  description = "list of mtls ports and ips allowed"
+  default     = []
+}

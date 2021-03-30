@@ -30,6 +30,21 @@ resource "aws_lb" "lb" {
   enable_deletion_protection = true
 }
 
+resource "aws_lb" "lb-mtls" {
+  count              = length(var.mtls)
+  name               = "roxprox-mtls"
+  subnets            = var.lb_subnets
+  load_balancer_type = "network"
+
+  access_logs {
+    bucket  = var.bucket_lb_logs
+    prefix  = "roxprox-lb-mtls"
+    enabled = var.enable_lb_logs
+  }
+
+  enable_deletion_protection = true
+}
+
 # lb listener (https)
 resource "aws_lb_listener" "lb-https" {
   load_balancer_arn = aws_lb.lb.arn
@@ -40,6 +55,18 @@ resource "aws_lb_listener" "lb-https" {
 
   default_action {
     target_group_arn = var.tls_listener ? aws_lb_target_group.envoy-proxy-https[0].id : aws_lb_target_group.envoy-proxy-http.id
+    type             = "forward"
+  }
+}
+
+resource "aws_lb_listener" "lb-mtls" {
+  count             = length(var.mtls)
+  load_balancer_arn = aws_lb.lb-mtls[count.index].arn
+  port              = "443"
+  protocol          = "TCP"
+
+  default_action {
+    target_group_arn = aws_lb_target_group.envoy-proxy-mtls[count.index].id
     type             = "forward"
   }
 }
@@ -112,6 +139,23 @@ resource "aws_lb_target_group" "envoy-proxy-https" {
   vpc_id               = data.aws_subnet.subnet.vpc_id
   deregistration_delay = "30"
   slow_start           = "30"
+
+
+  health_check {
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+    protocol            = var.loadbalancer == "alb" ? "HTTP" : "TCP"
+    interval            = 30
+  }
+}
+
+resource "aws_lb_target_group" "envoy-proxy-mtls" {
+  count                = length(var.mtls)
+  name                 = "envoy-proxy-mtls"
+  port                 = var.mtls[count.index].port
+  protocol             = "TCP"
+  target_type          = "ip"
+  vpc_id               = data.aws_subnet.subnet.vpc_id
 
 
   health_check {
