@@ -426,7 +426,7 @@ func TestAuthzObject(t *testing.T) {
 			return
 		}
 	}
-	HTTPRouterFilter := x.workQueue.listener.newHTTPRouterFilter()
+	HTTPRouterFilter := x.workQueue.listener.newHTTPRouterFilter("l_http")
 	if len(HTTPRouterFilter) < 2 {
 		t.Errorf("Less than 2 http router filters")
 		return
@@ -458,7 +458,7 @@ func TestTracingObject(t *testing.T) {
 			return
 		}
 	}
-	httpFilters := x.workQueue.listener.newHTTPRouterFilter()
+	httpFilters := x.workQueue.listener.newHTTPRouterFilter("l_http")
 	manager := x.workQueue.listener.newManager(strings.Replace("testlistener", "l_", "r_", 1), []*route.VirtualHost{}, httpFilters)
 	if manager.Tracing == nil {
 		t.Errorf("No tracing config found")
@@ -617,7 +617,7 @@ func TestCompressionObject(t *testing.T) {
 			return
 		}
 	}
-	httpFilters := x.workQueue.listener.newHTTPRouterFilter()
+	httpFilters := x.workQueue.listener.newHTTPRouterFilter("l_http")
 	if len(httpFilters) == 0 {
 		t.Errorf("Filters in empty")
 		return
@@ -703,7 +703,7 @@ func TestRateLimitObject(t *testing.T) {
 			return
 		}
 	}
-	httpFilters := x.workQueue.listener.newHTTPRouterFilter()
+	httpFilters := x.workQueue.listener.newHTTPRouterFilter("l_http")
 	if len(httpFilters) == 0 {
 		t.Errorf("Filters in empty")
 		return
@@ -767,5 +767,152 @@ func TestMTLSObject(t *testing.T) {
 	if listener.GetAddress().GetSocketAddress().GetPortValue() != 10002 {
 		t.Errorf("Listener has wrong port: %d (expected 10002)", listener.GetAddress().GetSocketAddress().GetPortValue())
 		return
+	}
+}
+
+func TestAuthzObjectWithMTLS(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test-mtls.yaml", "test-authz.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+	for listenerKey := range x.workQueue.cache.listeners {
+		ll := x.workQueue.cache.listeners[listenerKey].(*api.Listener)
+		if ll.GetName() != "l_http" {
+			manager, err := getListenerHTTPConnectionManager(ll)
+			if err != nil {
+				t.Errorf("getListenerHTTPConnectionManager error: %s", err)
+				return
+			}
+			if getListenerHTTPFilterIndex("envoy.ext_authz", manager.HttpFilters) != -1 {
+				t.Errorf("ext_authz found in httprouter filter - should be not found")
+				return
+			}
+		}
+	}
+}
+func TestJWTProviderObjectWithMTLS(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test-mtls.yaml", "test-jwtprovider.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+	for listenerKey := range x.workQueue.cache.listeners {
+		ll := x.workQueue.cache.listeners[listenerKey].(*api.Listener)
+		if ll.GetName() != "l_http" {
+			manager, err := getListenerHTTPConnectionManager(ll)
+			if err != nil {
+				t.Errorf("getListenerHTTPConnectionManager error: %s", err)
+				return
+			}
+			if getListenerHTTPFilterIndex("envoy.filters.http.jwt_authn", manager.HttpFilters) != -1 {
+				t.Errorf("envoy.filters.http.jwt_authn found in httprouter filter - should be not found")
+				return
+			}
+		}
+	}
+}
+
+func TestRateLimitObjectWithMTLS(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test-mtls.yaml", "test-ratelimit.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+	for listenerKey := range x.workQueue.cache.listeners {
+		ll := x.workQueue.cache.listeners[listenerKey].(*api.Listener)
+		if ll.GetName() != "l_http" {
+			manager, err := getListenerHTTPConnectionManager(ll)
+			if err != nil {
+				t.Errorf("getListenerHTTPConnectionManager error: %s", err)
+				return
+			}
+			if getListenerHTTPFilterIndex("envoy.filters.http.ratelimit", manager.HttpFilters) != -1 {
+				t.Errorf("envoy.filters.http.ratelimit found in httprouter filter - should be not found")
+				return
+			}
+		}
+	}
+}
+
+func TestRateLimitObjectWithMTLS2(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test-ratelimit.yaml", "test-mtls.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+	for listenerKey := range x.workQueue.cache.listeners {
+		ll := x.workQueue.cache.listeners[listenerKey].(*api.Listener)
+		if ll.GetName() != "l_http" {
+			manager, err := getListenerHTTPConnectionManager(ll)
+			if err != nil {
+				t.Errorf("getListenerHTTPConnectionManager error: %s", err)
+				return
+			}
+			if getListenerHTTPFilterIndex("envoy.filters.http.ratelimit", manager.HttpFilters) != -1 {
+				t.Errorf("envoy.filters.http.ratelimit found in httprouter filter - should be not found")
+				return
+			}
+		}
 	}
 }

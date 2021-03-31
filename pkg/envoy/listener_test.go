@@ -506,7 +506,7 @@ func TestUpdateListener(t *testing.T) {
 		l.updateDefaultHTTPRouterFilter("envoy.ext_authz", authzConfig)
 	}
 	// validate new HTTP filters
-	if err := validateNewHTTPRouterFilter(l.newHTTPRouterFilter(), params9); err != nil {
+	if err := validateNewHTTPRouterFilter(l.newHTTPRouterFilter("l_http"), params9); err != nil {
 		t.Errorf("Validation failed: %s", err)
 		return
 	}

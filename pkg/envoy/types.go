@@ -90,6 +90,7 @@ type Auth struct {
 	Issuer      string
 	Forward     bool
 	RemoteJwks  string
+	Listener    ListenerParamsListener
 }
 
 type Action struct {
@@ -159,6 +160,7 @@ type DirectResponseAction struct {
 type RateLimitParams struct {
 	Name        string
 	Descriptors []RateLimitDescriptor
+	Listener    ListenerParamsListener
 }
 
 type RateLimitDescriptor struct {

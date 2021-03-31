@@ -24,44 +24,46 @@ func (r *RateLimit) updateListenersWithRateLimit(cache *WorkQueueCache, params R
 	// update listener
 	for listenerKey := range cache.listeners {
 		ll := cache.listeners[listenerKey].(*api.Listener)
-		for filterchainID := range ll.FilterChains {
-			for filterID := range ll.FilterChains[filterchainID].Filters {
-				// get manager
-				manager, err := getManager((ll.FilterChains[filterchainID].Filters[filterID].ConfigType).(*api.Filter_TypedConfig))
-				if err != nil {
-					return err
-				}
+		if isDefaultListener(ll.GetName()) || "l_mtls_"+params.Listener.MTLS == ll.GetName() { // only update listener if it is default listener / mTLS listener is selected
+			for filterchainID := range ll.FilterChains {
+				for filterID := range ll.FilterChains[filterchainID].Filters {
+					// get manager
+					manager, err := getManager((ll.FilterChains[filterchainID].Filters[filterID].ConfigType).(*api.Filter_TypedConfig))
+					if err != nil {
+						return err
+					}
 
-				// get authz config config
-				rateLimitConfigEncoded, err := r.getRateLimitConfigEncoded(params)
-				if err != nil {
-					return err
-				}
+					// get authz config config
+					rateLimitConfigEncoded, err := r.getRateLimitConfigEncoded(params)
+					if err != nil {
+						return err
+					}
 
-				if !r.enabled {
-					// update http filter
-					updateHTTPFilterWithConfig(&manager.HttpFilters, "envoy.filters.http.ratelimit", rateLimitConfigEncoded)
-				}
+					if !r.enabled {
+						// update http filter
+						updateHTTPFilterWithConfig(&manager.HttpFilters, "envoy.filters.http.ratelimit", rateLimitConfigEncoded)
+					}
 
-				// update virtualhosts
-				routeSpecifier, err := getListenerRouteSpecifier(manager)
-				if err != nil {
-					return err
-				}
+					// update virtualhosts
+					routeSpecifier, err := getListenerRouteSpecifier(manager)
+					if err != nil {
+						return err
+					}
 
-				for k := range routeSpecifier.RouteConfig.VirtualHosts {
-					routeSpecifier.RouteConfig.VirtualHosts[k].RateLimits = rateLimits
-				}
+					for k := range routeSpecifier.RouteConfig.VirtualHosts {
+						routeSpecifier.RouteConfig.VirtualHosts[k].RateLimits = rateLimits
+					}
 
-				manager.RouteSpecifier = routeSpecifier
+					manager.RouteSpecifier = routeSpecifier
 
-				// update manager in cache
-				pbst, err := ptypes.MarshalAny(manager)
-				if err != nil {
-					return err
-				}
-				ll.FilterChains[filterchainID].Filters[filterID].ConfigType = &api.Filter_TypedConfig{
-					TypedConfig: pbst,
+					// update manager in cache
+					pbst, err := ptypes.MarshalAny(manager)
+					if err != nil {
+						return err
+					}
+					ll.FilterChains[filterchainID].Filters[filterID].ConfigType = &api.Filter_TypedConfig{
+						TypedConfig: pbst,
+					}
 				}
 			}
 		}

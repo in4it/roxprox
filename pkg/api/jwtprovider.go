@@ -7,7 +7,8 @@ type JwtProvider struct {
 	Spec     JwtProviderSpec `json:"spec" yaml:"spec"`
 }
 type JwtProviderSpec struct {
-	Issuer     string `json:"issuer" yaml:"issuer"`
-	Forward    bool   `json:"forward" yaml:"forward"`
-	RemoteJwks string `json:"remoteJwks" yaml:"remoteJwks"`
+	Issuer     string   `json:"issuer" yaml:"issuer"`
+	Forward    bool     `json:"forward" yaml:"forward"`
+	RemoteJwks string   `json:"remoteJwks" yaml:"remoteJwks"`
+	Listener   Listener `json:"listener"`
 }

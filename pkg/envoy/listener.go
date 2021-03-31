@@ -24,12 +24,22 @@ import (
 const Error_NoFilterChainFound = "NoFilterChainFound"
 const Error_NoFilterFound = "NoFilterFound"
 
+type listenerDefaultsMapping struct {
+	rateLimit       bool
+	accessLogConfig bool
+	tracing         bool
+	authz           bool
+	jwtProvider     bool
+	compression     bool
+}
+
 type Listener struct {
-	httpFilter         []*hcm.HttpFilter
-	tracing            *hcm.HttpConnectionManager_Tracing
-	accessLoggerConfig []*alf.AccessLog
-	rateLimits         []*route.RateLimit
-	rateLimitsMapping  map[string]uint
+	httpFilter                  []*hcm.HttpFilter
+	tracing                     *hcm.HttpConnectionManager_Tracing
+	accessLoggerConfig          []*alf.AccessLog
+	rateLimits                  []*route.RateLimit
+	rateLimitsMapping           map[string]uint
+	mTLSListenerDefaultsMapping map[string]listenerDefaultsMapping
 }
 
 func newListener() *Listener {
@@ -42,6 +52,7 @@ func newListener() *Listener {
 	listener.accessLoggerConfig = []*alf.AccessLog{}
 	listener.rateLimits = []*route.RateLimit{}
 	listener.rateLimitsMapping = make(map[string]uint)
+	listener.mTLSListenerDefaultsMapping = make(map[string]listenerDefaultsMapping)
 
 	return listener
 }
@@ -165,7 +176,7 @@ func (l *Listener) updateListenerWithChallenge(cache *WorkQueueCache, challenge 
 	return nil
 }
 
-func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, clusterName, virtualHostName string, methods []string, matchType string, directResponse DirectResponse, enableWebsocket bool) *route.VirtualHost {
+func (l *Listener) getVirtualHost(listenerName, hostname, targetHostname, targetPrefix, clusterName, virtualHostName string, methods []string, matchType string, directResponse DirectResponse, enableWebsocket bool) *route.VirtualHost {
 	var hostRewriteSpecifier *route.RouteAction_HostRewriteLiteral
 	var routes []*route.Route
 	var routeAction *route.Route_Route
@@ -307,16 +318,20 @@ func (l *Listener) getVirtualHost(hostname, targetHostname, targetPrefix, cluste
 		}
 	}
 
-	return &route.VirtualHost{
-		Name:       virtualHostName,
-		Domains:    []string{hostname},
-		Routes:     routes,
-		RateLimits: l.rateLimits,
+	newVirtualhost := &route.VirtualHost{
+		Name:    virtualHostName,
+		Domains: []string{hostname},
+		Routes:  routes,
 	}
+	// set ratelimits
+	if isDefaultListener(listenerName) || l.HasMTLSDefault(listenerName, "envoy.filters.http.ratelimit") {
+		newVirtualhost.RateLimits = l.rateLimits
+	}
+	return newVirtualhost
 }
 
 func (l *Listener) newTLSFilter(params ListenerParams, paramsTLS TLSParams, listenerName string) []*api.Filter {
-	httpFilters := l.newHTTPRouterFilter()
+	httpFilters := l.newHTTPRouterFilter(listenerName)
 	newEmptyVirtualHost := &route.VirtualHost{
 		Name:    "v_" + params.Conditions.Hostname,
 		Domains: []string{params.Conditions.Hostname},
@@ -392,7 +407,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	}
 
 	// create new virtualhost
-	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname, params.Conditions.Methods, matchType, params.DirectResponse, params.EnableWebSockets)
+	v := l.getVirtualHost(ll.Name, params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname, params.Conditions.Methods, matchType, params.DirectResponse, params.EnableWebSockets)
 
 	// check if we need to overwrite the virtualhost
 	virtualHostKey := -1
@@ -485,7 +500,7 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 
 	logger.Infof("Creating listener " + listenerName)
 
-	httpFilters := l.newHTTPRouterFilter()
+	httpFilters := l.newHTTPRouterFilter(listenerName)
 	manager := l.newManager(strings.Replace(listenerName, "l_", "r_", 1), []*route.VirtualHost{}, httpFilters)
 
 	pbst, err := ptypes.MarshalAny(manager)
@@ -602,7 +617,7 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 		return err
 	}
 
-	v := l.getVirtualHost(params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname, params.Conditions.Methods, matchType, params.DirectResponse, params.EnableWebSockets)
+	v := l.getVirtualHost(ll.Name, params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname, params.Conditions.Methods, matchType, params.DirectResponse, params.EnableWebSockets)
 
 	virtualHostKey := -1
 	for k, curVirtualHost := range routeSpecifier.RouteConfig.VirtualHosts {
@@ -760,11 +775,25 @@ func (l *Listener) updateDefaultRateLimit(rateLimitParams RateLimitParams) {
 		l.rateLimits = append(l.rateLimits, rateLimitVirtualHostConfig)
 		l.rateLimitsMapping[rateLimitParams.Name] = uint(len(l.rateLimits) - 1)
 	}
-
+	// set mTLS listeners defaults
+	if rateLimitParams.Listener.MTLS != "" {
+		newDefaults := listenerDefaultsMapping{}
+		if existingValues, ok := l.mTLSListenerDefaultsMapping[rateLimitParams.Listener.MTLS]; ok {
+			newDefaults = existingValues
+		}
+		newDefaults.rateLimit = true
+		l.mTLSListenerDefaultsMapping[rateLimitParams.Listener.MTLS] = newDefaults
+	}
 }
 
-func (l *Listener) newHTTPRouterFilter() []*hcm.HttpFilter {
-	return l.httpFilter
+func (l *Listener) newHTTPRouterFilter(listenerName string) []*hcm.HttpFilter {
+	httpFilter := []*hcm.HttpFilter{}
+	for k := range l.httpFilter {
+		if isDefaultListener(listenerName) || l.HasMTLSDefault(listenerName, l.httpFilter[k].Name) {
+			httpFilter = append(httpFilter, l.httpFilter[k])
+		}
+	}
+	return httpFilter
 }
 
 func (l *Listener) printListener(cache *WorkQueueCache) (string, error) {
@@ -812,4 +841,20 @@ func (l *Listener) printListener(cache *WorkQueueCache) (string, error) {
 		}
 	}
 	return res, nil
+}
+
+func (l *Listener) HasMTLSDefault(listenerName, attr string) bool {
+	if val, ok := l.mTLSListenerDefaultsMapping[listenerName]; ok {
+		switch attr {
+		case "envoy.filters.http.ratelimit":
+			return val.rateLimit
+		case "accessLogConfig":
+			return val.accessLogConfig
+		case "tracing":
+			return val.tracing
+			//case "authz":
+			//	return val.authz
+		}
+	}
+	return false
 }
