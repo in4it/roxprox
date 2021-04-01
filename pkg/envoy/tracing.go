@@ -17,31 +17,32 @@ func (t *Tracing) updateListenersWithTracing(cache *WorkQueueCache, tracing Trac
 	// update listener
 	for listenerKey := range cache.listeners {
 		ll := cache.listeners[listenerKey].(*api.Listener)
-		for filterchainID := range ll.FilterChains {
-			for filterID := range ll.FilterChains[filterchainID].Filters {
-				// get manager
-				manager, err := getManager((ll.FilterChains[filterchainID].Filters[filterID].ConfigType).(*api.Filter_TypedConfig))
-				if err != nil {
-					return err
-				}
+		if isDefaultListener(ll.GetName()) || "l_mtls_"+tracing.Listener.MTLS == ll.GetName() { // only update listener if it is default listener / mTLS listener is selected
+			for filterchainID := range ll.FilterChains {
+				for filterID := range ll.FilterChains[filterchainID].Filters {
+					// get manager
+					manager, err := getManager((ll.FilterChains[filterchainID].Filters[filterID].ConfigType).(*api.Filter_TypedConfig))
+					if err != nil {
+						return err
+					}
 
-				manager.Tracing = &hcm.HttpConnectionManager_Tracing{
-					ClientSampling:  &envoyType.Percent{Value: tracing.ClientSampling},
-					RandomSampling:  &envoyType.Percent{Value: tracing.RandomSampling},
-					OverallSampling: &envoyType.Percent{Value: tracing.OverallSampling},
-				}
+					manager.Tracing = &hcm.HttpConnectionManager_Tracing{
+						ClientSampling:  &envoyType.Percent{Value: tracing.ClientSampling},
+						RandomSampling:  &envoyType.Percent{Value: tracing.RandomSampling},
+						OverallSampling: &envoyType.Percent{Value: tracing.OverallSampling},
+					}
 
-				// update manager in cache
-				pbst, err := ptypes.MarshalAny(manager)
-				if err != nil {
-					return err
-				}
-				ll.FilterChains[filterchainID].Filters[filterID].ConfigType = &api.Filter_TypedConfig{
-					TypedConfig: pbst,
-				}
+					// update manager in cache
+					pbst, err := ptypes.MarshalAny(manager)
+					if err != nil {
+						return err
+					}
+					ll.FilterChains[filterchainID].Filters[filterID].ConfigType = &api.Filter_TypedConfig{
+						TypedConfig: pbst,
+					}
 
+				}
 			}
-
 		}
 
 	}

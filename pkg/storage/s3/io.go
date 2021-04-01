@@ -126,7 +126,7 @@ func (s *S3Storage) GetObject(filename string) ([]api.Object, error) {
 	if err != nil {
 		return objects, err
 	}
-	for _, contentsSplitted := range strings.Split(string(contents.Bytes()), "---") {
+	for _, contentsSplitted := range strings.Split(string(contents.Bytes()), "\n---") {
 		if strings.TrimSpace(contentsSplitted) != "" {
 			var object api.Object
 			err = yaml.Unmarshal([]byte(contentsSplitted), &object)

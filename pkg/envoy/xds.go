@@ -271,6 +271,9 @@ func (x *XDS) importAuthzFilter(authzFilter pkgApi.AuthzFilter) ([]WorkQueueItem
 					Timeout:          authzFilter.Spec.Timeout,
 					FailureModeAllow: authzFilter.Spec.FailureModeAllow,
 				},
+				Listener: ListenerParamsListener{
+					MTLS: authzFilter.Spec.Listener.MTLS,
+				},
 			},
 		},
 	}, nil
@@ -285,6 +288,9 @@ func (x *XDS) importTracing(tracing pkgApi.Tracing) ([]WorkQueueItem, error) {
 				ClientSampling:  tracing.Spec.ClientSampling,
 				RandomSampling:  tracing.Spec.RandomSampling,
 				OverallSampling: tracing.Spec.OverallSampling,
+				Listener: ListenerParamsListener{
+					MTLS: tracing.Spec.Listener.MTLS,
+				},
 			},
 		},
 	}, nil
@@ -299,6 +305,9 @@ func (x *XDS) importCompression(compression pkgApi.Compression) ([]WorkQueueItem
 				ContentLength:       compression.Spec.ContentLength,
 				ContentType:         compression.Spec.ContentType,
 				DisableOnEtagHeader: compression.Spec.DisableOnEtagHeader,
+				Listener: ListenerParamsListener{
+					MTLS: compression.Spec.Listener.MTLS,
+				},
 			},
 		},
 	}, nil
@@ -312,6 +321,9 @@ func (x *XDS) importAccessLogServer(accessLogServer pkgApi.AccessLogServer) ([]W
 				Name:                           accessLogServer.Metadata.Name,
 				AdditionalRequestHeadersToLog:  accessLogServer.Spec.AdditionalRequestHeadersToLog,
 				AdditionalResponseHeadersToLog: accessLogServer.Spec.AdditionalResponseHeadersToLog,
+				Listener: ListenerParamsListener{
+					MTLS: accessLogServer.Spec.Listener.MTLS,
+				},
 			},
 		},
 	}, nil
@@ -333,6 +345,9 @@ func (x *XDS) importRateLimit(rateLimit pkgApi.RateLimit) ([]WorkQueueItem, erro
 			RateLimitParams: RateLimitParams{
 				Name:        rateLimit.Metadata.Name,
 				Descriptors: descriptors,
+				Listener: ListenerParamsListener{
+					MTLS: rateLimit.Spec.Listener.MTLS,
+				},
 			},
 		},
 	}, nil
@@ -545,6 +560,9 @@ func (x *XDS) getAuthParams(jwtProviderName string, jwtProvider pkgApi.JwtProvid
 		Issuer:      jwtProvider.Spec.Issuer,
 		Forward:     jwtProvider.Spec.Forward,
 		RemoteJwks:  jwtProvider.Spec.RemoteJwks,
+		Listener: ListenerParamsListener{
+			MTLS: jwtProvider.Spec.Listener.MTLS,
+		},
 	}
 }
 func (x *XDS) getMTLSListenerParams(mTLSParams pkgApi.MTLS) ListenerParamsListener {

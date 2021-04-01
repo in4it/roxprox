@@ -362,3 +362,10 @@ func getListenerIndex(listeners []cacheTypes.Resource, listenerName string) int 
 	}
 	return -1
 }
+
+func isDefaultListener(listenerName string) bool {
+	if listenerName == "l_tls" || listenerName == "l_http" {
+		return true
+	}
+	return false
+}

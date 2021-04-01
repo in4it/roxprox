@@ -10,6 +10,7 @@ type RateLimitSpec struct {
 	Descriptors    []RateLimitDescriptor `json:"descriptors" yaml:"descriptors"`
 	RequestPerUnit string                `json:"requestPerUnit" yaml:"requestPerUnit"`
 	Unit           string                `json:"unit" yaml:"unit"`
+	Listener       Listener              `json:"listener"`
 }
 type RateLimitDescriptor struct {
 	DestinationCluster bool   `json:"destinationCluster" yaml:"destinationCluster"`

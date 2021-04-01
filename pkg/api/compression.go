@@ -11,4 +11,5 @@ type CompressionSpec struct {
 	ContentLength       uint32   `json:"contentLength" yaml:"contentLength"`
 	ContentType         []string `json:"contentType" yaml:"contentType"`
 	DisableOnEtagHeader bool     `json:"disableOnEtagHeader" yaml:"disableOnEtagHeader"`
+	Listener            Listener `json:"listener"`
 }

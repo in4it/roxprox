@@ -175,38 +175,40 @@ func (j *JwtProvider) getJwtConfig(auth Auth) *jwtAuth.JwtAuthentication {
 func (j *JwtProvider) updateListenerWithJwtProvider(cache *WorkQueueCache, params ListenerParams) error {
 	for listenerKey := range cache.listeners {
 		ll := cache.listeners[listenerKey].(*api.Listener)
-		manager, err := getListenerHTTPConnectionManager(ll)
-		if err != nil {
-			return err
-		}
-		// add routes to jwtProvider
-		jwtConfig := &jwtAuth.JwtAuthentication{}
-		if getListenerHTTPFilterIndex("envoy.filters.http.jwt_authn", manager.HttpFilters) != -1 {
-			jwtConfig, err = getListenerHTTPFilterJwtAuth(manager.HttpFilters)
+		if isDefaultListener(ll.GetName()) || "l_mtls_"+params.Listener.MTLS == ll.GetName() { // only update listener if it is default listener / mTLS listener is selected
+			manager, err := getListenerHTTPConnectionManager(ll)
 			if err != nil {
 				return err
 			}
-		}
-		if jwtConfig.Providers == nil {
-			jwtConfig.Providers = make(map[string]*jwtAuth.JwtProvider)
-		}
-		jwtNewConfig := j.getJwtConfig(params.Auth)
-		jwtConfig.Providers[params.Auth.JwtProvider] = jwtNewConfig.Providers[params.Auth.JwtProvider]
-		logger.Debugf("Adding/updating %s to jwt config", params.Auth.JwtProvider)
+			// add routes to jwtProvider
+			jwtConfig := &jwtAuth.JwtAuthentication{}
+			if getListenerHTTPFilterIndex("envoy.filters.http.jwt_authn", manager.HttpFilters) != -1 {
+				jwtConfig, err = getListenerHTTPFilterJwtAuth(manager.HttpFilters)
+				if err != nil {
+					return err
+				}
+			}
+			if jwtConfig.Providers == nil {
+				jwtConfig.Providers = make(map[string]*jwtAuth.JwtProvider)
+			}
+			jwtNewConfig := j.getJwtConfig(params.Auth)
+			jwtConfig.Providers[params.Auth.JwtProvider] = jwtNewConfig.Providers[params.Auth.JwtProvider]
+			logger.Debugf("Adding/updating %s to jwt config", params.Auth.JwtProvider)
 
-		jwtConfigEncoded, err := ptypes.MarshalAny(jwtConfig)
-		if err != nil {
-			panic(err)
-		}
+			jwtConfigEncoded, err := ptypes.MarshalAny(jwtConfig)
+			if err != nil {
+				panic(err)
+			}
 
-		updateHTTPFilterWithConfig(&manager.HttpFilters, "envoy.filters.http.jwt_authn", jwtConfigEncoded)
+			updateHTTPFilterWithConfig(&manager.HttpFilters, "envoy.filters.http.jwt_authn", jwtConfigEncoded)
 
-		pbst, err := ptypes.MarshalAny(manager)
-		if err != nil {
-			panic(err)
-		}
-		ll.FilterChains[0].Filters[0].ConfigType = &api.Filter_TypedConfig{
-			TypedConfig: pbst,
+			pbst, err := ptypes.MarshalAny(manager)
+			if err != nil {
+				panic(err)
+			}
+			ll.FilterChains[0].Filters[0].ConfigType = &api.Filter_TypedConfig{
+				TypedConfig: pbst,
+			}
 		}
 	}
 	return nil
