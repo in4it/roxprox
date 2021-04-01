@@ -41,11 +41,6 @@ func (l *MTLS) updateMTLSListener(cache *WorkQueueCache, params ListenerParams, 
 		return fmt.Errorf("Listener not found: %s", listenerName)
 	}
 	ll := cache.listeners[listenerIndex].(*api.Listener)
-	ll.ListenerFilters = []*api.ListenerFilter{
-		{
-			Name: "envoy.filters.listener.tls_inspector",
-		},
-	}
 	matchSubjectAltNames := make([]*matcher.StringMatcher, len(mTLSParams.AllowedSubjectAltNames))
 	for k, name := range mTLSParams.AllowedSubjectAltNames {
 		matchSubjectAltNames[k] = &matcher.StringMatcher{
@@ -93,7 +88,7 @@ func (l *MTLS) updateMTLSListener(cache *WorkQueueCache, params ListenerParams, 
 		panic(err)
 	}
 	ll.FilterChains[0].TransportSocket = &core.TransportSocket{
-		Name: "mtls",
+		Name: "envoy.transport_sockets.tls",
 		ConfigType: &core.TransportSocket_TypedConfig{
 			TypedConfig: tlsContext,
 		},

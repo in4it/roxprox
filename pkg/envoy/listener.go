@@ -868,6 +868,9 @@ func (l *Listener) printListener(cache *WorkQueueCache) (string, error) {
 }
 
 func (l *Listener) HasMTLSDefault(listenerName, attr string) bool {
+	if attr == "envoy.filters.http.router" {
+		return true // always allow the router filter
+	}
 	if val, ok := l.mTLSListenerDefaultsMapping[listenerName]; ok {
 		switch attr {
 		case "envoy.filters.http.ratelimit":

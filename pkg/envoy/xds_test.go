@@ -768,6 +768,20 @@ func TestMTLSObject(t *testing.T) {
 		t.Errorf("Listener has wrong port: %d (expected 10002)", listener.GetAddress().GetSocketAddress().GetPortValue())
 		return
 	}
+	for listenerKey := range x.workQueue.cache.listeners {
+		ll := x.workQueue.cache.listeners[listenerKey].(*api.Listener)
+		if ll.GetName() != "l_http" {
+			manager, err := getListenerHTTPConnectionManager(ll)
+			if err != nil {
+				t.Errorf("Couldn't get getListenerHTTPConnectionManager: %s", err)
+				return
+			}
+			if getListenerHTTPFilterIndex("envoy.filters.http.router", manager.HttpFilters) == -1 {
+				t.Errorf("envoy.filters.http.router not found in httprouter filter - should be not found")
+				return
+			}
+		}
+	}
 }
 
 func TestAuthzObjectWithMTLS(t *testing.T) {
