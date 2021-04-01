@@ -589,8 +589,11 @@ func (l *Listener) GetListenerNames(listeners []cacheTypes.Resource) []string {
 func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, paramsTLS TLSParams) error {
 	listenerKeyHTTP := -1
 	listenerKeyTLS := -1
+	listenerKeyMTLS := -1
 	for k, listener := range cache.listeners {
-		if (listener.(*api.Listener)).Name == "l_http" {
+		if params.Listener.MTLS != "" && (listener.(*api.Listener)).Name == "l_mtls_"+params.Listener.MTLS {
+			listenerKeyMTLS = k
+		} else if (listener.(*api.Listener)).Name == "l_http" {
 			listenerKeyHTTP = k
 		} else if (listener.(*api.Listener)).Name == "l_tls" {
 			listenerKeyTLS = k
@@ -604,9 +607,21 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 	var err error
 
 	var ll *api.Listener
-	if tls {
+	if params.Listener.MTLS != "" {
+		if listenerKeyMTLS == -1 {
+			return fmt.Errorf("DeleteRoute: mTLS Listener not found: l_mtls_%s", params.Listener.MTLS)
+		}
+		ll = cache.listeners[listenerKeyMTLS].(*api.Listener)
+		manager, err = getListenerHTTPConnectionManager(ll)
+		if err != nil {
+			return err
+		}
+	} else if tls {
 		ll = cache.listeners[listenerKeyTLS].(*api.Listener)
 		manager, err = getListenerHTTPConnectionManagerTLS(ll, params.Conditions.Hostname)
+		if err != nil {
+			return err
+		}
 	} else {
 		ll = cache.listeners[listenerKeyHTTP].(*api.Listener)
 		manager, err = getListenerHTTPConnectionManager(ll)

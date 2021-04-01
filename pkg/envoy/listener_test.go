@@ -310,6 +310,19 @@ func TestUpdateListener(t *testing.T) {
 			Body:   "OK",
 		},
 	}
+	params11 := ListenerParams{
+		Name:           "test_mtls_1",
+		Protocol:       "http",
+		TargetHostname: "www.test-mtls.inv",
+		Conditions: Conditions{
+			Hostname: "hostname11.example.com",
+			Prefix:   "/test11",
+			Methods:  []string{"GET", "POST"},
+		},
+		Listener: ListenerParamsListener{
+			MTLS: "test-mtls",
+		},
+	}
 
 	listener := l.createListener(params1, paramsTLS1)
 	cache.listeners = append(cache.listeners, listener)
@@ -439,7 +452,7 @@ func TestUpdateListener(t *testing.T) {
 		return
 	}
 	// validate domain 5 (TLSNew)
-	if err := validateDeleteRoute(cache.listeners, params5, paramsTLS5New); err != nil {
+	if err := validateDeleteRoute(cache.listeners, params5, paramsTLS5New, 2 /* active listeners */); err != nil {
 		t.Errorf("Delete Validation failed: %s", err)
 		return
 	}
@@ -449,7 +462,7 @@ func TestUpdateListener(t *testing.T) {
 		return
 	}
 	// validate domain 1
-	if err := validateDeleteRoute(cache.listeners, params1, paramsTLS1); err != nil {
+	if err := validateDeleteRoute(cache.listeners, params1, paramsTLS1, 2 /* active listeners */); err != nil {
 		t.Errorf("Delete Validation failed: %s", err)
 		return
 	}
@@ -521,11 +534,29 @@ func TestUpdateListener(t *testing.T) {
 		t.Errorf("Validation failed: %s", err)
 		return
 	}
+	// mTLS tests
+	mTLSListener := l.createListener(params11, paramsTLS1)
+	cache.listeners = append(cache.listeners, mTLSListener)
+	// add domain 11
+	if err := l.updateListener(&cache, params11, paramsTLS1); err != nil {
+		t.Errorf("Error: %s", err)
+		return
+	}
+	// delete route for domain 11
+	if err := l.DeleteRoute(&cache, params11, paramsTLS1); err != nil {
+		t.Errorf("Delete route failed: %s", err)
+		return
+	}
+	// validate domain 11
+	if err := validateDeleteRoute(cache.listeners, params11, paramsTLS1, 3 /* listeners */); err != nil {
+		t.Errorf("Delete Validation failed: %s", err)
+		return
+	}
 }
 
-func validateDeleteRoute(listeners []cacheTypes.Resource, params ListenerParams, tlsParams TLSParams) error {
-	if len(listeners) != 2 {
-		return fmt.Errorf("Expected 2 listeners (l_http and l_tls) (got %d)", len(listeners))
+func validateDeleteRoute(listeners []cacheTypes.Resource, params ListenerParams, tlsParams TLSParams, activeListeners int) error {
+	if len(listeners) != activeListeners {
+		return fmt.Errorf("Expected %d listeners (l_http and l_tls) (got %d)", activeListeners, len(listeners))
 	}
 	cachedListener := listeners[0].(*api.Listener)
 	if cachedListener.Name != "l_http" {
