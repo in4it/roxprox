@@ -19,6 +19,7 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	any "github.com/golang/protobuf/ptypes/any"
 	"github.com/golang/protobuf/ptypes/wrappers"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 const Error_NoFilterChainFound = "NoFilterChainFound"
@@ -29,7 +30,6 @@ type listenerDefaultsMapping struct {
 	accessLogConfig bool
 	tracing         bool
 	authz           bool
-	jwtProvider     bool
 	compression     bool
 }
 
@@ -337,7 +337,7 @@ func (l *Listener) newTLSFilter(params ListenerParams, paramsTLS TLSParams, list
 		Domains: []string{params.Conditions.Hostname},
 		Routes:  []*route.Route{},
 	}
-	manager := l.newManager(strings.Replace(listenerName, "l_", "r_", 1), []*route.VirtualHost{newEmptyVirtualHost}, httpFilters)
+	manager := l.newManager(listenerName, strings.Replace(listenerName, "l_", "r_", 1), []*route.VirtualHost{newEmptyVirtualHost}, httpFilters)
 	pbst, err := ptypes.MarshalAny(manager)
 	if err != nil {
 		panic(err)
@@ -474,7 +474,7 @@ func (l *Listener) routeIndex(routes []*route.Route, route *route.Route) int {
 	return -1
 }
 
-func (l *Listener) newManager(routeName string, virtualHosts []*route.VirtualHost, httpFilters []*hcm.HttpFilter) *hcm.HttpConnectionManager {
+func (l *Listener) newManager(listenerName string, routeName string, virtualHosts []*route.VirtualHost, httpFilters []*hcm.HttpFilter) *hcm.HttpConnectionManager {
 	httpConnectionManager := &hcm.HttpConnectionManager{
 		CodecType:  hcm.HttpConnectionManager_AUTO,
 		StatPrefix: "ingress_http",
@@ -485,9 +485,12 @@ func (l *Listener) newManager(routeName string, virtualHosts []*route.VirtualHos
 			},
 		},
 		HttpFilters: httpFilters,
-		AccessLog:   l.accessLoggerConfig,
 	}
-	if l.tracing != nil {
+	if l.HasMTLSDefault(listenerName, "accessLoggerConfig") {
+		httpConnectionManager.AccessLog = l.accessLoggerConfig
+	}
+
+	if l.tracing != nil && l.HasMTLSDefault(listenerName, "tracing") {
 		httpConnectionManager.Tracing = l.tracing
 	}
 	return httpConnectionManager
@@ -501,7 +504,7 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 	logger.Infof("Creating listener " + listenerName)
 
 	httpFilters := l.newHTTPRouterFilter(listenerName)
-	manager := l.newManager(strings.Replace(listenerName, "l_", "r_", 1), []*route.VirtualHost{}, httpFilters)
+	manager := l.newManager(listenerName, strings.Replace(listenerName, "l_", "r_", 1), []*route.VirtualHost{}, httpFilters)
 
 	pbst, err := ptypes.MarshalAny(manager)
 	if err != nil {
@@ -718,6 +721,8 @@ func (l *Listener) updateDefaultTracingSetting(tracing TracingParams) {
 		RandomSampling:  &envoyType.Percent{Value: tracing.RandomSampling},
 		OverallSampling: &envoyType.Percent{Value: tracing.OverallSampling},
 	}
+	// set mTLS listeners defaults
+	l.setMTLSDefault(tracing.Listener.MTLS, "tracing")
 }
 
 func (l *Listener) updateDefaultCompressionSetting(compressionParams CompressionParams) {
@@ -732,6 +737,9 @@ func (l *Listener) updateDefaultCompressionSetting(compressionParams Compression
 	}
 
 	updateHTTPFilterWithConfig(&l.httpFilter, "envoy.filters.http.compressor", compressorFilterEncoded)
+	// set mTLS listeners defaults
+	l.setMTLSDefault(compressionParams.Listener.MTLS, "envoy.filters.http.compressor")
+
 }
 
 func (l *Listener) updateDefaultAccessLogServer(accessLogServerParams AccessLogServerParams) {
@@ -746,6 +754,14 @@ func (l *Listener) updateDefaultAccessLogServer(accessLogServerParams AccessLogS
 	}
 
 	l.accessLoggerConfig = accessLoggerConfig
+	// set mTLS listeners defaults
+	l.setMTLSDefault(accessLogServerParams.Listener.MTLS, "accessLoggerConfig")
+}
+
+func (l *Listener) updateDefaultAuthzSetting(listenerParams ListenerParams, authzConfig *anypb.Any) {
+	l.updateDefaultHTTPRouterFilter("envoy.ext_authz", authzConfig)
+	// set mTLS listeners defaults
+	l.setMTLSDefault(listenerParams.Listener.MTLS, "envoy.ext_authz")
 }
 
 func (l *Listener) updateDefaultRateLimit(rateLimitParams RateLimitParams) {
@@ -776,14 +792,7 @@ func (l *Listener) updateDefaultRateLimit(rateLimitParams RateLimitParams) {
 		l.rateLimitsMapping[rateLimitParams.Name] = uint(len(l.rateLimits) - 1)
 	}
 	// set mTLS listeners defaults
-	if rateLimitParams.Listener.MTLS != "" {
-		newDefaults := listenerDefaultsMapping{}
-		if existingValues, ok := l.mTLSListenerDefaultsMapping[rateLimitParams.Listener.MTLS]; ok {
-			newDefaults = existingValues
-		}
-		newDefaults.rateLimit = true
-		l.mTLSListenerDefaultsMapping[rateLimitParams.Listener.MTLS] = newDefaults
-	}
+	l.setMTLSDefault(rateLimitParams.Listener.MTLS, "envoy.filters.http.ratelimit")
 }
 
 func (l *Listener) newHTTPRouterFilter(listenerName string) []*hcm.HttpFilter {
@@ -848,13 +857,41 @@ func (l *Listener) HasMTLSDefault(listenerName, attr string) bool {
 		switch attr {
 		case "envoy.filters.http.ratelimit":
 			return val.rateLimit
-		case "accessLogConfig":
+		case "accessLoggerConfig":
 			return val.accessLogConfig
 		case "tracing":
 			return val.tracing
-			//case "authz":
-			//	return val.authz
+		case "envoy.filters.http.compressor":
+			return val.compression
+		case "envoy.ext_authz":
+			return val.authz
+		case "envoy.filters.http.jwt_authn":
+			return false // we don't setup jwt authn on new listeners
 		}
 	}
 	return false
+}
+
+func (l *Listener) setMTLSDefault(mTLSName, attr string) {
+	if mTLSName != "" {
+		listenerName := "l_mtls_" + mTLSName
+		newDefaults := listenerDefaultsMapping{}
+		if existingValues, ok := l.mTLSListenerDefaultsMapping[listenerName]; ok {
+			newDefaults = existingValues
+		}
+		switch attr {
+		case "envoy.filters.http.ratelimit":
+			newDefaults.rateLimit = true
+		case "accessLoggerConfig":
+			newDefaults.accessLogConfig = true
+		case "tracing":
+			newDefaults.tracing = true
+		case "envoy.filters.http.compressor":
+			newDefaults.compression = true
+		case "envoy.ext_authz":
+			newDefaults.authz = true
+		}
+
+		l.mTLSListenerDefaultsMapping[listenerName] = newDefaults
+	}
 }

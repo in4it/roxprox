@@ -189,7 +189,7 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 					logger.Errorf("updateListenerWithAuthzFilter error: %s", err)
 				} else {
 					// update default listener route
-					w.listener.updateDefaultHTTPRouterFilter("envoy.ext_authz", authzConfig)
+					w.listener.updateDefaultAuthzSetting(item.ListenerParams, authzConfig)
 					item.state = "finished"
 				}
 			}

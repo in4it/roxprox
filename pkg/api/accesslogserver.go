@@ -11,4 +11,5 @@ type AccessLogServerSpec struct {
 	Port                           int64    `json:"port" yaml:"port"`
 	AdditionalRequestHeadersToLog  []string `json:"additionalRequestHeadersToLog" yaml:"additionalRequestHeadersToLog"`
 	AdditionalResponseHeadersToLog []string `json:"additionalResponseHeadersToLog" yaml:"additionalResponseHeadersToLog"`
+	Listener                       Listener `json:"listener"`
 }

@@ -20,34 +20,35 @@ func (c *Compression) updateListenersWithCompression(cache *WorkQueueCache, para
 	// update listener
 	for listenerKey := range cache.listeners {
 		ll := cache.listeners[listenerKey].(*api.Listener)
-		for filterchainID := range ll.FilterChains {
-			for filterID := range ll.FilterChains[filterchainID].Filters {
-				// get manager
-				manager, err := getManager((ll.FilterChains[filterchainID].Filters[filterID].ConfigType).(*api.Filter_TypedConfig))
-				if err != nil {
-					return err
-				}
+		if isDefaultListener(ll.GetName()) || "l_mtls_"+params.Listener.MTLS == ll.GetName() { // only update listener if it is default listener / mTLS listener is selected
+			for filterchainID := range ll.FilterChains {
+				for filterID := range ll.FilterChains[filterchainID].Filters {
+					// get manager
+					manager, err := getManager((ll.FilterChains[filterchainID].Filters[filterID].ConfigType).(*api.Filter_TypedConfig))
+					if err != nil {
+						return err
+					}
 
-				// get compression config
-				compressorConfigEncoded, err := c.getCompressionFilterEncoded(params)
-				if err != nil {
-					return err
-				}
+					// get compression config
+					compressorConfigEncoded, err := c.getCompressionFilterEncoded(params)
+					if err != nil {
+						return err
+					}
 
-				// update http filter
-				updateHTTPFilterWithConfig(&manager.HttpFilters, "envoy.filters.http.compressor", compressorConfigEncoded)
+					// update http filter
+					updateHTTPFilterWithConfig(&manager.HttpFilters, "envoy.filters.http.compressor", compressorConfigEncoded)
 
-				// update manager in cache
-				pbst, err := ptypes.MarshalAny(manager)
-				if err != nil {
-					return err
-				}
-				ll.FilterChains[filterchainID].Filters[filterID].ConfigType = &api.Filter_TypedConfig{
-					TypedConfig: pbst,
-				}
+					// update manager in cache
+					pbst, err := ptypes.MarshalAny(manager)
+					if err != nil {
+						return err
+					}
+					ll.FilterChains[filterchainID].Filters[filterID].ConfigType = &api.Filter_TypedConfig{
+						TypedConfig: pbst,
+					}
 
+				}
 			}
-
 		}
 
 	}

@@ -133,6 +133,7 @@ type TracingParams struct {
 	ClientSampling  float64
 	RandomSampling  float64
 	OverallSampling float64
+	Listener        ListenerParamsListener
 }
 
 type CompressionParams struct {
@@ -140,12 +141,14 @@ type CompressionParams struct {
 	ContentLength       uint32
 	ContentType         []string
 	DisableOnEtagHeader bool
+	Listener            ListenerParamsListener
 }
 
 type AccessLogServerParams struct {
 	Name                           string
 	AdditionalRequestHeadersToLog  []string
 	AdditionalResponseHeadersToLog []string
+	Listener                       ListenerParamsListener
 }
 
 type DirectResponse struct {

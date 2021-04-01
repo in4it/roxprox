@@ -288,6 +288,9 @@ func (x *XDS) importTracing(tracing pkgApi.Tracing) ([]WorkQueueItem, error) {
 				ClientSampling:  tracing.Spec.ClientSampling,
 				RandomSampling:  tracing.Spec.RandomSampling,
 				OverallSampling: tracing.Spec.OverallSampling,
+				Listener: ListenerParamsListener{
+					MTLS: tracing.Spec.Listener.MTLS,
+				},
 			},
 		},
 	}, nil
@@ -302,6 +305,9 @@ func (x *XDS) importCompression(compression pkgApi.Compression) ([]WorkQueueItem
 				ContentLength:       compression.Spec.ContentLength,
 				ContentType:         compression.Spec.ContentType,
 				DisableOnEtagHeader: compression.Spec.DisableOnEtagHeader,
+				Listener: ListenerParamsListener{
+					MTLS: compression.Spec.Listener.MTLS,
+				},
 			},
 		},
 	}, nil
@@ -315,6 +321,9 @@ func (x *XDS) importAccessLogServer(accessLogServer pkgApi.AccessLogServer) ([]W
 				Name:                           accessLogServer.Metadata.Name,
 				AdditionalRequestHeadersToLog:  accessLogServer.Spec.AdditionalRequestHeadersToLog,
 				AdditionalResponseHeadersToLog: accessLogServer.Spec.AdditionalResponseHeadersToLog,
+				Listener: ListenerParamsListener{
+					MTLS: accessLogServer.Spec.Listener.MTLS,
+				},
 			},
 		},
 	}, nil
