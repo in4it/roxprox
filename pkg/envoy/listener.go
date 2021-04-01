@@ -486,11 +486,11 @@ func (l *Listener) newManager(listenerName string, routeName string, virtualHost
 		},
 		HttpFilters: httpFilters,
 	}
-	if l.HasMTLSDefault(listenerName, "accessLoggerConfig") {
+	if isDefaultListener(listenerName) || l.HasMTLSDefault(listenerName, "accessLoggerConfig") {
 		httpConnectionManager.AccessLog = l.accessLoggerConfig
 	}
 
-	if l.tracing != nil && l.HasMTLSDefault(listenerName, "tracing") {
+	if l.tracing != nil && (isDefaultListener(listenerName) || l.HasMTLSDefault(listenerName, "tracing")) {
 		httpConnectionManager.Tracing = l.tracing
 	}
 	return httpConnectionManager

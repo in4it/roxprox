@@ -459,7 +459,7 @@ func TestTracingObject(t *testing.T) {
 		}
 	}
 	httpFilters := x.workQueue.listener.newHTTPRouterFilter("l_http")
-	manager := x.workQueue.listener.newManager("testlistener", strings.Replace("testlistener", "l_", "r_", 1), []*route.VirtualHost{}, httpFilters)
+	manager := x.workQueue.listener.newManager("l_http", strings.Replace("testlistener", "l_", "r_", 1), []*route.VirtualHost{}, httpFilters)
 	if manager.Tracing == nil {
 		t.Errorf("No tracing config found")
 		return
