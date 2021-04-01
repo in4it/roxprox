@@ -42,6 +42,16 @@ resource "aws_security_group" "roxprox-envoy-nlb" {
     cidr_blocks = [data.aws_subnet.subnet.cidr_block]
   }
 
+  dynamic "ingress" {
+    for_each = var.mtls
+      content {
+        from_port   = ingress.value.port
+        to_port     = ingress.value.port
+        protocol    = "tcp"
+        cidr_blocks = ingress.value.allow_ips
+      }
+  }  
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -70,6 +80,15 @@ resource "aws_security_group" "roxprox-envoy-alb" {
     security_groups = var.enable_datadog ? concat(var.management_access_sg, [aws_security_group.roxprox-datadog[0].id]) : var.management_access_sg
   }
 
+  dynamic "ingress" {
+    for_each = var.mtls
+      content {
+        from_port   = ingress.value.port
+        to_port     = ingress.value.port
+        protocol    = "tcp"
+        cidr_blocks = ingress.value.allow_ips
+      }
+  }
 
   egress {
     from_port   = 0

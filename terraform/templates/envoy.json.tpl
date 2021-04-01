@@ -19,13 +19,20 @@
            "valueFrom": "${ENVOY_CONFIG}"
          }
        ],
-       "portMappings": [ 
+       "portMappings": [
+         %{ for p in mtls ~}
+          {
+             "containerPort": ${p.port},
+             "hostPort": ${p.port},
+             "protocol": "tcp"
+          },  
+         %{ endfor ~} 
           { 
              "containerPort": 10000,
              "hostPort": 10000,
              "protocol": "tcp"
           },
-          { 
+          {
              "containerPort": 10001,
              "hostPort": 10001,
              "protocol": "tcp"

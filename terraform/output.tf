@@ -25,3 +25,11 @@ output "roxprox-envoy-sg" {
 output "roxprox-kms-arn" {
   value = var.s3_bucket_sse ? aws_kms_key.roxprox-s3-sse-kms[0].arn : ""
 }
+
+output "lb-mtls-dns-name" {
+  value = element([for lb-mtls in aws_lb.lb-mtls : lb-mtls.dns_name], 0)
+}
+
+output "lb-mtls-zone-id" {
+  value = element([for lb-mtls in aws_lb.lb-mtls : lb-mtls.zone_id], 0)
+}
