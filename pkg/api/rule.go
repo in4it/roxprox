@@ -50,10 +50,10 @@ type HTTPHealthCheck struct {
 }
 
 type RuleActionsDirectResponse struct {
-	Status uint32 `json:"status"`
-	Body   string `json:"body"`
+	Status uint32 `json:"status" yaml:"status"`
+	Body   string `json:"body" yaml:"body"`
 }
 
 type Listener struct {
-	MTLS string `json:"mTLS"`
+	MTLS string `json:"mTLS" yaml:"mTLS"`
 }

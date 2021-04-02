@@ -542,6 +542,10 @@ func TestUpdateListener(t *testing.T) {
 		t.Errorf("Error: %s", err)
 		return
 	}
+	if err := validateDomain(cache.listeners, params11); err != nil {
+		t.Errorf("Validation failed: %s", err)
+		return
+	}
 	// delete route for domain 11
 	if err := l.DeleteRoute(&cache, params11, paramsTLS1); err != nil {
 		t.Errorf("Delete route failed: %s", err)
@@ -692,9 +696,25 @@ func validateDomain(listeners []cacheTypes.Resource, params ListenerParams) erro
 	if len(listeners) == 0 {
 		return fmt.Errorf("Listener is empty (got %d)", len(listeners))
 	}
-	cachedListener := listeners[0].(*api.Listener)
-	if cachedListener.Name != "l_http" {
-		return fmt.Errorf("Expected l_http (got %s)", cachedListener.Name)
+	var cachedListener *api.Listener
+	if params.Listener.MTLS != "" {
+		found := false
+		for k := range listeners {
+			if !found {
+				if listeners[k].(*api.Listener).Name == "l_mtls_"+params.Listener.MTLS {
+					cachedListener = listeners[k].(*api.Listener)
+					found = true
+				}
+			}
+		}
+		if !found {
+			return fmt.Errorf("Listener %s not found", "l_mtls_"+params.Listener.MTLS)
+		}
+	} else {
+		cachedListener = listeners[0].(*api.Listener)
+		if cachedListener.Name != "l_http" {
+			return fmt.Errorf("Expected l_http (got %s)", cachedListener.Name)
+		}
 	}
 
 	manager, err := getListenerHTTPConnectionManager(cachedListener)

@@ -8,11 +8,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ghodss/yaml"
 	"github.com/in4it/roxprox/pkg/api"
 	"github.com/in4it/roxprox/pkg/crypto"
 	"github.com/in4it/roxprox/pkg/storage/util"
 	"github.com/juju/loggo"
+	"gopkg.in/yaml.v2"
 )
 
 var (

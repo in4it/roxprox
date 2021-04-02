@@ -1,0 +1,14 @@
+api: proxy.in4it.io/v1
+kind: rule
+metadata:
+  name: mtls-testrule
+spec:
+  listener:
+    mTLS: test-mtls
+  conditions:
+    - hostname: envoyproxy.example.com
+      prefix: /
+  actions:
+    - proxy:
+        hostname: envoyproxy.com
+        port: 443

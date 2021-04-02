@@ -742,7 +742,7 @@ func TestMTLSObject(t *testing.T) {
 		return
 	}
 	x := NewXDS(s, "", "")
-	ObjectFileNames := []string{"test-mtls.yaml"}
+	ObjectFileNames := []string{"test-mtls.yaml", "test-mtls-rule.yaml"}
 	for _, filename := range ObjectFileNames {
 		newItems, err := x.putObject(filename)
 		if err != nil {
@@ -770,7 +770,7 @@ func TestMTLSObject(t *testing.T) {
 	}
 	for listenerKey := range x.workQueue.cache.listeners {
 		ll := x.workQueue.cache.listeners[listenerKey].(*api.Listener)
-		if ll.GetName() != "l_http" {
+		if ll.GetName() == "l_mtls_test-mtls" {
 			manager, err := getListenerHTTPConnectionManager(ll)
 			if err != nil {
 				t.Errorf("Couldn't get getListenerHTTPConnectionManager: %s", err)
@@ -779,6 +779,25 @@ func TestMTLSObject(t *testing.T) {
 			if getListenerHTTPFilterIndex("envoy.filters.http.router", manager.HttpFilters) == -1 {
 				t.Errorf("envoy.filters.http.router not found in httprouter filter - should be not found")
 				return
+			}
+			routeSpecifier, err := getListenerRouteSpecifier(manager)
+			if err != nil {
+				t.Errorf("Error while getting routes: %s", err)
+				return
+			}
+			for _, virtualHost := range routeSpecifier.RouteConfig.VirtualHosts {
+				for _, virtualHostRoute := range virtualHost.Routes {
+					if virtualHostRoute.Action != nil {
+						switch reflect.TypeOf(virtualHostRoute.Action).String() {
+						case "*envoy_config_route_v3.Route_Route":
+							if virtualHostRoute.Action.(*route.Route_Route).Route.GetCluster() != "mtls-testrule" {
+								t.Errorf("Route for mtls not found: %s", err)
+								return
+
+							}
+						}
+					}
+				}
 			}
 		}
 	}
