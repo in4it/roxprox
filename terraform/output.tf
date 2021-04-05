@@ -27,9 +27,9 @@ output "roxprox-kms-arn" {
 }
 
 output "lb-mtls-dns-name" {
-  value = element([for lb-mtls in aws_lb.lb-mtls : lb-mtls.dns_name], 0)
+  value = [for lb-mtls in aws_lb.lb-mtls : lb-mtls.dns_name]
 }
 
 output "lb-mtls-zone-id" {
-  value = element([for lb-mtls in aws_lb.lb-mtls : lb-mtls.zone_id], 0)
+  value = [for lb-mtls in aws_lb.lb-mtls : lb-mtls.zone_id]
 }
