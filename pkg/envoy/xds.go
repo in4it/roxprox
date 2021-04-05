@@ -364,6 +364,7 @@ func (x *XDS) importMTLS(mTLS pkgApi.MTLS) ([]WorkQueueItem, error) {
 				CACertificate:          mTLS.Spec.CACertificate,
 				AllowedSubjectAltNames: mTLS.Spec.AllowedSubjectAltNames,
 				Port:                   mTLS.Spec.Port,
+				EnableProxyProtocol:    mTLS.Spec.EnableProxyProtocol,
 			},
 			ListenerParams: ListenerParams{
 				Listener: ListenerParamsListener{

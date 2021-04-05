@@ -41,6 +41,14 @@ func (l *MTLS) updateMTLSListener(cache *WorkQueueCache, params ListenerParams, 
 		return fmt.Errorf("Listener not found: %s", listenerName)
 	}
 	ll := cache.listeners[listenerIndex].(*api.Listener)
+	// set proxy protocol filter
+	if mTLSParams.EnableProxyProtocol {
+		ll.ListenerFilters = []*api.ListenerFilter{
+			{
+				Name: "envoy.filters.listener.proxy_protocol",
+			},
+		}
+	}
 	matchSubjectAltNames := make([]*matcher.StringMatcher, len(mTLSParams.AllowedSubjectAltNames))
 	for k, name := range mTLSParams.AllowedSubjectAltNames {
 		matchSubjectAltNames[k] = &matcher.StringMatcher{
