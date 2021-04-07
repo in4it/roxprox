@@ -156,6 +156,7 @@ resource "aws_lb_target_group" "envoy-proxy-mtls" {
   protocol             = "TCP"
   target_type          = "ip"
   vpc_id               = data.aws_subnet.subnet.vpc_id
+  proxy_protocol_v2    = true
 
 
   health_check {
