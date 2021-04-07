@@ -504,6 +504,13 @@ func (x *XDS) getAction(ruleName string, actions []pkgApi.RuleActions) Action {
 			if ruleAction.Proxy.EnableWebsockets {
 				action.Proxy.EnableWebsockets = ruleAction.Proxy.EnableWebsockets
 			}
+			if ruleAction.Proxy.PrefixRewrite != "" {
+				action.Proxy.PrefixRewrite = ruleAction.Proxy.PrefixRewrite
+			}
+			if ruleAction.Proxy.RegexRewrite.Regex != "" {
+				action.Proxy.RegexRewrite.Regex = ruleAction.Proxy.RegexRewrite.Regex
+				action.Proxy.RegexRewrite.Substitution = ruleAction.Proxy.RegexRewrite.Substitution
+			}
 		} else if ruleAction.DirectResponse.Status > 0 {
 			action.Type = "directResponse"
 			action.RuleName = ruleName
@@ -520,6 +527,8 @@ func (x *XDS) getListenerParams(action Action, condition pkgApi.RuleConditions) 
 			Name:             action.RuleName,
 			TargetHostname:   action.Proxy.TargetHostname,
 			EnableWebSockets: action.Proxy.EnableWebsockets,
+			PrefixRewrite:    action.Proxy.PrefixRewrite,
+			RegexRewrite:     action.Proxy.RegexRewrite,
 			Conditions: Conditions{
 				Hostname: condition.Hostname,
 				Prefix:   condition.Prefix,

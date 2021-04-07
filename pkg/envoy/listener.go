@@ -176,11 +176,12 @@ func (l *Listener) updateListenerWithChallenge(cache *WorkQueueCache, challenge 
 	return nil
 }
 
-func (l *Listener) getVirtualHost(listenerName, hostname, targetHostname, targetPrefix, clusterName, virtualHostName string, methods []string, matchType string, directResponse DirectResponse, enableWebsocket bool) *route.VirtualHost {
+func (l *Listener) getVirtualHost(listenerName, hostname, targetHostname, targetPrefix, clusterName, virtualHostName string, methods []string, matchType string, directResponse DirectResponse, enableWebsocket bool, prefixRewrite string, regexRewrite RegexRewrite) *route.VirtualHost {
 	var hostRewriteSpecifier *route.RouteAction_HostRewriteLiteral
 	var routes []*route.Route
 	var routeAction *route.Route_Route
 	var upgradeConfigs []*route.RouteAction_UpgradeConfig
+	var envoyRegexRewrite *matcher.RegexMatchAndSubstitute
 	if hostname == "" {
 		hostname = "*"
 	}
@@ -199,6 +200,15 @@ func (l *Listener) getVirtualHost(listenerName, hostname, targetHostname, target
 				},
 			}
 		}
+		if regexRewrite.Regex != "" {
+			envoyRegexRewrite = &matcher.RegexMatchAndSubstitute{
+				Pattern: &matcher.RegexMatcher{
+					EngineType: &matcher.RegexMatcher_GoogleRe2{},
+					Regex:      regexRewrite.Regex,
+				},
+				Substitution: regexRewrite.Substitution,
+			}
+		}
 		routeAction = &route.Route_Route{
 			Route: &route.RouteAction{
 				HostRewriteSpecifier: hostRewriteSpecifier,
@@ -206,6 +216,8 @@ func (l *Listener) getVirtualHost(listenerName, hostname, targetHostname, target
 					Cluster: clusterName,
 				},
 				UpgradeConfigs: upgradeConfigs,
+				PrefixRewrite:  prefixRewrite,
+				RegexRewrite:   envoyRegexRewrite,
 			},
 		}
 	} else {
@@ -407,7 +419,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	}
 
 	// create new virtualhost
-	v := l.getVirtualHost(ll.Name, params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname, params.Conditions.Methods, matchType, params.DirectResponse, params.EnableWebSockets)
+	v := l.getVirtualHost(ll.Name, params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname, params.Conditions.Methods, matchType, params.DirectResponse, params.EnableWebSockets, params.PrefixRewrite, params.RegexRewrite)
 
 	// check if we need to overwrite the virtualhost
 	virtualHostKey := -1
@@ -635,7 +647,7 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 		return err
 	}
 
-	v := l.getVirtualHost(ll.Name, params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname, params.Conditions.Methods, matchType, params.DirectResponse, params.EnableWebSockets)
+	v := l.getVirtualHost(ll.Name, params.Conditions.Hostname, params.TargetHostname, targetPrefix, params.Name, virtualHostname, params.Conditions.Methods, matchType, params.DirectResponse, params.EnableWebSockets, params.PrefixRewrite, params.RegexRewrite)
 
 	virtualHostKey := -1
 	for k, curVirtualHost := range routeSpecifier.RouteConfig.VirtualHosts {

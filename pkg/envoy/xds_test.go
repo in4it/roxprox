@@ -10,6 +10,7 @@ import (
 	listenerAPI "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	als "github.com/envoyproxy/go-control-plane/envoy/extensions/access_loggers/grpc/v3"
+	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
 	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/in4it/roxprox/pkg/storage"
@@ -592,6 +593,115 @@ func TestClusterWithWebsockets(t *testing.T) {
 		}
 		if upgradeConfigs[0].UpgradeType != "websocket" {
 			t.Errorf("Upgrade config type is not set to websocket")
+			return
+		}
+	}
+}
+func TestClusterWithPathRewrite(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test-prefixrewrite.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+
+	var prefixRewrite string
+
+	for _, listener := range x.workQueue.cache.listeners {
+		ll := listener.(*listenerAPI.Listener)
+		manager, err := getListenerHTTPConnectionManager(ll)
+		if err != nil {
+			t.Errorf("Error while getting listener: %s", err)
+			return
+		}
+		routeSpecifier, err := getListenerRouteSpecifier(manager)
+		if err != nil {
+			t.Errorf("Error while getting routes: %s", err)
+			return
+		}
+		for _, virtualHost := range routeSpecifier.RouteConfig.VirtualHosts {
+			for _, virtualHostRoute := range virtualHost.Routes {
+				if virtualHostRoute.Action != nil {
+					switch reflect.TypeOf(virtualHostRoute.Action).String() {
+					case "*envoy_config_route_v3.Route_Route":
+						prefixRewrite = virtualHostRoute.Action.(*route.Route_Route).Route.GetPrefixRewrite()
+					}
+				}
+			}
+		}
+		if prefixRewrite != "/addthis" {
+			t.Errorf("Prefix rewrite not found")
+			return
+		}
+	}
+}
+
+func TestClusterWithRegexRewrite(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test-regexrewrite.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+
+	var regexRewrite *matcher.RegexMatchAndSubstitute
+
+	for _, listener := range x.workQueue.cache.listeners {
+		ll := listener.(*listenerAPI.Listener)
+		manager, err := getListenerHTTPConnectionManager(ll)
+		if err != nil {
+			t.Errorf("Error while getting listener: %s", err)
+			return
+		}
+		routeSpecifier, err := getListenerRouteSpecifier(manager)
+		if err != nil {
+			t.Errorf("Error while getting routes: %s", err)
+			return
+		}
+		for _, virtualHost := range routeSpecifier.RouteConfig.VirtualHosts {
+			for _, virtualHostRoute := range virtualHost.Routes {
+				if virtualHostRoute.Action != nil {
+					switch reflect.TypeOf(virtualHostRoute.Action).String() {
+					case "*envoy_config_route_v3.Route_Route":
+						regexRewrite = virtualHostRoute.Action.(*route.Route_Route).Route.GetRegexRewrite()
+					}
+				}
+			}
+		}
+		if regexRewrite.Pattern.Regex != "^/service/([^/]+)(/.*)$" {
+			t.Errorf("Regex pattern in regex rewrite not found")
+			return
+		}
+		if regexRewrite.GetSubstitution() != "\\2/instance/\\1" {
+			t.Errorf("Regex substitution in regex rewrite not found")
 			return
 		}
 	}

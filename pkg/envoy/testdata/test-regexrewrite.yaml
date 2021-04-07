@@ -1,0 +1,15 @@
+api: proxy.in4it.io/v1
+kind: rule
+metadata:
+  name: test-prefixrewrite
+spec:
+  conditions:
+    - hostname: test-prefixrewrite.example.com
+      path: /test-prefixrewrite
+  actions:
+    - proxy:
+        hostname: target-example.com
+        port: 443
+        regexRewrite:
+          regex: "^/service/([^/]+)(/.*)$"
+          substitution: "\\2/instance/\\1"

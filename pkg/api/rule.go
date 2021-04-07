@@ -31,12 +31,17 @@ type RuleActions struct {
 	DirectResponse RuleActionsDirectResponse `json:"directResponse" yaml:"directResponse"`
 }
 type RuleActionsProxy struct {
-	Hostname         string                `json:"hostname"`
-	Port             int64                 `json:"port"`
-	HealthCheck      RuleActionHealthCheck `json:"healthCheck" yaml:"healthCheck"`
-	EnableWebsockets bool                  `json:"enableWebsockets" yaml:"enableWebsockets"`
+	Hostname         string                  `json:"hostname"`
+	Port             int64                   `json:"port"`
+	HealthCheck      RuleActionHealthCheck   `json:"healthCheck" yaml:"healthCheck"`
+	EnableWebsockets bool                    `json:"enableWebsockets" yaml:"enableWebsockets"`
+	PrefixRewrite    string                  `json:"prefixRewrite" yaml:"prefixRewrite"`
+	RegexRewrite     RuleActionsRegexRewrite `json:"regexRewrite" yaml:"regexRewrite"`
 }
-
+type RuleActionsRegexRewrite struct {
+	Regex        string `json:"regex" yaml:"regex"`
+	Substitution string `json:"substitution" yaml:"substitution"`
+}
 type RuleActionHealthCheck struct {
 	HTTPHealthCheck    HTTPHealthCheck `json:"httpHealthCheck" yaml:"httpHealthCheck"`
 	Timeout            string          `json:"timeout" yaml:"timeout"`

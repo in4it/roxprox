@@ -53,6 +53,8 @@ type ListenerParams struct {
 	Protocol         string
 	TargetHostname   string
 	EnableWebSockets bool
+	PrefixRewrite    string
+	RegexRewrite     RegexRewrite
 	Conditions       Conditions
 	Auth             Auth
 	Authz            Authz
@@ -105,6 +107,13 @@ type ActionProxy struct {
 	Port             int64
 	HealthCheck      HealthCheck
 	EnableWebsockets bool
+	PrefixRewrite    string
+	RegexRewrite     RegexRewrite
+}
+
+type RegexRewrite struct {
+	Regex        string
+	Substitution string
 }
 
 type HealthCheck struct {
