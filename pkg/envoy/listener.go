@@ -432,7 +432,14 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	if virtualHostKey >= 0 {
 		for _, newRoute := range v.Routes {
 			if l.routeExist(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes, newRoute) {
-				logger.Debugf("Route already exists, not adding route for %s", v.Name)
+				// update route if routeAction is updated
+				index := l.routeIndex(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes, newRoute)
+				if !cmpRoutePrefix(routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes[index], newRoute) {
+					logger.Debugf("Updating route: rewrite prefix has changed for %s", v.Name)
+					routeSpecifier.RouteConfig.VirtualHosts[virtualHostKey].Routes[index] = newRoute
+				} else {
+					logger.Debugf("Route already exists, not adding route for %s", v.Name)
+				}
 			} else {
 				// append new routes to existing virtualhost
 				logger.Debugf("Adding new routes to %s", v.Name)
@@ -477,6 +484,7 @@ func (l *Listener) routeExist(routes []*route.Route, route *route.Route) bool {
 	}
 	return routeFound
 }
+
 func (l *Listener) routeIndex(routes []*route.Route, route *route.Route) int {
 	for index, v := range routes {
 		if cmpMatch(v.Match, route.Match) && routeActionEqual(v, route) {

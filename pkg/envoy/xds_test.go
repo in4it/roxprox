@@ -650,6 +650,78 @@ func TestClusterWithPathRewrite(t *testing.T) {
 	}
 }
 
+func TestClusterWithPathRewriteWithChange(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test-prefixrewrite.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+	ObjectFileNames = []string{"test-prefixrewrite-2.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+
+	var prefixRewrite string
+
+	for _, listener := range x.workQueue.cache.listeners {
+		ll := listener.(*listenerAPI.Listener)
+		manager, err := getListenerHTTPConnectionManager(ll)
+		if err != nil {
+			t.Errorf("Error while getting listener: %s", err)
+			return
+		}
+		routeSpecifier, err := getListenerRouteSpecifier(manager)
+		if err != nil {
+			t.Errorf("Error while getting routes: %s", err)
+			return
+		}
+		routeCount := 0
+		for _, virtualHost := range routeSpecifier.RouteConfig.VirtualHosts {
+			for _, virtualHostRoute := range virtualHost.Routes {
+				routeCount++
+				if virtualHostRoute.Action != nil {
+					switch reflect.TypeOf(virtualHostRoute.Action).String() {
+					case "*envoy_config_route_v3.Route_Route":
+						prefixRewrite = virtualHostRoute.Action.(*route.Route_Route).Route.GetPrefixRewrite()
+					}
+				}
+			}
+		}
+		if routeCount != 1 {
+			t.Errorf("Expected to only have 1 route. Actual: %d\n", routeCount)
+			return
+		}
+		if prefixRewrite != "/addthis-2" {
+			t.Errorf("Prefix rewrite not found: %s\n", prefixRewrite)
+			return
+		}
+	}
+}
+
 func TestClusterWithRegexRewrite(t *testing.T) {
 	logger.SetLogLevel(loggo.DEBUG)
 	s, err := initStorage()

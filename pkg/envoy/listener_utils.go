@@ -318,14 +318,58 @@ func routeMatchEqual(a, b *route.RouteMatch) bool {
 	}
 	return true
 }
+
+func cmpRoutePrefix(a, b *route.Route) bool {
+	if reflect.TypeOf(a.Action).String() != reflect.TypeOf(b.Action).String() {
+		return false
+	}
+	switch reflect.TypeOf(a.Action).String() {
+	case "*envoy_config_route_v3.Route_Route":
+		route1 := a.Action.(*route.Route_Route).Route
+		route2 := b.Action.(*route.Route_Route).Route
+
+		if route1.PrefixRewrite != route2.PrefixRewrite {
+			return false
+		}
+		if route1.RegexRewrite != nil && route2.RegexRewrite == nil {
+			return false
+		}
+		if route2.RegexRewrite != nil && route1.RegexRewrite == nil {
+			return false
+		}
+		if route1.RegexRewrite != nil && route2.RegexRewrite != nil {
+			if route1.RegexRewrite.Substitution != route2.RegexRewrite.Substitution {
+				return false
+			}
+			if route1.RegexRewrite.Pattern != nil && route2.RegexRewrite.Pattern == nil {
+				return false
+			}
+			if route1.RegexRewrite.Pattern != nil && route2.RegexRewrite.Pattern != nil {
+				if route1.RegexRewrite.Pattern.EngineType != route2.RegexRewrite.Pattern.EngineType {
+					return false
+				}
+				if route1.RegexRewrite.Pattern.Regex != route2.RegexRewrite.Pattern.Regex {
+					return false
+				}
+			}
+		}
+	default:
+		return false
+	}
+
+	return true
+
+}
 func routeActionEqual(a, b *route.Route) bool {
 	if reflect.TypeOf(a.Action).String() != reflect.TypeOf(b.Action).String() {
 		return false
 	}
 	switch reflect.TypeOf(a.Action).String() {
 	case "*envoy_config_route_v3.Route_Route":
-		cluster1 := a.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
-		cluster2 := b.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
+		route1 := a.Action.(*route.Route_Route).Route
+		route2 := b.Action.(*route.Route_Route).Route
+		cluster1 := route1.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
+		cluster2 := route2.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
 		if cluster1 != cluster2 {
 			return false
 		}

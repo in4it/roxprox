@@ -1111,3 +1111,106 @@ func TestRegexMatcher(t *testing.T) {
 
 	return
 }
+
+func TestPrefixChangeResultsInAddingNewRoute(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	l := newListener()
+	var cache WorkQueueCache
+	params1 := ListenerParams{
+		Name:           "test_1",
+		Protocol:       "http",
+		TargetHostname: "www.test.inv",
+		Conditions: Conditions{
+			Hostname: "hostname1.example.com",
+			Prefix:   "/test1",
+		},
+		RegexRewrite: RegexRewrite{
+			Regex:        "abc",
+			Substitution: "xyz",
+		},
+	}
+	params2 := ListenerParams{
+		Name:           "test_2",
+		Protocol:       "http",
+		TargetHostname: "www.test2.inv",
+		Conditions: Conditions{
+			Hostname: "hostname2.example.com",
+			Prefix:   "/test2",
+		},
+		RegexRewrite: RegexRewrite{
+			Regex:        "abc2",
+			Substitution: "xyz2",
+		},
+	}
+	params3 := ListenerParams{
+		Name:           "test_2",
+		Protocol:       "http",
+		TargetHostname: "www.test2.inv",
+		Conditions: Conditions{
+			Hostname: "hostname2.example.com",
+			Prefix:   "/test2",
+		},
+		RegexRewrite: RegexRewrite{
+			Regex:        "abc3",
+			Substitution: "xyz3",
+		},
+	}
+	paramsTLS1 := TLSParams{}
+
+	// create first domain
+	listener := l.createListener(params1, paramsTLS1)
+	cache.listeners = append(cache.listeners, listener)
+	// update listener with new prefix
+	if err := l.updateListener(&cache, params2, paramsTLS1); err != nil {
+		t.Errorf("Error: %s", err)
+		return
+	}
+	if err := l.updateListener(&cache, params3, paramsTLS1); err != nil {
+		t.Errorf("Error: %s", err)
+		return
+	}
+	cachedListener := cache.listeners[0].(*api.Listener)
+	if cachedListener.Name != "l_http" {
+		t.Errorf("Expected l_http (got %s)", cachedListener.Name)
+		return
+	}
+
+	manager, err := getListenerHTTPConnectionManager(cachedListener)
+	if err != nil {
+		t.Errorf("Error: %s", err)
+		return
+	}
+
+	routeSpecifier, err := getListenerRouteSpecifier(manager)
+	if err != nil {
+		t.Errorf("Error: %s", err)
+		return
+	}
+
+	domainFound := false
+
+	for _, virtualhost := range routeSpecifier.RouteConfig.VirtualHosts {
+		for _, domain := range virtualhost.Domains {
+			if domain == params2.Conditions.Hostname {
+				domainFound = true
+				if len(virtualhost.Routes) != 1 {
+					t.Errorf("Expected to only have 1 route %+v", virtualhost.Routes)
+					return
+				}
+				if virtualhost.Routes[0].Action.(*route.Route_Route).Route.RegexRewrite.Pattern.Regex != "abc3" {
+					t.Errorf("wrong regex pattern: %s", virtualhost.Routes[0].Action.(*route.Route_Route).Route.RegexRewrite.Pattern.Regex)
+					return
+				}
+				if virtualhost.Routes[0].Action.(*route.Route_Route).Route.RegexRewrite.Substitution != "xyz3" {
+					t.Errorf("wrong substitution pattern: %s", virtualhost.Routes[0].Action.(*route.Route_Route).Route.RegexRewrite.Substitution)
+					return
+				}
+			}
+		}
+	}
+	if !domainFound {
+		t.Errorf("Domain not found in virtualhost")
+		return
+	}
+
+}
