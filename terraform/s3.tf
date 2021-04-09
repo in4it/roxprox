@@ -22,6 +22,30 @@ resource "aws_s3_bucket" "roxprox" {
       }
     }
   }
+
+  policy = <<EOF
+{
+  "Id": "S3Policy",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowSSLRequestsOnly",
+      "Action": "s3:*",
+      "Effect": "Deny",
+      "Resource": [
+        "arn:aws:s3:::${var.s3_bucket}",
+        "arn:aws:s3:::${var.s3_bucket}/*"
+      ],
+      "Condition": {
+        "Bool": {
+          "aws:SecureTransport": "false"
+        }
+      },
+      "Principal": "*"
+    }
+  ]
+}
+EOF
 }
 
 resource "aws_s3_bucket_public_access_block" "roxprox" {
