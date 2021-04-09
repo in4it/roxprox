@@ -870,7 +870,7 @@ func validateJWTProvider(listeners []cacheTypes.Resource, auth Auth) error {
 				if len(filterChain.Filters) == 0 {
 					return fmt.Errorf("No filters found in listener %s", cachedListener.Name)
 				}
-				manager, err := getManager((filterChain.Filters[0].ConfigType).(*api.Filter_TypedConfig))
+				manager, err := getManager((filterChain.Filters[getFilterIndexByName(filterChain.Filters, Envoy_HTTP_Filter)].ConfigType).(*api.Filter_TypedConfig))
 				if err != nil {
 					return fmt.Errorf("Could not extract manager from listener %s", cachedListener.Name)
 				}
@@ -1044,7 +1044,7 @@ func validateAuthz(listeners []cacheTypes.Resource, params ListenerParams) error
 				if len(filterChain.Filters) == 0 {
 					return fmt.Errorf("No filters found in listener %s", cachedListener.Name)
 				}
-				manager, err := getManager((filterChain.Filters[0].ConfigType).(*api.Filter_TypedConfig))
+				manager, err := getManager((filterChain.Filters[getFilterIndexByName(filterChain.Filters, Envoy_HTTP_Filter)].ConfigType).(*api.Filter_TypedConfig))
 				if err != nil {
 					return fmt.Errorf("Could not extract manager from listener %s", cachedListener.Name)
 				}

@@ -13,4 +13,5 @@ type MTLSSpec struct {
 	CACertificate          string   `json:"caCertificate" yaml:"caCertificate"`
 	Port                   int64    `json:"port" yaml:"port"`
 	AllowedSubjectAltNames []string `json:"allowedSubjectAltNames" yaml:"allowedSubjectAltNames"`
+	AllowedIPRanges        []string `json:"allowedIPRanges" yaml:"allowedIPRanges"`
 }

@@ -27,7 +27,7 @@ func getListenerHTTPConnectionManager(ll *api.Listener) (*hcm.HttpConnectionMana
 	if len(ll.FilterChains[0].Filters) == 0 {
 		return manager, fmt.Errorf("No filters found in listener %s", ll.Name)
 	}
-	manager, err = getManager((ll.FilterChains[0].Filters[0].ConfigType).(*api.Filter_TypedConfig))
+	manager, err = getManager((ll.FilterChains[0].Filters[getFilterIndexByName(ll.FilterChains[0].Filters, Envoy_HTTP_Filter)].ConfigType).(*api.Filter_TypedConfig))
 	if err != nil {
 		return manager, err
 	}
@@ -412,4 +412,13 @@ func isDefaultListener(listenerName string) bool {
 		return true
 	}
 	return false
+}
+
+func getFilterIndexByName(filters []*api.Filter, name string) int {
+	for k, filter := range filters {
+		if filter.Name == name {
+			return k
+		}
+	}
+	return -1
 }

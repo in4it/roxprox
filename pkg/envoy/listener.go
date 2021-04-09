@@ -24,6 +24,7 @@ import (
 
 const Error_NoFilterChainFound = "NoFilterChainFound"
 const Error_NoFilterFound = "NoFilterFound"
+const Envoy_HTTP_Filter = "envoy.filters.network.http_connection_manager"
 
 type listenerDefaultsMapping struct {
 	rateLimit       bool
@@ -168,7 +169,7 @@ func (l *Listener) updateListenerWithChallenge(cache *WorkQueueCache, challenge 
 			if err != nil {
 				panic(err)
 			}
-			ll.FilterChains[0].Filters[0].ConfigType = &api.Filter_TypedConfig{
+			ll.FilterChains[0].Filters[getFilterIndexByName(ll.FilterChains[0].Filters, Envoy_HTTP_Filter)].ConfigType = &api.Filter_TypedConfig{
 				TypedConfig: pbst,
 			}
 		}
@@ -466,7 +467,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	}
 
 	// modify filter
-	ll.FilterChains[filterId].Filters[0].ConfigType = &api.Filter_TypedConfig{
+	ll.FilterChains[filterId].Filters[getFilterIndexByName(ll.FilterChains[0].Filters, Envoy_HTTP_Filter)].ConfigType = &api.Filter_TypedConfig{
 		TypedConfig: pbst,
 	}
 
@@ -696,7 +697,7 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 		filterId = 0
 	}
 
-	ll.FilterChains[filterId].Filters[0].ConfigType = &api.Filter_TypedConfig{
+	ll.FilterChains[filterId].Filters[getFilterIndexByName(ll.FilterChains[0].Filters, Envoy_HTTP_Filter)].ConfigType = &api.Filter_TypedConfig{
 		TypedConfig: pbst,
 	}
 
@@ -890,6 +891,9 @@ func (l *Listener) printListener(cache *WorkQueueCache) (string, error) {
 func (l *Listener) HasMTLSDefault(listenerName, attr string) bool {
 	if attr == "envoy.filters.http.router" {
 		return true // always allow the router filter
+	}
+	if attr == "envoy.filters.network.rbac" {
+		return true // always allow the rbac filter
 	}
 	if val, ok := l.mTLSListenerDefaultsMapping[listenerName]; ok {
 		switch attr {

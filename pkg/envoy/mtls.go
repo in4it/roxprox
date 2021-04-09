@@ -2,12 +2,18 @@ package envoy
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
+	rbacConfig "github.com/envoyproxy/go-control-plane/envoy/config/rbac/v3"
+	rbac "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/rbac/v3"
 	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/golang/protobuf/ptypes/wrappers"
+	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -42,12 +48,23 @@ func (l *MTLS) updateMTLSListener(cache *WorkQueueCache, params ListenerParams, 
 	}
 	ll := cache.listeners[listenerIndex].(*api.Listener)
 	// set proxy protocol filter
+	ll.ListenerFilters = []*api.ListenerFilter{}
 	if mTLSParams.EnableProxyProtocol {
-		ll.ListenerFilters = []*api.ListenerFilter{
+		ll.ListenerFilters = append(ll.ListenerFilters, &api.ListenerFilter{
+			Name: "envoy.filters.listener.proxy_protocol",
+		})
+	}
+	// set AllowedIPRanges
+	if len(mTLSParams.AllowedIPRanges) > 0 {
+		rbacFilter := []*api.Filter{
 			{
-				Name: "envoy.filters.listener.proxy_protocol",
+				Name: "envoy.filters.network.rbac",
+				ConfigType: &api.Filter_TypedConfig{
+					TypedConfig: getRBACConfig(mTLSParams),
+				},
 			},
 		}
+		ll.FilterChains[0].Filters = append(rbacFilter, ll.FilterChains[0].Filters...)
 	}
 	matchSubjectAltNames := make([]*matcher.StringMatcher, len(mTLSParams.AllowedSubjectAltNames))
 	for k, name := range mTLSParams.AllowedSubjectAltNames {
@@ -103,4 +120,50 @@ func (l *MTLS) updateMTLSListener(cache *WorkQueueCache, params ListenerParams, 
 	}
 
 	return nil
+}
+func getRBACConfig(mTLSParams MTLSParams) *anypb.Any {
+	principals := []*rbacConfig.Principal{}
+	for _, ipRange := range mTLSParams.AllowedIPRanges {
+		ipRangeSplit := strings.Split(ipRange, "/")
+		prefixLen, err := strconv.ParseUint(ipRangeSplit[1], 10, 32)
+		if len(ipRangeSplit) != 2 || err != nil {
+			logger.Warningf("Invalid IP address range: %s in listener: l_mtls_%s", ipRange, mTLSParams.Name)
+		} else {
+			principals = append(principals, &rbacConfig.Principal{
+
+				Identifier: &rbacConfig.Principal_DirectRemoteIp{
+					DirectRemoteIp: &core.CidrRange{
+						AddressPrefix: ipRangeSplit[0],
+						PrefixLen: &wrappers.UInt32Value{
+							Value: uint32(prefixLen),
+						},
+					},
+				},
+			})
+		}
+	}
+	r := &rbac.RBAC{
+		StatPrefix: "rbac_" + mTLSParams.Name,
+		Rules: &rbacConfig.RBAC{
+			Action: rbacConfig.RBAC_ALLOW,
+			Policies: map[string]*rbacConfig.Policy{
+				"ip_filter": {
+					Principals: principals,
+					Permissions: []*rbacConfig.Permission{
+						{
+							Rule: &rbacConfig.Permission_Any{
+								Any: true,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	pbst, err := ptypes.MarshalAny(r)
+	if err != nil {
+		panic(err)
+	}
+
+	return pbst
 }

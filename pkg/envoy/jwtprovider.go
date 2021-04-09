@@ -206,7 +206,7 @@ func (j *JwtProvider) updateListenerWithJwtProvider(cache *WorkQueueCache, param
 			if err != nil {
 				panic(err)
 			}
-			ll.FilterChains[0].Filters[0].ConfigType = &api.Filter_TypedConfig{
+			ll.FilterChains[0].Filters[getFilterIndexByName(ll.FilterChains[0].Filters, Envoy_HTTP_Filter)].ConfigType = &api.Filter_TypedConfig{
 				TypedConfig: pbst,
 			}
 		}
@@ -306,7 +306,7 @@ func (j *JwtProvider) UpdateJwtRule(cache *WorkQueueCache, params ListenerParams
 	}
 
 	// modify filter
-	ll.FilterChains[filterId].Filters[0].ConfigType = &api.Filter_TypedConfig{
+	ll.FilterChains[filterId].Filters[getFilterIndexByName(ll.FilterChains[0].Filters, Envoy_HTTP_Filter)].ConfigType = &api.Filter_TypedConfig{
 		TypedConfig: pbst,
 	}
 
@@ -383,7 +383,7 @@ func (j *JwtProvider) DeleteJwtRule(cache *WorkQueueCache, params ListenerParams
 		filterId = 0
 	}
 
-	ll.FilterChains[filterId].Filters[0].ConfigType = &api.Filter_TypedConfig{
+	ll.FilterChains[filterId].Filters[getFilterIndexByName(ll.FilterChains[0].Filters, Envoy_HTTP_Filter)].ConfigType = &api.Filter_TypedConfig{
 		TypedConfig: pbst,
 	}
 

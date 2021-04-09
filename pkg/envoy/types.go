@@ -188,6 +188,7 @@ type MTLSParams struct {
 	Certificate            string
 	Port                   int64
 	AllowedSubjectAltNames []string
+	AllowedIPRanges        []string
 	CACertificate          string
 	EnableProxyProtocol    bool
 }

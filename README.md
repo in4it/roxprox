@@ -233,6 +233,25 @@ spec:
 
 This will run the ACME validation on both hostnames (mocky-1.in4it.io and mocky-2.in4it.io). If successful, it'll create an https listener that redirects to www.mocky.io, a mocking service.
 
+## mTLS
+mTLS listeners can be added on different ports than the default listener. You just need to provide server key/crt and CA cert.
+```
+api: proxy.in4it.io/v1
+kind: mTLS
+metadata:
+  name: test-rule
+spec:
+  privateKey: |
+    replaceme
+  certificate: |
+    replaceme
+  caCertificate: |
+    replaceme
+  port: 10002
+  AllowedSubjectAltNames: ["client1.example.com"] # optional ALT Name subject restriction
+  AllowedIPRanges: ["1.2.3.4/16"] # optional IP restriction
+```
+
 ## Run on AWS with terraform
 
 There is a terraform module available in this repository. It'll configure an S3 bucket, a Network Loadbalancer, and 3 fargate containers. The container setup consist of 2 envoy proxies (one for http and one for https), and the roxprox server. To start using it, add the following code to your terraform project:
