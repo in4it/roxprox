@@ -3,8 +3,8 @@ module github.com/in4it/roxprox
 go 1.15
 
 require (
-	github.com/aws/aws-sdk-go v1.35.25
-	github.com/envoyproxy/go-control-plane v0.9.7
+	github.com/aws/aws-sdk-go v1.38.45
+	github.com/envoyproxy/go-control-plane v0.9.8
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/protobuf v1.4.3

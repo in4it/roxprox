@@ -63,7 +63,9 @@ func (j *JwtProvider) getJwtRule(conditions Conditions, clusterName string, jwtP
 					},
 					Headers: hostnameHeaders,
 				},
-				Requires: jwtAuthRequirement,
+				RequirementType: &jwtAuth.RequirementRule_Requires{
+					Requires: jwtAuthRequirement,
+				},
 			})
 		} else {
 			for _, methodHeader := range methodHeaders {
@@ -74,7 +76,9 @@ func (j *JwtProvider) getJwtRule(conditions Conditions, clusterName string, jwtP
 						},
 						Headers: append(hostnameHeaders, methodHeader),
 					},
-					Requires: jwtAuthRequirement,
+					RequirementType: &jwtAuth.RequirementRule_Requires{
+						Requires: jwtAuthRequirement,
+					},
 				})
 			}
 		}
@@ -87,7 +91,9 @@ func (j *JwtProvider) getJwtRule(conditions Conditions, clusterName string, jwtP
 					},
 					Headers: hostnameHeaders,
 				},
-				Requires: jwtAuthRequirement,
+				RequirementType: &jwtAuth.RequirementRule_Requires{
+					Requires: jwtAuthRequirement,
+				},
 			})
 		} else {
 			for _, methodHeader := range methodHeaders {
@@ -98,7 +104,9 @@ func (j *JwtProvider) getJwtRule(conditions Conditions, clusterName string, jwtP
 						},
 						Headers: append(hostnameHeaders, methodHeader),
 					},
-					Requires: jwtAuthRequirement,
+					RequirementType: &jwtAuth.RequirementRule_Requires{
+						Requires: jwtAuthRequirement,
+					},
 				})
 			}
 		}
@@ -114,7 +122,9 @@ func (j *JwtProvider) getJwtRule(conditions Conditions, clusterName string, jwtP
 					},
 					Headers: hostnameHeaders,
 				},
-				Requires: jwtAuthRequirement,
+				RequirementType: &jwtAuth.RequirementRule_Requires{
+					Requires: jwtAuthRequirement,
+				},
 			})
 		} else {
 			for _, methodHeader := range methodHeaders {
@@ -128,7 +138,9 @@ func (j *JwtProvider) getJwtRule(conditions Conditions, clusterName string, jwtP
 						},
 						Headers: append(hostnameHeaders, methodHeader),
 					},
-					Requires: jwtAuthRequirement,
+					RequirementType: &jwtAuth.RequirementRule_Requires{
+						Requires: jwtAuthRequirement,
+					},
 				})
 			}
 		}
@@ -140,7 +152,8 @@ func (j *JwtProvider) getJwtRule(conditions Conditions, clusterName string, jwtP
 func (j *JwtProvider) jwtRuleExist(rules []*jwtAuth.RequirementRule, rule *jwtAuth.RequirementRule) bool {
 	ruleFound := false
 	for _, v := range rules {
-		if routeMatchEqual(v.Match, rule.Match) && v.Requires.RequiresType.(*jwtAuth.JwtRequirement_ProviderName).ProviderName == rule.Requires.RequiresType.(*jwtAuth.JwtRequirement_ProviderName).ProviderName {
+
+		if routeMatchEqual(v.Match, rule.Match) && v.RequirementType.(*jwtAuth.RequirementRule_Requires).Requires.GetProviderName() == rule.RequirementType.(*jwtAuth.RequirementRule_Requires).Requires.GetProviderName() {
 			ruleFound = true
 		}
 	}
@@ -193,7 +206,7 @@ func (j *JwtProvider) updateListenerWithJwtProvider(cache *WorkQueueCache, param
 			}
 			jwtNewConfig := j.getJwtConfig(params.Auth)
 			jwtConfig.Providers[params.Auth.JwtProvider] = jwtNewConfig.Providers[params.Auth.JwtProvider]
-			logger.Debugf("Adding/updating %s to jwt config", params.Auth.JwtProvider)
+			logger.Debugf("Adding/updating %s to jwt config (listener: %s)", params.Auth.JwtProvider, ll.GetName())
 
 			jwtConfigEncoded, err := ptypes.MarshalAny(jwtConfig)
 			if err != nil {
@@ -392,7 +405,7 @@ func (j *JwtProvider) DeleteJwtRule(cache *WorkQueueCache, params ListenerParams
 
 func (j *JwtProvider) requirementRuleIndex(rules []*jwtAuth.RequirementRule, rule *jwtAuth.RequirementRule) int {
 	for index, v := range rules {
-		if cmpMatch(v.Match, rule.Match) && v.Requires.RequiresType.(*jwtAuth.JwtRequirement_ProviderName).ProviderName == rule.Requires.RequiresType.(*jwtAuth.JwtRequirement_ProviderName).ProviderName {
+		if cmpMatch(v.Match, rule.Match) && v.RequirementType.(*jwtAuth.RequirementRule_Requires).Requires.GetProviderName() == rule.RequirementType.(*jwtAuth.RequirementRule_Requires).Requires.GetProviderName() {
 			return index
 		}
 	}
