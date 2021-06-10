@@ -248,3 +248,12 @@ variable "mtls" {
   description = "list of mtls ports and ips allowed"
   default     = []
 }
+
+variable "envoy_nofile_soft_limit" {
+  description = "envoy nofile soft limit"
+  default     = 1024
+}
+variable "envoy_nofile_hard_limit" {
+  description = "envoy nofile hard limit"
+  default     = 4096
+}

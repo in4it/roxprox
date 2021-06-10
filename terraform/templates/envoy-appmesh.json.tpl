@@ -13,6 +13,13 @@
                  "awslogs-stream-prefix": "envoy-proxy"
               }
        },
+       "ulimits": [
+         {
+            "name": "nofile",
+            "softLimit": ${ULIMIT_NOFILE_SOFT},
+            "hardLimit": ${ULIMIT_NOFILE_HARD}
+         }
+       ],
        "secrets": [
          { 
            "name": "ENVOY_CONFIG", 
