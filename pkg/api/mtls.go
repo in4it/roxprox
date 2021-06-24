@@ -14,4 +14,5 @@ type MTLSSpec struct {
 	Port                   int64    `json:"port" yaml:"port"`
 	AllowedSubjectAltNames []string `json:"allowedSubjectAltNames" yaml:"allowedSubjectAltNames"`
 	AllowedIPRanges        []string `json:"allowedIPRanges" yaml:"allowedIPRanges"`
+	StripAnyHostPort       bool     `json:"stripAnyHostPort" yaml:"stripAnyHostPort"`
 }
