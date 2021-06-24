@@ -7,7 +7,6 @@ import (
 	compressor "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/compressor/v3"
 	"github.com/golang/protobuf/ptypes"
 	any "github.com/golang/protobuf/ptypes/any"
-	"github.com/golang/protobuf/ptypes/wrappers"
 )
 
 type Compression struct{}
@@ -86,15 +85,7 @@ func (c *Compression) getCompressionFilter(compression CompressionParams) (*comp
 				TypedConfig: gzipEncoded,
 			},
 		}
-		if compression.ContentLength != 0 {
-			httpFilterConfig.ContentLength = &wrappers.UInt32Value{
-				Value: compression.ContentLength,
-			}
-		}
-		if len(compression.ContentType) != 0 {
-			httpFilterConfig.ContentType = compression.ContentType
-		}
-		httpFilterConfig.DisableOnEtagHeader = compression.DisableOnEtagHeader
+		// contentLength, contentType and etag is deprecated and removed
 
 		return &httpFilterConfig, nil
 	}

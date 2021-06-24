@@ -73,7 +73,8 @@ func (a *AuthzFilter) getAuthzFilter(params ListenerParams) (*extAuthz.ExtAuthz,
 		return nil, err
 	}
 	return &extAuthz.ExtAuthz{
-		FailureModeAllow: params.Authz.FailureModeAllow,
+		TransportApiVersion: core.ApiVersion_V3,
+		FailureModeAllow:    params.Authz.FailureModeAllow,
 		Services: &extAuthz.ExtAuthz_GrpcService{
 			GrpcService: &core.GrpcService{
 				Timeout: ptypes.DurationProto(timeout),
