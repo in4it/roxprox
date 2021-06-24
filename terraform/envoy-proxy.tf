@@ -103,6 +103,15 @@ resource "aws_ecs_service" "envoy-proxy" {
   }
 
   dynamic "load_balancer" {
+    for_each = var.envoy_extra_target_group_arns
+      content {
+        target_group_arn = load_balancer.value
+        container_name   = "envoy-proxy"
+        container_port   = "10000"
+      }
+  }
+
+  dynamic "load_balancer" {
     for_each = var.mtls
       content {
         target_group_arn = aws_lb_target_group.envoy-proxy-mtls[load_balancer.key].id
