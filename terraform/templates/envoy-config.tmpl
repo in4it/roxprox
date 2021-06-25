@@ -29,7 +29,19 @@
                 "name": "ratelimit",
                 "type": "LOGICAL_DNS",
                 "connect_timeout": "1s",
-                "http2_protocol_options": {},
+                "typed_extension_protocol_options": {
+                    "envoy.extensions.upstreams.http.v3.HttpProtocolOptions": {
+                        "@type": "type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions",
+                        "explicit_http_config": {
+                            "http2_protocol_options": {
+                                "connection_keepalive": {
+                                    "interval": "30s",
+                                    "timeout": "5s"
+                                }
+                            }
+                        }
+                    }
+                },
                 "load_assignment": {
                     "cluster_name": "ratelimit",
                     "endpoints": [
@@ -56,7 +68,19 @@
                 "name": "${ALS_CLUSTER_NAME}",
                 "type": "LOGICAL_DNS",
                 "connect_timeout": "5s",
-                "http2_protocol_options": {},
+                "typed_extension_protocol_options": {
+                    "envoy.extensions.upstreams.http.v3.HttpProtocolOptions": {
+                        "@type": "type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions",
+                        "explicit_http_config": {
+                            "http2_protocol_options": {
+                                "connection_keepalive": {
+                                    "interval": "30s",
+                                    "timeout": "5s"
+                                }
+                            }
+                        }
+                    }
+                },
                 "dns_lookup_family": "V4_ONLY",
                 "load_assignment": {
                     "cluster_name": "${ALS_CLUSTER_NAME}",
@@ -126,7 +150,8 @@
     "tracing": {
         "http": {
             "name": "envoy.tracers.datadog",
-            "config": {
+            "typed_config": {
+                "@type": "type.googleapis.com/envoy.config.trace.v3.DatadogConfig",
                 "collector_cluster": "datadog_agent",
                 "service_name": "envoy"
             }
