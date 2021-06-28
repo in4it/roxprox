@@ -109,14 +109,25 @@
                 "connect_timeout": "1s",
                 "type": "strict_dns",
                 "lb_policy": "round_robin",
-                "hosts": [
-                    {
-                        "socket_address": {
-                            "address": "${DATADOG}",
-                            "port_value": 8126
+                "load_assignment": {
+                    "cluster_name": "datadog_agent",
+                    "endpoints": [
+                        {
+                            "lb_endpoints": [
+                                {
+                                    "endpoint": {
+                                        "address": {
+                                            "socket_address": {
+                                                "address": "${DATADOG}",
+                                                "port_value": 8126
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
                         }
-                    }
-                ]
+                    ]
+                }
             },
             %{ endif }
             {
