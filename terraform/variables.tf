@@ -257,3 +257,8 @@ variable "envoy_nofile_hard_limit" {
   description = "envoy nofile hard limit"
   default     = 4096
 }
+
+variable "envoy_extra_target_group_arns" {
+  description = "extra target groups to add"
+  default     = []
+}
