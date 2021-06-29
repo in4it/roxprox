@@ -29,11 +29,32 @@ func (c *Callback) OnStreamOpen(ctx context.Context, id int64, typ string) error
 	logger.Tracef("OnStreamOpen %d open for %s", id, typ)
 	return nil
 }
+func (c *Callback) OnDeltaStreamOpen(ctx context.Context, id int64, typ string) error {
+	logger.Tracef("OnDeltaStreamOpen %d open for %s", id, typ)
+	return nil
+}
+
 func (c *Callback) OnStreamClosed(id int64) {
 	logger.Tracef("OnStreamClosed %d closed", id)
 }
+func (c *Callback) OnDeltaStreamClosed(id int64) {
+	logger.Tracef("OnDeltaStreamClosed %d closed", id)
+
+}
 func (c *Callback) OnStreamRequest(id int64, req *discovery.DiscoveryRequest) error {
 	logger.Tracef("OnStreamRequest: %d %+v", id, req)
+	if _, ok := c.connections[id]; !ok {
+		c.connections[id] = req.Node
+		c.newNode <- NewNode{id: req.Node.Id}
+	}
+	if c.waitForEnvoy != nil {
+		close(c.waitForEnvoy)
+		c.waitForEnvoy = nil
+	}
+	return nil
+}
+func (c *Callback) OnStreamDeltaRequest(id int64, req *discovery.DeltaDiscoveryRequest) error {
+	logger.Tracef("OnStreamDeltaRequest: %d %+v", id, req)
 	if _, ok := c.connections[id]; !ok {
 		c.connections[id] = req.Node
 		c.newNode <- NewNode{id: req.Node.Id}
@@ -53,6 +74,8 @@ func (c *Callback) OnFetchRequest(ctx context.Context, req *discovery.DiscoveryR
 	return nil
 }
 func (c *Callback) OnStreamResponse(int64, *discovery.DiscoveryRequest, *discovery.DiscoveryResponse) {
+}
+func (c *Callback) OnStreamDeltaResponse(id int64, req *discovery.DeltaDiscoveryRequest, res *discovery.DeltaDiscoveryResponse) {
 }
 
 func (c *Callback) OnFetchResponse(*discovery.DiscoveryRequest, *discovery.DiscoveryResponse) {}

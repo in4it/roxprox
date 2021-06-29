@@ -350,7 +350,7 @@ func (l *Listener) newTLSFilter(params ListenerParams, paramsTLS TLSParams, list
 		Domains: []string{params.Conditions.Hostname},
 		Routes:  []*route.Route{},
 	}
-	manager := l.newManager(listenerName, strings.Replace(listenerName, "l_", "r_", 1), []*route.VirtualHost{newEmptyVirtualHost}, httpFilters)
+	manager := l.newManager(listenerName, strings.Replace(listenerName, "l_", "r_", 1), []*route.VirtualHost{newEmptyVirtualHost}, httpFilters, false)
 	pbst, err := ptypes.MarshalAny(manager)
 	if err != nil {
 		panic(err)
@@ -495,7 +495,8 @@ func (l *Listener) routeIndex(routes []*route.Route, route *route.Route) int {
 	return -1
 }
 
-func (l *Listener) newManager(listenerName string, routeName string, virtualHosts []*route.VirtualHost, httpFilters []*hcm.HttpFilter) *hcm.HttpConnectionManager {
+func (l *Listener) newManager(listenerName string, routeName string, virtualHosts []*route.VirtualHost, httpFilters []*hcm.HttpFilter, stripAnyHostPort bool) *hcm.HttpConnectionManager {
+
 	httpConnectionManager := &hcm.HttpConnectionManager{
 		CodecType:  hcm.HttpConnectionManager_AUTO,
 		StatPrefix: "ingress_http",
@@ -506,6 +507,11 @@ func (l *Listener) newManager(listenerName string, routeName string, virtualHost
 			},
 		},
 		HttpFilters: httpFilters,
+	}
+	if stripAnyHostPort {
+		httpConnectionManager.StripPortMode = &hcm.HttpConnectionManager_StripAnyHostPort{
+			StripAnyHostPort: true,
+		}
 	}
 	if isDefaultListener(listenerName) || l.HasMTLSDefault(listenerName, "accessLoggerConfig") {
 		httpConnectionManager.AccessLog = l.accessLoggerConfig
@@ -525,7 +531,7 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 	logger.Infof("Creating listener " + listenerName)
 
 	httpFilters := l.newHTTPRouterFilter(listenerName)
-	manager := l.newManager(listenerName, strings.Replace(listenerName, "l_", "r_", 1), []*route.VirtualHost{}, httpFilters)
+	manager := l.newManager(listenerName, strings.Replace(listenerName, "l_", "r_", 1), []*route.VirtualHost{}, httpFilters, params.Listener.StripAnyHostPort)
 
 	pbst, err := ptypes.MarshalAny(manager)
 	if err != nil {

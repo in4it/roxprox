@@ -63,8 +63,9 @@ type ListenerParams struct {
 }
 
 type ListenerParamsListener struct {
-	MTLS string
-	Port int64
+	MTLS             string
+	Port             int64
+	StripAnyHostPort bool
 }
 
 type ChallengeParams struct {

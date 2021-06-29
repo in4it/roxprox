@@ -8,9 +8,12 @@ import (
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	endpoint "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
 	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
+	upstreams "github.com/envoyproxy/go-control-plane/envoy/extensions/upstreams/http/v3"
 	cacheTypes "github.com/envoyproxy/go-control-plane/pkg/cache/types"
 	"github.com/golang/protobuf/ptypes"
+	anypb "github.com/golang/protobuf/ptypes/any"
 	"github.com/golang/protobuf/ptypes/wrappers"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 type Cluster struct{}
@@ -140,7 +143,30 @@ func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 
 	// HTTP2 support
 	if params.HTTP2 {
-		cluster.Http2ProtocolOptions = &core.Http2ProtocolOptions{}
+		typedExtensionProtocolOptions := &upstreams.HttpProtocolOptions{
+			UpstreamProtocolOptions: &upstreams.HttpProtocolOptions_ExplicitHttpConfig_{
+				ExplicitHttpConfig: &upstreams.HttpProtocolOptions_ExplicitHttpConfig{
+					ProtocolConfig: &upstreams.HttpProtocolOptions_ExplicitHttpConfig_Http2ProtocolOptions{
+						Http2ProtocolOptions: &core.Http2ProtocolOptions{
+							ConnectionKeepalive: &core.KeepaliveSettings{
+								Interval: &durationpb.Duration{
+									Seconds: 30,
+								},
+								Timeout: &durationpb.Duration{
+									Seconds: 5,
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		typedExtensionProtocolOptionsEncoded, err := ptypes.MarshalAny(typedExtensionProtocolOptions)
+		if err != nil {
+			panic(err)
+		}
+		cluster.TypedExtensionProtocolOptions = make(map[string]*anypb.Any)
+		cluster.TypedExtensionProtocolOptions["envoy.extensions.upstreams.http.v3.HttpProtocolOptions"] = typedExtensionProtocolOptionsEncoded
 	}
 
 	return cluster

@@ -369,8 +369,9 @@ func (x *XDS) importMTLS(mTLS pkgApi.MTLS) ([]WorkQueueItem, error) {
 			},
 			ListenerParams: ListenerParams{
 				Listener: ListenerParamsListener{
-					MTLS: mTLS.Metadata.Name,
-					Port: mTLS.Spec.Port,
+					MTLS:             mTLS.Metadata.Name,
+					Port:             mTLS.Spec.Port,
+					StripAnyHostPort: mTLS.Spec.StripAnyHostPort,
 				},
 			},
 		},
