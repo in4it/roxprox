@@ -94,9 +94,22 @@ func (x *XDS) ImportObjects() error {
 	if err != nil {
 		return err
 	}
-	// first read config objects
+
+	// first read tracing objects
 	for _, object := range objects {
-		if object.Kind != "rule" {
+		if object.Kind == "tracing" {
+			x.objects = append(x.objects, object)
+			newitems, err := x.ImportObject(object)
+			if err != nil {
+				return err
+			}
+			workQueueItems = append(workQueueItems, newitems...)
+		}
+	}
+
+	// then read config objects
+	for _, object := range objects {
+		if object.Kind != "rule" && object.Kind != "tracing" {
 			x.objects = append(x.objects, object)
 			newitems, err := x.ImportObject(object)
 			if err != nil {
@@ -280,6 +293,13 @@ func (x *XDS) importAuthzFilter(authzFilter pkgApi.AuthzFilter) ([]WorkQueueItem
 }
 
 func (x *XDS) importTracing(tracing pkgApi.Tracing) ([]WorkQueueItem, error) {
+	// set defaults
+	if tracing.Spec.ProviderName == "" || strings.ToLower(tracing.Spec.ProviderName) == "datadog" {
+		tracing.Spec.ProviderName = "envoy.tracers.datadog"
+		if tracing.Spec.CollectorCluster == "" {
+			tracing.Spec.CollectorCluster = "datadog_agent"
+		}
+	}
 	return []WorkQueueItem{
 		{
 			Action: "updateListenersWithTracing",
@@ -291,6 +311,8 @@ func (x *XDS) importTracing(tracing pkgApi.Tracing) ([]WorkQueueItem, error) {
 				Listener: ListenerParamsListener{
 					MTLS: tracing.Spec.Listener.MTLS,
 				},
+				ProviderName:     tracing.Spec.ProviderName,
+				CollectorCluster: tracing.Spec.CollectorCluster,
 			},
 		},
 	}, nil

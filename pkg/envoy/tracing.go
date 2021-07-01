@@ -2,6 +2,7 @@ package envoy
 
 import (
 	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
+	tracev3 "github.com/envoyproxy/go-control-plane/envoy/config/trace/v3"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	envoyType "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 	"github.com/golang/protobuf/ptypes"
@@ -26,10 +27,25 @@ func (t *Tracing) updateListenersWithTracing(cache *WorkQueueCache, tracing Trac
 						return err
 					}
 
+					tracingConfig := &tracev3.DatadogConfig{
+						CollectorCluster: tracing.CollectorCluster,
+						ServiceName:      "envoy",
+					}
+					tracingConfigEncoded, err := ptypes.MarshalAny(tracingConfig)
+					if err != nil {
+						return err
+					}
+
 					manager.Tracing = &hcm.HttpConnectionManager_Tracing{
 						ClientSampling:  &envoyType.Percent{Value: tracing.ClientSampling},
 						RandomSampling:  &envoyType.Percent{Value: tracing.RandomSampling},
 						OverallSampling: &envoyType.Percent{Value: tracing.OverallSampling},
+						Provider: &tracev3.Tracing_Http{
+							Name: tracing.ProviderName,
+							ConfigType: &tracev3.Tracing_Http_TypedConfig{
+								TypedConfig: tracingConfigEncoded,
+							},
+						},
 					}
 
 					// update manager in cache
