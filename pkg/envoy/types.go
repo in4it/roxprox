@@ -139,11 +139,13 @@ type Authz struct {
 }
 
 type TracingParams struct {
-	Enabled         bool
-	ClientSampling  float64
-	RandomSampling  float64
-	OverallSampling float64
-	Listener        ListenerParamsListener
+	Enabled          bool
+	ClientSampling   float64
+	RandomSampling   float64
+	OverallSampling  float64
+	Listener         ListenerParamsListener
+	CollectorCluster string
+	ProviderName     string
 }
 
 type CompressionParams struct {

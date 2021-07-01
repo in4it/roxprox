@@ -10,6 +10,7 @@ import (
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
+	tracev3 "github.com/envoyproxy/go-control-plane/envoy/config/trace/v3"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
@@ -758,10 +759,25 @@ func (l *Listener) updateDefaultHTTPRouterFilter(filterName string, filterConfig
 }
 
 func (l *Listener) updateDefaultTracingSetting(tracing TracingParams) {
+	tracingConfig := &tracev3.DatadogConfig{
+		CollectorCluster: tracing.CollectorCluster,
+		ServiceName:      "envoy",
+	}
+	tracingConfigEncoded, err := ptypes.MarshalAny(tracingConfig)
+	if err != nil {
+		panic(err)
+	}
+
 	l.tracing = &hcm.HttpConnectionManager_Tracing{
 		ClientSampling:  &envoyType.Percent{Value: tracing.ClientSampling},
 		RandomSampling:  &envoyType.Percent{Value: tracing.RandomSampling},
 		OverallSampling: &envoyType.Percent{Value: tracing.OverallSampling},
+		Provider: &tracev3.Tracing_Http{
+			Name: tracing.ProviderName,
+			ConfigType: &tracev3.Tracing_Http_TypedConfig{
+				TypedConfig: tracingConfigEncoded,
+			},
+		},
 	}
 	// set mTLS listeners defaults
 	l.setMTLSDefault(tracing.Listener.MTLS, "tracing")
