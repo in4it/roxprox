@@ -94,9 +94,22 @@ func (x *XDS) ImportObjects() error {
 	if err != nil {
 		return err
 	}
-	// first read config objects
+
+	// first read tracing objects
 	for _, object := range objects {
-		if object.Kind != "rule" {
+		if object.Kind == "tracing" {
+			x.objects = append(x.objects, object)
+			newitems, err := x.ImportObject(object)
+			if err != nil {
+				return err
+			}
+			workQueueItems = append(workQueueItems, newitems...)
+		}
+	}
+
+	// then read config objects
+	for _, object := range objects {
+		if object.Kind != "rule" && object.Kind != "tracing" {
 			x.objects = append(x.objects, object)
 			newitems, err := x.ImportObject(object)
 			if err != nil {
