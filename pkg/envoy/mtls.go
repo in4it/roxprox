@@ -83,6 +83,9 @@ func (l *MTLS) updateMTLSListener(cache *WorkQueueCache, params ListenerParams, 
 			Value: true,
 		},
 		CommonTlsContext: &tls.CommonTlsContext{
+			TlsParams: &tls.TlsParameters{
+				TlsMinimumProtocolVersion: tls.TlsParameters_TLSv1_2,
+			},
 			TlsCertificates: []*tls.TlsCertificate{
 				{
 					CertificateChain: &core.DataSource{
