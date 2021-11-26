@@ -35,7 +35,7 @@ jobs:
         if: endsWith(github.ref, '/master')
         run: |
           docker tag roxprox:latest public.ecr.aws/y9x3p3i6/roxprox:latest
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/roxprox:latest
+          docker tag roxprox:latest ${{ secrets.DOCKERHUB_USERNAME }}/roxprox:latest
           docker push public.ecr.aws/y9x3p3i6/roxprox:latest
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/roxprox:latest
       - name: Tag and push specific version
