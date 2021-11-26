@@ -35,13 +35,13 @@ jobs:
         if: endsWith(github.ref, '/master')
         run: |
           docker tag roxprox:latest public.ecr.aws/y9x3p3i6/roxprox:latest
-          docker tag roxprox:latest ${{ secrets.DOCKERHUB_USERNAME }}/roxprox:latest
+          docker tag roxprox:latest in4it/roxprox:latest
           docker push public.ecr.aws/y9x3p3i6/roxprox:latest
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/roxprox:latest
+          docker push in4it/roxprox:latest
       - name: Tag and push specific version
         if: startsWith(github.ref, '/refs/tags/*')
         run: |
           docker tag roxprox:latest public.ecr.aws/y9x3p3i6/roxprox:${GITHUB_REF/refs\/tags\//}
-          docker tag roxprox:latest ${{ secrets.DOCKERHUB_USERNAME }}/roxprox:${GITHUB_REF/refs\/tags\//}
+          docker tag roxprox:latest in4it/roxprox:${GITHUB_REF/refs\/tags\//}
           docker push public.ecr.aws/y9x3p3i6/roxprox:${GITHUB_REF/refs\/tags\//}
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/roxprox:${GITHUB_REF/refs\/tags\//}
+          docker push in4it/roxprox:${GITHUB_REF/refs\/tags\//}
