@@ -85,6 +85,10 @@ variable "bucket_lb_logs" {
   description = "name of s3 bucket to use for lb logs"
 }
 
+variable "cloudwatch_logs_kms" {
+  description = "kms key for CW logs encryption"
+  default     = ""
+}
 
 variable "s3_bucket" {
   description = "name of s3 bucket to use"
