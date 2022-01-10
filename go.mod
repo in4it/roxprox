@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	github.com/aws/aws-sdk-go v1.38.69
-	github.com/envoyproxy/go-control-plane v0.9.9
+	github.com/envoyproxy/go-control-plane v0.10.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
 	github.com/google/go-cmp v0.5.6

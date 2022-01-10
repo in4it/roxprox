@@ -1,13 +1,16 @@
 package envoy
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/envoyproxy/go-control-plane/pkg/cache/types"
 	cacheTypes "github.com/envoyproxy/go-control-plane/pkg/cache/types"
 	cache "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
+	"github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	"github.com/google/uuid"
 	storage "github.com/in4it/roxprox/pkg/storage"
 )
@@ -250,7 +253,9 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 				item.state = "finished"
 			}
 			// update Xds immediately
-			w.updateXds()
+			if err = w.updateXds(); err != nil {
+				logger.Errorf("updateXDS error: %s", err)
+			}
 		case "updateListenerWithNewCert":
 			err := w.listener.updateListenerWithNewCert(&w.cache, item.TLSParams)
 			if err != nil {
@@ -371,7 +376,9 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 		logger.Debugf("ClusterNames: %s", strings.Join(clusterNames, ","))
 		logger.Debugf("ListenerNames: %s", strings.Join(listenerNames, ","))
 
-		w.updateXds()
+		if err = w.updateXds(); err != nil {
+			logger.Errorf("updateXDS error: %s", err)
+		}
 	}
 
 	return id, nil
@@ -384,10 +391,17 @@ func InArray(a []string, v string) (ret bool, i int) {
 	}
 	return false, -1
 }
-func (w *WorkQueue) updateXds() {
+func (w *WorkQueue) updateXds() error {
+	var err error
 	now := time.Now().UnixNano()
 	atomic.AddInt64(&w.cache.version, 1)
-	w.latestSnapshot = cache.NewSnapshot(fmt.Sprint(now)+"-"+fmt.Sprint(w.cache.version), nil, w.cache.clusters, nil, w.cache.listeners, nil, nil)
+	w.latestSnapshot, err = cache.NewSnapshot(fmt.Sprint(now)+"-"+fmt.Sprint(w.cache.version), map[resource.Type][]types.Resource{
+		resource.ClusterType:  w.cache.clusters,
+		resource.ListenerType: w.cache.listeners,
+	})
+	if err != nil {
+		return err
+	}
 	var nodeUpdated []string
 	for _, v := range w.callback.connections {
 		if ret, _ := InArray(nodeUpdated, v.Id); !ret {
@@ -395,11 +409,13 @@ func (w *WorkQueue) updateXds() {
 			w.updateXdsForNode(v.Id)
 		}
 	}
+	return nil
 }
 func (w *WorkQueue) updateXdsForNode(node string) {
 	if w.cache.version > 0 {
+		ctx := context.Background()
 		logger.Debugf("Updating snapshot for: %s to version %d", node, w.cache.version)
-		w.cache.snapshotCache.SetSnapshot(node, w.latestSnapshot)
+		w.cache.snapshotCache.SetSnapshot(ctx, node, w.latestSnapshot)
 	} else {
 		logger.Debugf("Still at version 0, waiting for init")
 	}
