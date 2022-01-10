@@ -73,7 +73,7 @@ func (c *Callback) OnFetchRequest(ctx context.Context, req *discovery.DiscoveryR
 	}
 	return nil
 }
-func (c *Callback) OnStreamResponse(int64, *discovery.DiscoveryRequest, *discovery.DiscoveryResponse) {
+func (c *Callback) OnStreamResponse(context.Context, int64, *discovery.DiscoveryRequest, *discovery.DiscoveryResponse) {
 }
 func (c *Callback) OnStreamDeltaResponse(id int64, req *discovery.DeltaDiscoveryRequest, res *discovery.DeltaDiscoveryResponse) {
 }
