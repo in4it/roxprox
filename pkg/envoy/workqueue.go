@@ -26,9 +26,10 @@ type WorkQueue struct {
 	authzFilter     *AuthzFilter
 	tracing         *Tracing
 	compression     *Compression
-	accessLogServer *AccessLogServer
+	luaFilter       *LuaFilter
 	rateLimit       *RateLimit
 	mTLS            *MTLS
+	accessLogServer *AccessLogServer
 	cluster         *Cluster
 	acmeContact     string
 	latestSnapshot  cache.Snapshot
@@ -60,6 +61,7 @@ func NewWorkQueue(s storage.Storage, acmeContact string) (*WorkQueue, error) {
 		accessLogServer: newAccessLogServer(),
 		rateLimit:       newRateLimit(),
 		mTLS:            newMTLS(),
+		luaFilter:       newLuaFilter(),
 	}
 
 	// run queue to resolve dependencies
@@ -240,6 +242,18 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 			if err != nil {
 				item.state = "error"
 				logger.Errorf("updateListenersWithRateLimit error: %s", err)
+			} else {
+				item.state = "finished"
+			}
+			updateXds = true
+		case "updateListenersWithLuaFilter":
+			// update default listener route
+			w.listener.updateDefaultLuaFilter(item.LuaFilterParams)
+			// update existing listeners
+			err := w.luaFilter.updateListenersWithLuaFilter(&w.cache, item.LuaFilterParams)
+			if err != nil {
+				item.state = "error"
+				logger.Errorf("updateListenersWithLuaFilter error: %s", err)
 			} else {
 				item.state = "finished"
 			}

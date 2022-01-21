@@ -20,6 +20,7 @@ type WorkQueueItem struct {
 	AccessLogServerParams AccessLogServerParams
 	RateLimitParams       RateLimitParams
 	MTLSParams            MTLSParams
+	LuaFilterParams       LuaFilterParams
 	state                 string
 }
 
@@ -194,4 +195,10 @@ type MTLSParams struct {
 	AllowedIPRanges        []string
 	CACertificate          string
 	EnableProxyProtocol    bool
+}
+
+type LuaFilterParams struct {
+	Name       string
+	InlineCode string
+	Listener   ListenerParamsListener
 }

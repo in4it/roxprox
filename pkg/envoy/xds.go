@@ -285,6 +285,13 @@ func (x *XDS) ImportObject(object pkgApi.Object) ([]WorkQueueItem, error) {
 			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
 		}
 		return items, nil
+	case "luaFilter":
+		luaFilter := object.Data.(pkgApi.LuaFilter)
+		items, err := x.importLuaFilter(luaFilter)
+		if err != nil {
+			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
+		}
+		return items, nil
 	}
 
 	return []WorkQueueItem{}, nil
@@ -370,6 +377,21 @@ func (x *XDS) importAccessLogServer(accessLogServer pkgApi.AccessLogServer) ([]W
 				AdditionalResponseHeadersToLog: accessLogServer.Spec.AdditionalResponseHeadersToLog,
 				Listener: ListenerParamsListener{
 					MTLS: accessLogServer.Spec.Listener.MTLS,
+				},
+			},
+		},
+	}, nil
+}
+
+func (x *XDS) importLuaFilter(luaFilter pkgApi.LuaFilter) ([]WorkQueueItem, error) {
+	return []WorkQueueItem{
+		{
+			Action: "updateListenersWithLuaFilter",
+			LuaFilterParams: LuaFilterParams{
+				Name:       luaFilter.Metadata.Name,
+				InlineCode: luaFilter.Spec.InlineCode,
+				Listener: ListenerParamsListener{
+					MTLS: luaFilter.Spec.Listener.MTLS,
 				},
 			},
 		},

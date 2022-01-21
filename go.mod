@@ -10,7 +10,6 @@ require (
 	github.com/google/go-cmp v0.5.6
 	github.com/google/uuid v1.2.0
 	github.com/juju/loggo v0.0.0-20200526014432-9ce3a2e09b5e
-	github.com/stretchr/testify v1.7.0 // indirect
 	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e
 	golang.org/x/text v0.3.6 // indirect
 	google.golang.org/genproto v0.0.0-20210629200056-84d6f6074151 // indirect
