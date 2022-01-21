@@ -33,6 +33,7 @@ type listenerDefaultsMapping struct {
 	tracing         bool
 	authz           bool
 	compression     bool
+	luaFilter       bool
 }
 
 type Listener struct {
@@ -853,6 +854,24 @@ func (l *Listener) updateDefaultRateLimit(rateLimitParams RateLimitParams) {
 	l.setMTLSDefault(rateLimitParams.Listener.MTLS, "envoy.filters.http.ratelimit")
 }
 
+func (l *Listener) updateDefaultLuaFilter(luaFilterParams LuaFilterParams) {
+	lf := newLuaFilter()
+	luaFilterConfigEncoded, err := lf.getLuaFilterConfigEncoded(luaFilterParams)
+	if err != nil {
+		logger.Errorf("Couldn't get lua filter config: %s", err)
+		return
+	}
+	if luaFilterConfigEncoded == nil {
+		return
+	}
+
+	updateHTTPFilterWithConfig(&l.httpFilter, "envoy.filters.http.lua", luaFilterConfigEncoded)
+	// set mTLS listeners defaults
+	if luaFilterParams.Listener.MTLS != "" {
+		l.setMTLSDefault(luaFilterParams.Listener.MTLS, "envoy.filters.http.lua")
+	}
+}
+
 func (l *Listener) newHTTPRouterFilter(listenerName string) []*hcm.HttpFilter {
 	httpFilter := []*hcm.HttpFilter{}
 	for k := range l.httpFilter {
@@ -931,6 +950,8 @@ func (l *Listener) HasMTLSDefault(listenerName, attr string) bool {
 			return val.authz
 		case "envoy.filters.http.jwt_authn":
 			return false // we don't setup jwt authn on new listeners
+		case "envoy.filters.http.lua":
+			return true
 		}
 	}
 	return false
@@ -954,6 +975,8 @@ func (l *Listener) setMTLSDefault(mTLSName, attr string) {
 			newDefaults.compression = true
 		case "envoy.ext_authz":
 			newDefaults.authz = true
+		case "envoy.filters.http.lua":
+			newDefaults.luaFilter = true
 		}
 
 		l.mTLSListenerDefaultsMapping[listenerName] = newDefaults

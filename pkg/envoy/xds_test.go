@@ -1239,3 +1239,78 @@ func TestTracingObjectWithMTLS(t *testing.T) {
 		}
 	}
 }
+
+func TestLuaFilterWithMTLS(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test-luafilter.yaml", "test-mtls.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+	for listenerKey := range x.workQueue.cache.listeners {
+		ll := x.workQueue.cache.listeners[listenerKey].(*api.Listener)
+		if ll.GetName() != "l_http" {
+			manager, err := getListenerHTTPConnectionManager(ll)
+			if err != nil {
+				t.Errorf("getListenerHTTPConnectionManager error: %s", err)
+				return
+			}
+			if getListenerHTTPFilterIndex("envoy.filters.http.lua", manager.HttpFilters) == -1 {
+				t.Errorf("envoy.filters.http.lua not found in httprouter filter - should be found")
+				return
+			}
+		}
+
+	}
+}
+func TestLuaFilterWithMTLS2(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test-mtls.yaml", "test-luafilter.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+	for listenerKey := range x.workQueue.cache.listeners {
+		ll := x.workQueue.cache.listeners[listenerKey].(*api.Listener)
+		if ll.GetName() != "l_http" {
+			manager, err := getListenerHTTPConnectionManager(ll)
+			if err != nil {
+				t.Errorf("getListenerHTTPConnectionManager error: %s", err)
+				return
+			}
+			if getListenerHTTPFilterIndex("envoy.filters.http.lua", manager.HttpFilters) == -1 {
+				t.Errorf("envoy.filters.http.lua not found in httprouter filter - should be found")
+				return
+			}
+		}
+
+	}
+}
