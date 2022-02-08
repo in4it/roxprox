@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	clusterAPI "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
 	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	listenerAPI "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
@@ -1313,4 +1314,31 @@ func TestLuaFilterWithMTLS2(t *testing.T) {
 		}
 
 	}
+}
+func TestRuleWithNoConditions(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test-cluster-empty.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+	allClusters := x.workQueue.cache.clusters
+	for _, v := range allClusters {
+		fmt.Printf("%+v", v.(*clusterAPI.Cluster))
+	}
+
 }
