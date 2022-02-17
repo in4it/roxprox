@@ -57,7 +57,7 @@ resource "aws_ecs_task_definition" "envoy-proxy-appmesh" {
   memory                   = var.envoy_proxy_appmesh_memory
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  container_definitions    = templatefile("${path.module}/templates/envoy-appmesh.json.tpl"), {
+  container_definitions    = templatefile("${path.module}/templates/envoy-appmesh.json.tpl", {
     mtls                  = var.mtls
     AWS_REGION            = data.aws_region.current.name
     ENVOY_RELEASE         = var.envoy_release
@@ -160,7 +160,7 @@ resource "aws_ecs_task_definition" "envoy-proxy-https-appmesh" {
   memory                   = var.envoy_proxy_appmesh_memory
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  container_definitions    = templatefile("${path.module}/templates/envoy-appmesh.json.tpl"), {
+  container_definitions    = templatefile("${path.module}/templates/envoy-appmesh.json.tpl", {
     mtls                  = var.mtls
     AWS_REGION            = data.aws_region.current.name
     ENVOY_RELEASE         = var.envoy_release
