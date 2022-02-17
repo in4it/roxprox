@@ -1,19 +1,6 @@
 #
 # datadog integration
 #
-data "template_file" "datadog" {
-  count    = var.enable_datadog ? 1 : 0
-  template = file("${path.module}/templates/datadog-agent.json.tpl")
-
-  vars = {
-    AWS_REGION = data.aws_region.current.name
-    DD_API_KEY = var.datadog_api_key
-    DD_APM_ENV = var.datadog_env
-    STATS_URL  = var.datadog_stats_url
-    IMAGE      = var.datadog_image
-    VERSION    = var.datadog_image_version
-  }
-}
 
 resource "aws_ecs_task_definition" "datadog" {
   count                    = var.enable_datadog ? 1 : 0
@@ -24,7 +11,14 @@ resource "aws_ecs_task_definition" "datadog" {
   memory                   = 512
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  container_definitions    = data.template_file.datadog[0].rendered
+  container_definitions    = templatefile("${path.module}/templates/datadog-agent.json.tpl", {
+    AWS_REGION = data.aws_region.current.name
+    DD_API_KEY = var.datadog_api_key
+    DD_APM_ENV = var.datadog_env
+    STATS_URL  = var.datadog_stats_url
+    IMAGE      = var.datadog_image
+    VERSION    = var.datadog_image_version
+  })
 }
 
 resource "aws_ecs_service" "datadog" {

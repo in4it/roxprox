@@ -25,11 +25,17 @@ resource "aws_ssm_parameter" "envoy-config-http" {
   value = base64encode(jsonencode(jsondecode(templatefile("${path.module}/templates/envoy-config.tmpl", local.envoy_config_vars))))
 }
 
-
-data "template_file" "envoy-proxy" {
-
-  template = var.enable_appmesh ? templatefile("${path.module}/templates/envoy-appmesh.json.tpl") : templatefile("${path.module}/templates/envoy.json.tpl", {
-    mtls = var.mtls
+resource "aws_ecs_task_definition" "envoy-proxy" {
+  count                    = var.enable_appmesh ? 0 : 1
+  family                   = "envoy-proxy"
+  execution_role_arn       = aws_iam_role.roxprox-ecs-task-execution-role.arn
+  task_role_arn            = aws_iam_role.roxprox-envoy-proxy-task-role.arn
+  cpu                      = var.envoy_proxy_cpu
+  memory                   = var.envoy_proxy_memory
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  container_definitions    = templatefile("${path.module}/templates/envoy.json.tpl", {
+    mtls                  = var.mtls
     AWS_REGION            = data.aws_region.current.name
     ENVOY_RELEASE         = var.envoy_release
     ENVOY_CONFIG          = aws_ssm_parameter.envoy-config-http.arn
@@ -42,18 +48,6 @@ data "template_file" "envoy-proxy" {
   })
 }
 
-resource "aws_ecs_task_definition" "envoy-proxy" {
-  count                    = var.enable_appmesh ? 0 : 1
-  family                   = "envoy-proxy"
-  execution_role_arn       = aws_iam_role.roxprox-ecs-task-execution-role.arn
-  task_role_arn            = aws_iam_role.roxprox-envoy-proxy-task-role.arn
-  cpu                      = var.envoy_proxy_cpu
-  memory                   = var.envoy_proxy_memory
-  network_mode             = "awsvpc"
-  requires_compatibilities = ["FARGATE"]
-  container_definitions    = data.template_file.envoy-proxy.rendered
-}
-
 resource "aws_ecs_task_definition" "envoy-proxy-appmesh" {
   count                    = var.enable_appmesh ? 1 : 0
   family                   = "envoy-proxy"
@@ -63,7 +57,18 @@ resource "aws_ecs_task_definition" "envoy-proxy-appmesh" {
   memory                   = var.envoy_proxy_appmesh_memory
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  container_definitions    = data.template_file.envoy-proxy.rendered
+  container_definitions    = templatefile("${path.module}/templates/envoy-appmesh.json.tpl"), {
+    mtls                  = var.mtls
+    AWS_REGION            = data.aws_region.current.name
+    ENVOY_RELEASE         = var.envoy_release
+    ENVOY_CONFIG          = aws_ssm_parameter.envoy-config-http.arn
+    APPMESH_NAME          = var.appmesh_name
+    APPMESH_ENVOY_RELEASE = var.appmesh_envoy_release
+    EXTRA_CONTAINERS      = var.extra_containers == "" ? "" : ",${var.extra_containers}"
+    EXTRA_DEPENDENCY      = var.extra_dependency == "" ? "" : var.enable_appmesh ? ",${var.extra_dependency}" : var.extra_dependency
+    ULIMIT_NOFILE_SOFT    = var.envoy_nofile_soft_limit
+    ULIMIT_NOFILE_HARD    = var.envoy_nofile_hard_limit
+  })
 
   proxy_configuration {
     type           = "APPMESH"
@@ -125,20 +130,6 @@ resource "aws_ecs_service" "envoy-proxy" {
 # envoy (https)
 #
 
-data "template_file" "envoy-proxy-https" {
-  count    = var.tls_listener ? 1 : 0
-  template = var.enable_appmesh ? templatefile("${path.module}/templates/envoy-appmesh.json.tpl") : templatefile("${path.module}/templates/envoy.json.tpl", {
-    mtls = var.mtls
-    AWS_REGION            = data.aws_region.current.name
-    ENVOY_RELEASE         = var.envoy_release
-    ENVOY_CONFIG          = aws_ssm_parameter.envoy-config-http.arn
-    APPMESH_NAME          = var.appmesh_name
-    APPMESH_ENVOY_RELEASE = var.appmesh_envoy_release
-    EXTRA_CONTAINERS      = var.extra_containers == "" ? "" : ",${var.extra_containers}"
-    EXTRA_DEPENDENCY      = var.extra_dependency == "" ? "" : var.enable_appmesh ? ",${var.extra_dependency}" : var.extra_dependency
-  })
-}
-
 resource "aws_ecs_task_definition" "envoy-proxy-https" {
   count                    = var.tls_listener ? 1 : 0
   family                   = "envoy-proxy-https"
@@ -148,7 +139,16 @@ resource "aws_ecs_task_definition" "envoy-proxy-https" {
   memory                   = var.envoy_proxy_memory
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  container_definitions    = data.template_file.envoy-proxy-https[0].rendered
+  container_definitions    = templatefile("${path.module}/templates/envoy.json.tpl", {
+    mtls                  = var.mtls
+    AWS_REGION            = data.aws_region.current.name
+    ENVOY_RELEASE         = var.envoy_release
+    ENVOY_CONFIG          = aws_ssm_parameter.envoy-config-http.arn
+    APPMESH_NAME          = var.appmesh_name
+    APPMESH_ENVOY_RELEASE = var.appmesh_envoy_release
+    EXTRA_CONTAINERS      = var.extra_containers == "" ? "" : ",${var.extra_containers}"
+    EXTRA_DEPENDENCY      = var.extra_dependency == "" ? "" : var.enable_appmesh ? ",${var.extra_dependency}" : var.extra_dependency
+  })
 }
 
 resource "aws_ecs_task_definition" "envoy-proxy-https-appmesh" {
@@ -160,7 +160,16 @@ resource "aws_ecs_task_definition" "envoy-proxy-https-appmesh" {
   memory                   = var.envoy_proxy_appmesh_memory
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  container_definitions    = data.template_file.envoy-proxy-https[0].rendered
+  container_definitions    = templatefile("${path.module}/templates/envoy-appmesh.json.tpl"), {
+    mtls                  = var.mtls
+    AWS_REGION            = data.aws_region.current.name
+    ENVOY_RELEASE         = var.envoy_release
+    ENVOY_CONFIG          = aws_ssm_parameter.envoy-config-http.arn
+    APPMESH_NAME          = var.appmesh_name
+    APPMESH_ENVOY_RELEASE = var.appmesh_envoy_release
+    EXTRA_CONTAINERS      = var.extra_containers == "" ? "" : ",${var.extra_containers}"
+    EXTRA_DEPENDENCY      = var.extra_dependency == "" ? "" : var.enable_appmesh ? ",${var.extra_dependency}" : var.extra_dependency
+  })
 
   proxy_configuration {
     type           = "APPMESH"
