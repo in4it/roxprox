@@ -77,6 +77,10 @@ func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 
 	connectTimeout := 2 * time.Second
 
+	if params.ConnectTimeout > 0 {
+		connectTimeout = time.Duration(params.ConnectTimeout) * time.Second
+	}
+
 	// add healthchecks
 	healthChecks := []*core.HealthCheck{}
 	if params.HealthCheck.HTTPHealthCheck.Path != "" {

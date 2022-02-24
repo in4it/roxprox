@@ -1,0 +1,13 @@
+api: proxy.in4it.io/v1
+kind: rule
+metadata:
+  name: test-cluster
+spec:
+  conditions:
+    - hostname: test.example.com
+      path: /test
+  actions:
+    - proxy:
+        hostname: target-example-1.com
+        port: 443
+        connectTimeout: 5

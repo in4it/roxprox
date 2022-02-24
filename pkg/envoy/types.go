@@ -48,6 +48,7 @@ type ClusterParams struct {
 	Port           int64
 	HTTP2          bool
 	HealthCheck    HealthCheck
+	ConnectTimeout int64
 }
 type ListenerParams struct {
 	Name             string
@@ -111,6 +112,7 @@ type ActionProxy struct {
 	EnableWebsockets bool
 	PrefixRewrite    string
 	RegexRewrite     RegexRewrite
+	ConnectTimeout   int64
 }
 
 type RegexRewrite struct {

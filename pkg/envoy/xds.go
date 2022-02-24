@@ -564,6 +564,7 @@ func (x *XDS) getAction(ruleName string, actions []pkgApi.RuleActions) Action {
 			action.RuleName = ruleName
 			action.Proxy.TargetHostname = ruleAction.Proxy.Hostname
 			action.Proxy.Port = ruleAction.Proxy.Port
+			action.Proxy.ConnectTimeout = ruleAction.Proxy.ConnectTimeout
 			if ruleAction.Proxy.HealthCheck.HTTPHealthCheck.Path != "" {
 				action.Proxy.HealthCheck.HTTPHealthCheck.Path = ruleAction.Proxy.HealthCheck.HTTPHealthCheck.Path
 				action.Proxy.HealthCheck.Timeout = ruleAction.Proxy.HealthCheck.Timeout
@@ -633,6 +634,7 @@ func (x *XDS) getClusterParams(action Action) ClusterParams {
 		TargetHostname: action.Proxy.TargetHostname,
 		Port:           action.Proxy.Port,
 		HealthCheck:    action.Proxy.HealthCheck,
+		ConnectTimeout: action.Proxy.ConnectTimeout,
 	}
 }
 func (x *XDS) getAuthParams(jwtProviderName string, jwtProvider pkgApi.JwtProvider) Auth {

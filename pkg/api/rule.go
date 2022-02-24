@@ -37,6 +37,7 @@ type RuleActionsProxy struct {
 	EnableWebsockets bool                    `json:"enableWebsockets" yaml:"enableWebsockets"`
 	PrefixRewrite    string                  `json:"prefixRewrite" yaml:"prefixRewrite"`
 	RegexRewrite     RuleActionsRegexRewrite `json:"regexRewrite" yaml:"regexRewrite"`
+	ConnectTimeout   int64                   `json:"connectTimeout" yaml:"connectTimeout"`
 }
 type RuleActionsRegexRewrite struct {
 	Regex        string `json:"regex" yaml:"regex"`

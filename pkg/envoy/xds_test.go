@@ -1262,9 +1262,11 @@ func TestLuaFilterWithMTLS(t *testing.T) {
 			return
 		}
 	}
+	found := false
 	for listenerKey := range x.workQueue.cache.listeners {
 		ll := x.workQueue.cache.listeners[listenerKey].(*api.Listener)
 		if ll.GetName() != "l_http" {
+			found = true
 			manager, err := getListenerHTTPConnectionManager(ll)
 			if err != nil {
 				t.Errorf("getListenerHTTPConnectionManager error: %s", err)
@@ -1276,6 +1278,9 @@ func TestLuaFilterWithMTLS(t *testing.T) {
 			}
 		}
 
+	}
+	if found == false {
+		t.Errorf("listener not found")
 	}
 }
 func TestLuaFilterWithMTLS2(t *testing.T) {
@@ -1299,9 +1304,11 @@ func TestLuaFilterWithMTLS2(t *testing.T) {
 			return
 		}
 	}
+	found := false
 	for listenerKey := range x.workQueue.cache.listeners {
 		ll := x.workQueue.cache.listeners[listenerKey].(*api.Listener)
 		if ll.GetName() != "l_http" {
+			found = true
 			manager, err := getListenerHTTPConnectionManager(ll)
 			if err != nil {
 				t.Errorf("getListenerHTTPConnectionManager error: %s", err)
@@ -1312,9 +1319,52 @@ func TestLuaFilterWithMTLS2(t *testing.T) {
 				return
 			}
 		}
-
+	}
+	if found == false {
+		t.Errorf("listener not found")
 	}
 }
+
+func TestLuaFilterWithMultipleListeners(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test-mtls.yaml", "test-cluster-1.yaml", "test-luafilter.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+	found := 0
+	for listenerKey := range x.workQueue.cache.listeners {
+		ll := x.workQueue.cache.listeners[listenerKey].(*api.Listener)
+		found++
+		manager, err := getListenerHTTPConnectionManager(ll)
+		if err != nil {
+			t.Errorf("getListenerHTTPConnectionManager error: %s", err)
+			return
+		}
+		if getListenerHTTPFilterIndex("envoy.filters.http.lua", manager.HttpFilters) == -1 {
+			t.Errorf("envoy.filters.http.lua not found in httprouter filter - should be found")
+			return
+		}
+	}
+	if found != 2 {
+		t.Errorf("Not all listeners found")
+	}
+}
+
 func TestRuleWithNoConditions(t *testing.T) {
 	logger.SetLogLevel(loggo.DEBUG)
 	s, err := initStorage()
@@ -1337,8 +1387,37 @@ func TestRuleWithNoConditions(t *testing.T) {
 		}
 	}
 	allClusters := x.workQueue.cache.clusters
-	for _, v := range allClusters {
-		fmt.Printf("%+v", v.(*clusterAPI.Cluster))
+	if len(allClusters) != 1 {
+		t.Errorf("Expected to have a 1 cluster (got %d)", len(allClusters))
 	}
 
+}
+func TestRuleWithConnectionTimeout(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test-cluster-connection-timeout.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+	allClusters := x.workQueue.cache.clusters
+	for _, v := range allClusters {
+		cluster := v.(*clusterAPI.Cluster)
+		if cluster.ConnectTimeout.Seconds != 5 {
+			t.Errorf("Cluster Connect timeout is not 5 (got %d)", cluster.ConnectTimeout.Seconds)
+		}
+	}
 }
