@@ -10,13 +10,16 @@ import (
 	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	upstreams "github.com/envoyproxy/go-control-plane/envoy/extensions/upstreams/http/v3"
 	cacheTypes "github.com/envoyproxy/go-control-plane/pkg/cache/types"
-	"github.com/golang/protobuf/ptypes"
-	anypb "github.com/golang/protobuf/ptypes/any"
 	"github.com/golang/protobuf/ptypes/wrappers"
+	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
-type Cluster struct{}
+const PRESET_CONNECT_TIMEOUT_SECONDS = 2
+
+type Cluster struct {
+	DefaultsParams DefaultsParams
+}
 
 func newCluster() *Cluster {
 	return &Cluster{}
@@ -49,7 +52,7 @@ func (c *Cluster) getAllClusterNames(clusters []cacheTypes.Resource) []string {
 func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 	var transportSocket *core.TransportSocket
 	if params.Port == 443 {
-		tlsContext, err := ptypes.MarshalAny(&tls.UpstreamTlsContext{
+		tlsContext, err := anypb.New(&tls.UpstreamTlsContext{
 			Sni: params.TargetHostname,
 		})
 		if err != nil {
@@ -75,10 +78,14 @@ func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 		},
 	}}
 
-	connectTimeout := 2 * time.Second
+	connectTimeout := PRESET_CONNECT_TIMEOUT_SECONDS * time.Second
 
 	if params.ConnectTimeout > 0 {
 		connectTimeout = time.Duration(params.ConnectTimeout) * time.Second
+	} else { // set default if defined
+		if c.DefaultsParams.ConnectTimeout > 0 {
+			connectTimeout = time.Duration(params.ConnectTimeout) * time.Second
+		}
 	}
 
 	// add healthchecks
@@ -95,8 +102,8 @@ func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 		}
 
 		healthCheck := &core.HealthCheck{
-			Timeout:            ptypes.DurationProto(healthcheckTimeout),
-			Interval:           ptypes.DurationProto(healthcheckInterval),
+			Timeout:            durationpb.New(healthcheckTimeout),
+			Interval:           durationpb.New(healthcheckInterval),
 			UnhealthyThreshold: &wrappers.UInt32Value{Value: params.HealthCheck.UnhealthyThreshold},
 			HealthyThreshold:   &wrappers.UInt32Value{Value: params.HealthCheck.HealthyThreshold},
 			HealthChecker: &core.HealthCheck_HttpHealthCheck_{
@@ -109,7 +116,7 @@ func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 		// optional parameters
 		if params.HealthCheck.UnhealthyInterval != "" {
 			if healthCheckUnhealthyInterval, err := time.ParseDuration(params.HealthCheck.UnhealthyInterval); err == nil {
-				healthCheck.UnhealthyInterval = ptypes.DurationProto(healthCheckUnhealthyInterval)
+				healthCheck.UnhealthyInterval = durationpb.New(healthCheckUnhealthyInterval)
 			}
 		}
 
@@ -122,7 +129,7 @@ func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 		ClusterDiscoveryType: &api.Cluster_Type{
 			Type: api.Cluster_STRICT_DNS,
 		},
-		ConnectTimeout:  ptypes.DurationProto(connectTimeout),
+		ConnectTimeout:  durationpb.New(connectTimeout),
 		DnsLookupFamily: api.Cluster_V4_ONLY,
 		LbPolicy:        api.Cluster_ROUND_ROBIN,
 		HealthChecks:    healthChecks,
@@ -165,7 +172,7 @@ func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 				},
 			},
 		}
-		typedExtensionProtocolOptionsEncoded, err := ptypes.MarshalAny(typedExtensionProtocolOptions)
+		typedExtensionProtocolOptionsEncoded, err := anypb.New(typedExtensionProtocolOptions)
 		if err != nil {
 			panic(err)
 		}
@@ -208,4 +215,16 @@ func (c *Cluster) PrintCluster(cache *WorkQueueCache, name string) (string, erro
 		return out, nil
 	}
 	return out, fmt.Errorf("Cluster not found")
+}
+
+func (c *Cluster) updateDefaults(clusters []cacheTypes.Resource, params DefaultsParams) error {
+	c.DefaultsParams.ConnectTimeout = params.ConnectTimeout
+	for k := range clusters {
+		cluster := clusters[k].(*api.Cluster)
+		if cluster.ConnectTimeout.Seconds == PRESET_CONNECT_TIMEOUT_SECONDS {
+			cluster.ConnectTimeout = durationpb.New((time.Duration(c.DefaultsParams.ConnectTimeout) * time.Second))
+			clusters[k] = cluster
+		}
+	}
+	return nil
 }

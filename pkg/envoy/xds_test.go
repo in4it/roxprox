@@ -1421,3 +1421,43 @@ func TestRuleWithConnectionTimeout(t *testing.T) {
 		}
 	}
 }
+
+func TestRuleWithDefaults(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test-cluster-connection-timeout.yaml", "test-cluster-1.yaml", "test-defaults.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+	allClusters := x.workQueue.cache.clusters
+	checks := []bool{}
+	for _, v := range allClusters {
+		cluster := v.(*clusterAPI.Cluster)
+		if cluster.Name == "test-cluster-connectiontimeout" || cluster.Name == "test-cluster" {
+			checks = append(checks, true)
+		}
+		if cluster.Name == "test-cluster-connectiontimeout" && cluster.ConnectTimeout.Seconds != 5 {
+			t.Errorf("Cluster Connect timeout is not 5 (got %d)", cluster.ConnectTimeout.Seconds)
+		}
+		if cluster.Name == "test-cluster" && cluster.ConnectTimeout.Seconds != 15 {
+			t.Errorf("Cluster Connect timeout is not 15 (got %d)", cluster.ConnectTimeout.Seconds)
+		}
+	}
+	if len(checks) != 2 {
+		t.Errorf("Clusters not found")
+	}
+}

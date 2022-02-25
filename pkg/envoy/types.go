@@ -21,6 +21,7 @@ type WorkQueueItem struct {
 	RateLimitParams       RateLimitParams
 	MTLSParams            MTLSParams
 	LuaFilterParams       LuaFilterParams
+	DefaultsParams        DefaultsParams
 	state                 string
 }
 
@@ -203,4 +204,9 @@ type LuaFilterParams struct {
 	Name       string
 	InlineCode string
 	Listener   ListenerParamsListener
+}
+
+type DefaultsParams struct {
+	Name           string
+	ConnectTimeout int64
 }

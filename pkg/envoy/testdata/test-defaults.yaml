@@ -1,0 +1,6 @@
+api: proxy.in4it.io/v1
+kind: defaults
+metadata:
+  name: test-defaults
+spec:
+  connectTimeout: 15

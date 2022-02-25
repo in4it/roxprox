@@ -1,7 +1,7 @@
 api: proxy.in4it.io/v1
 kind: rule
 metadata:
-  name: test-cluster
+  name: test-cluster-connectiontimeout
 spec:
   conditions:
     - hostname: test.example.com
