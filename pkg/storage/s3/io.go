@@ -197,6 +197,13 @@ func (s *S3Storage) GetObject(filename string) ([]api.Object, error) {
 					return objects, err
 				}
 				object.Data = luaFilter
+			case "defaults":
+				var defaults api.Defaults
+				err = yaml.Unmarshal([]byte(contentsSplitted), &defaults)
+				if err != nil {
+					return objects, err
+				}
+				object.Data = defaults
 			default:
 				return objects, errors.New("Object in wrong format")
 			}

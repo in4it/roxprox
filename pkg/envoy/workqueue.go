@@ -258,6 +258,15 @@ func (w *WorkQueue) Submit(items []WorkQueueItem) (string, error) {
 				item.state = "finished"
 			}
 			updateXds = true
+		case "updateDefaults":
+			err := w.cluster.updateDefaults(w.cache.clusters, item.DefaultsParams)
+			if err != nil {
+				item.state = "error"
+				logger.Errorf("updateDefaults error: %s", err)
+			} else {
+				item.state = "finished"
+			}
+			updateXds = true
 		case "updateListenerWithChallenge":
 			err := w.listener.updateListenerWithChallenge(&w.cache, item.ChallengeParams)
 			if err != nil {

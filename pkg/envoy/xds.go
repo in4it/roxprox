@@ -292,6 +292,13 @@ func (x *XDS) ImportObject(object pkgApi.Object) ([]WorkQueueItem, error) {
 			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
 		}
 		return items, nil
+	case "defaults":
+		defaults := object.Data.(pkgApi.Defaults)
+		items, err := x.importDefaults(defaults)
+		if err != nil {
+			return []WorkQueueItem{}, fmt.Errorf("Couldn't import new rule: %s", err)
+		}
+		return items, nil
 	}
 
 	return []WorkQueueItem{}, nil
@@ -393,6 +400,18 @@ func (x *XDS) importLuaFilter(luaFilter pkgApi.LuaFilter) ([]WorkQueueItem, erro
 				Listener: ListenerParamsListener{
 					MTLS: luaFilter.Spec.Listener.MTLS,
 				},
+			},
+		},
+	}, nil
+}
+
+func (x *XDS) importDefaults(defaults pkgApi.Defaults) ([]WorkQueueItem, error) {
+	return []WorkQueueItem{
+		{
+			Action: "updateDefaults",
+			DefaultsParams: DefaultsParams{
+				Name:           defaults.Metadata.Name,
+				ConnectTimeout: defaults.Spec.ConnectTimeout,
 			},
 		},
 	}, nil
