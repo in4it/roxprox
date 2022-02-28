@@ -63,6 +63,7 @@ spec:
     - proxy:
         hostname: target-example.com
         port: 443
+        connectTimeout: 5
 ```
 
 ### Simple reverse proxy (path)
@@ -78,6 +79,7 @@ spec:
     - proxy:
         hostname: target-example.com
         port: 443
+        connectTimeout: 5
 ```
 
 ### Simple reverse proxy (regex)
@@ -251,6 +253,40 @@ spec:
   AllowedSubjectAltNames: ["client1.example.com"] # optional ALT Name subject restriction
   AllowedIPRanges: ["1.2.3.4/16"] # optional IP restriction
 ```
+
+## Configure defaults
+Defaults can be configured using the defaults type:
+```
+api: proxy.in4it.io/v1
+kind: defaults
+metadata:
+  name: myDefaults
+spec:
+  connectTimeout: 20
+```
+
+## Lua Filter
+A Lua Filter can be configured. This is a global filter on the listeners. You can specify also specify mTLS listeners.
+```
+api: proxy.in4it.io/v1
+kind: luaFilter
+metadata:
+  name: default-lua-filter
+spec:
+  listener:
+    mTLS: test-mtls
+  inlineCode: |
+    -- Called on the request path.
+    function envoy_on_request(request_handle)
+      -- Do something.
+    end
+    -- Called on the response path.
+    function envoy_on_response(response_handle)
+      -- Do something.
+    end
+```
+
+
 
 ## Run on AWS with terraform
 
