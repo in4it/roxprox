@@ -1430,7 +1430,7 @@ func TestRuleWithDefaults(t *testing.T) {
 		return
 	}
 	x := NewXDS(s, "", "")
-	ObjectFileNames := []string{"test-cluster-connection-timeout.yaml", "test-cluster-1.yaml", "test-defaults.yaml"}
+	ObjectFileNames := []string{"test-cluster-connection-timeout.yaml", "test-cluster-1.yaml", "test-defaults.yaml", "test-prefixrewrite.yaml"}
 	for _, filename := range ObjectFileNames {
 		newItems, err := x.putObject(filename)
 		if err != nil {
@@ -1454,6 +1454,9 @@ func TestRuleWithDefaults(t *testing.T) {
 			t.Errorf("Cluster Connect timeout is not 5 (got %d)", cluster.ConnectTimeout.Seconds)
 		}
 		if cluster.Name == "test-cluster" && cluster.ConnectTimeout.Seconds != 15 {
+			t.Errorf("Cluster Connect timeout is not 15 (got %d)", cluster.ConnectTimeout.Seconds)
+		}
+		if cluster.Name == "test-prefixrewrite" && cluster.ConnectTimeout.Seconds != 15 {
 			t.Errorf("Cluster Connect timeout is not 15 (got %d)", cluster.ConnectTimeout.Seconds)
 		}
 	}

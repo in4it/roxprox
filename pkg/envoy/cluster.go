@@ -84,7 +84,7 @@ func (c *Cluster) createCluster(params ClusterParams) *api.Cluster {
 		connectTimeout = time.Duration(params.ConnectTimeout) * time.Second
 	} else { // set default if defined
 		if c.DefaultsParams.ConnectTimeout > 0 {
-			connectTimeout = time.Duration(params.ConnectTimeout) * time.Second
+			connectTimeout = time.Duration(c.DefaultsParams.ConnectTimeout) * time.Second
 		}
 	}
 
