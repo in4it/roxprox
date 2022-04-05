@@ -15,7 +15,7 @@ RUN apk add -u -t build-tools curl git && \
 #
 # Runtime container
 #
-FROM alpine:latest  
+FROM alpine:3.15.4  
 
 WORKDIR /app
 
