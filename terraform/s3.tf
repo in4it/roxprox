@@ -1,51 +1,51 @@
-locals {
-  s3_server_side_encryption_configuration_rules = var.s3_bucket_sse ? [
-    {
-      kms_master_key_id = aws_kms_key.roxprox-s3-sse-kms[0].arn
-      sse_algorithm     = "aws:kms"
-    }
-  ] : []
-}
-
-
 resource "aws_s3_bucket" "roxprox" {
   bucket = var.s3_bucket
+}
+
+resource "aws_s3_bucket_acl" "roxprox" {
+  bucket = aws_s3_bucket.roxprox.bucket
   acl    = "private"
-  dynamic "server_side_encryption_configuration" {
-    for_each = local.s3_server_side_encryption_configuration_rules
-    content {
-      rule {
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "roxprox" {
+  count = var.s3_bucket_sse ? 1 : 0
+  bucket = aws_s3_bucket.roxprox.bucket
+rule {
         apply_server_side_encryption_by_default {
-          kms_master_key_id = server_side_encryption_configuration.value.kms_master_key_id
-          sse_algorithm     = server_side_encryption_configuration.value.sse_algorithm
+          kms_master_key_id = aws_kms_key.roxprox-s3-sse-kms[0].arn
+          sse_algorithm     = "aws:kms"
         }
       }
+}
+
+resource "aws_s3_bucket_policy" "roxprox" {
+  bucket = aws_s3_bucket.roxprox.bucket
+  policy = data.aws_iam_policy_document.roxprox.json
+}
+
+data "aws_iam_policy_document" "roxprox" {
+  statement {
+    sid = "AllowSSLRequestsOnly"
+    effect = "Deny"
+    principals {
+      type        = "AWS"
+      identifiers = ["*"]
+    }
+
+    actions = [ 
+      "s3:*" 
+    ]
+
+    resources = [
+      "arn:aws:s3:::${var.s3_bucket}",
+      "arn:aws:s3:::${var.s3_bucket}/*"
+    ]
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
     }
   }
-
-  policy = <<EOF
-{
-  "Id": "S3Policy",
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "AllowSSLRequestsOnly",
-      "Action": "s3:*",
-      "Effect": "Deny",
-      "Resource": [
-        "arn:aws:s3:::${var.s3_bucket}",
-        "arn:aws:s3:::${var.s3_bucket}/*"
-      ],
-      "Condition": {
-        "Bool": {
-          "aws:SecureTransport": "false"
-        }
-      },
-      "Principal": "*"
-    }
-  ]
-}
-EOF
 }
 
 resource "aws_s3_bucket_public_access_block" "roxprox" {
