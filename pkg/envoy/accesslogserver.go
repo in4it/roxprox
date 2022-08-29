@@ -2,12 +2,12 @@ package envoy
 
 import (
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	"google.golang.org/protobuf/types/known/anypb"
 
 	alf "github.com/envoyproxy/go-control-plane/envoy/config/accesslog/v3"
 	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	als "github.com/envoyproxy/go-control-plane/envoy/extensions/access_loggers/grpc/v3"
 	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
-	"github.com/golang/protobuf/ptypes"
 )
 
 type AccessLogServer struct{}
@@ -36,7 +36,7 @@ func (c *AccessLogServer) updateListenersWithAccessLogServer(cache *WorkQueueCac
 					manager.AccessLog = accessLogConfig
 
 					// update manager in cache
-					pbst, err := ptypes.MarshalAny(manager)
+					pbst, err := anypb.New(manager)
 					if err != nil {
 						return err
 					}
@@ -68,7 +68,7 @@ func (c *AccessLogServer) getAccessLoggerConfig(params AccessLogServerParams) ([
 			AdditionalRequestHeadersToLog:  params.AdditionalRequestHeadersToLog,
 			AdditionalResponseHeadersToLog: params.AdditionalResponseHeadersToLog,
 		}
-		alsConfigPbst, err := ptypes.MarshalAny(alsConfig)
+		alsConfigPbst, err := anypb.New(alsConfig)
 		if err != nil {
 			return nil, err
 		}

@@ -8,8 +8,8 @@ import (
 	rlc "github.com/envoyproxy/go-control-plane/envoy/config/ratelimit/v3"
 	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	rl "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/ratelimit/v3"
-	"github.com/golang/protobuf/ptypes"
 	any "github.com/golang/protobuf/ptypes/any"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type RateLimit struct {
@@ -57,7 +57,7 @@ func (r *RateLimit) updateListenersWithRateLimit(cache *WorkQueueCache, params R
 					manager.RouteSpecifier = routeSpecifier
 
 					// update manager in cache
-					pbst, err := ptypes.MarshalAny(manager)
+					pbst, err := anypb.New(manager)
 					if err != nil {
 						return err
 					}
@@ -76,10 +76,13 @@ func (r *RateLimit) updateListenersWithRateLimit(cache *WorkQueueCache, params R
 
 func (r *RateLimit) getRateLimitConfigEncoded(params RateLimitParams) (*any.Any, error) {
 	rateLimitFilter, err := r.getRateLimitConfig(params)
+	if err != nil {
+		return nil, err
+	}
 	if rateLimitFilter == nil {
 		return nil, nil
 	}
-	rateLimitFilterEncoded, err := ptypes.MarshalAny(rateLimitFilter)
+	rateLimitFilterEncoded, err := anypb.New(rateLimitFilter)
 	if err != nil {
 		return nil, err
 	}

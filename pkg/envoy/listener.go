@@ -17,7 +17,6 @@ import (
 	envoyType "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 	cacheTypes "github.com/envoyproxy/go-control-plane/pkg/cache/types"
 	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
-	"github.com/golang/protobuf/ptypes"
 	any "github.com/golang/protobuf/ptypes/any"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -61,7 +60,7 @@ func newListener() *Listener {
 }
 
 func (l *Listener) newTLSFilterChain(params TLSParams) *api.FilterChain {
-	tlsContext, err := ptypes.MarshalAny(&tls.DownstreamTlsContext{
+	tlsContext, err := anypb.New(&tls.DownstreamTlsContext{
 		CommonTlsContext: &tls.CommonTlsContext{
 			TlsCertificates: []*tls.TlsCertificate{
 				{
@@ -167,7 +166,7 @@ func (l *Listener) updateListenerWithChallenge(cache *WorkQueueCache, challenge 
 				})
 			}
 			manager.RouteSpecifier = routeSpecifier
-			pbst, err := ptypes.MarshalAny(manager)
+			pbst, err := anypb.New(manager)
 			if err != nil {
 				panic(err)
 			}
@@ -353,7 +352,7 @@ func (l *Listener) newTLSFilter(params ListenerParams, paramsTLS TLSParams, list
 		Routes:  []*route.Route{},
 	}
 	manager := l.newManager(listenerName, strings.Replace(listenerName, "l_", "r_", 1), []*route.VirtualHost{newEmptyVirtualHost}, httpFilters, false)
-	pbst, err := ptypes.MarshalAny(manager)
+	pbst, err := anypb.New(manager)
 	if err != nil {
 		panic(err)
 	}
@@ -454,7 +453,7 @@ func (l *Listener) updateListener(cache *WorkQueueCache, params ListenerParams, 
 	}
 
 	manager.RouteSpecifier = routeSpecifier
-	pbst, err := ptypes.MarshalAny(manager)
+	pbst, err := anypb.New(manager)
 	if err != nil {
 		panic(err)
 	}
@@ -535,7 +534,7 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 	httpFilters := l.newHTTPRouterFilter(listenerName)
 	manager := l.newManager(listenerName, strings.Replace(listenerName, "l_", "r_", 1), []*route.VirtualHost{}, httpFilters, params.Listener.StripAnyHostPort)
 
-	pbst, err := ptypes.MarshalAny(manager)
+	pbst, err := anypb.New(manager)
 	if err != nil {
 		panic(err)
 	}
@@ -576,7 +575,7 @@ func (l *Listener) createListener(params ListenerParams, paramsTLS TLSParams) *a
 			ServerNames: []string{params.Conditions.Hostname},
 		}
 		// add cert and key to tls listener
-		tlsContext, err := ptypes.MarshalAny(&tls.DownstreamTlsContext{
+		tlsContext, err := anypb.New(&tls.DownstreamTlsContext{
 			CommonTlsContext: &tls.CommonTlsContext{
 				TlsCertificates: []*tls.TlsCertificate{
 					{
@@ -693,7 +692,7 @@ func (l *Listener) DeleteRoute(cache *WorkQueueCache, params ListenerParams, par
 	}
 
 	manager.RouteSpecifier = routeSpecifier
-	pbst, err := ptypes.MarshalAny(manager)
+	pbst, err := anypb.New(manager)
 	if err != nil {
 		panic(err)
 	}
@@ -729,7 +728,7 @@ func (l *Listener) validateListeners(listeners []cacheTypes.Resource, clusterNam
 			for _, virtualHostRoute := range virtualHost.Routes {
 				if virtualHostRoute.Action != nil {
 					switch reflect.TypeOf(virtualHostRoute.Action).String() {
-					case "*envoy_config_route_v3.Route_Route":
+					case "*routev3.Route_Route":
 						clusterFound := false
 						virtualHostRouteClusterName := virtualHostRoute.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
 						for _, clusterName := range clusterNames {
@@ -740,7 +739,7 @@ func (l *Listener) validateListeners(listeners []cacheTypes.Resource, clusterNam
 						if !clusterFound {
 							return false, fmt.Errorf("Cluster not found: %s", virtualHostRouteClusterName)
 						}
-					case "*envoy_config_route_v3.Route_DirectResponse":
+					case "*routev3.Route_DirectResponse":
 						logger.Debugf("Validation: DirectResponse, no cluster validation necessary")
 						// no validation necessary
 					default:
@@ -764,7 +763,7 @@ func (l *Listener) updateDefaultTracingSetting(tracing TracingParams) {
 		CollectorCluster: tracing.CollectorCluster,
 		ServiceName:      "envoy",
 	}
-	tracingConfigEncoded, err := ptypes.MarshalAny(tracingConfig)
+	tracingConfigEncoded, err := anypb.New(tracingConfig)
 	if err != nil {
 		panic(err)
 	}
@@ -911,9 +910,9 @@ func (l *Listener) printListener(cache *WorkQueueCache) (string, error) {
 				}
 				if virtualHostRoute.Action != nil {
 					switch reflect.TypeOf(virtualHostRoute.Action).String() {
-					case "*envoy_config_route_v3.Route_Route":
+					case "*routev3.Route_Route":
 						res += "Route action (cluster): " + virtualHostRoute.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster + "\n"
-					case "*envoy_config_route_v3.Route_DirectResponse":
+					case "*routev3.Route_DirectResponse":
 						res += "Route action (directResponse): "
 						res += fmt.Sprint(virtualHostRoute.Action.(*route.Route_DirectResponse).DirectResponse.GetStatus()) + " "
 						res += virtualHostRoute.Action.(*route.Route_DirectResponse).DirectResponse.Body.GetInlineString() + "\n"

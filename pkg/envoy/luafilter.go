@@ -3,8 +3,8 @@ package envoy
 import (
 	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	lua "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/lua/v3"
-	"github.com/golang/protobuf/ptypes"
 	any "github.com/golang/protobuf/ptypes/any"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type LuaFilter struct{}
@@ -33,7 +33,7 @@ func (l *LuaFilter) updateListenersWithLuaFilter(cache *WorkQueueCache, params L
 					updateHTTPFilterWithConfig(&manager.HttpFilters, "envoy.filters.http.lua", luaFilterEncoded)
 
 					// update manager in cache
-					pbst, err := ptypes.MarshalAny(manager)
+					pbst, err := anypb.New(manager)
 					if err != nil {
 						return err
 					}
@@ -53,7 +53,7 @@ func (l *LuaFilter) getLuaFilterConfigEncoded(params LuaFilterParams) (*any.Any,
 	if luaFilter == nil {
 		return nil, nil
 	}
-	luaFilterEncoded, err := ptypes.MarshalAny(luaFilter)
+	luaFilterEncoded, err := anypb.New(luaFilter)
 	if err != nil {
 		return nil, err
 	}

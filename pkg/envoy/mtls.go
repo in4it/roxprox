@@ -11,7 +11,6 @@ import (
 	rbac "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/rbac/v3"
 	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
-	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -78,7 +77,7 @@ func (l *MTLS) updateMTLSListener(cache *WorkQueueCache, params ListenerParams, 
 		matchSubjectAltNames = nil
 	}
 	// add cert and key to tls listener
-	tlsContext, err := ptypes.MarshalAny(&tls.DownstreamTlsContext{
+	tlsContext, err := anypb.New(&tls.DownstreamTlsContext{
 		RequireClientCertificate: &wrapperspb.BoolValue{
 			Value: true,
 		},
@@ -163,7 +162,7 @@ func getRBACConfig(mTLSParams MTLSParams) *anypb.Any {
 			},
 		},
 	}
-	pbst, err := ptypes.MarshalAny(r)
+	pbst, err := anypb.New(r)
 	if err != nil {
 		panic(err)
 	}

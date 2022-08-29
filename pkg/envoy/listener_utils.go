@@ -324,7 +324,7 @@ func cmpRoutePrefix(a, b *route.Route) bool {
 		return false
 	}
 	switch reflect.TypeOf(a.Action).String() {
-	case "*envoy_config_route_v3.Route_Route":
+	case "*routev3.Route_Route":
 		route1 := a.Action.(*route.Route_Route).Route
 		route2 := b.Action.(*route.Route_Route).Route
 
@@ -365,7 +365,7 @@ func routeActionEqual(a, b *route.Route) bool {
 		return false
 	}
 	switch reflect.TypeOf(a.Action).String() {
-	case "*envoy_config_route_v3.Route_Route":
+	case "*routev3.Route_Route":
 		route1 := a.Action.(*route.Route_Route).Route
 		route2 := b.Action.(*route.Route_Route).Route
 		cluster1 := route1.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
@@ -373,7 +373,7 @@ func routeActionEqual(a, b *route.Route) bool {
 		if cluster1 != cluster2 {
 			return false
 		}
-	case "*envoy_config_route_v3.Route_DirectResponse":
+	case "*routev3.Route_DirectResponse":
 		status1 := a.Action.(*route.Route_DirectResponse).DirectResponse.GetStatus()
 		status2 := b.Action.(*route.Route_DirectResponse).DirectResponse.GetStatus()
 		if status1 != status2 {

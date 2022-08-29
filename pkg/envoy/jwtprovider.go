@@ -11,7 +11,8 @@ import (
 	jwtAuth "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/jwt_authn/v3"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
-	"github.com/golang/protobuf/ptypes"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 type JwtProvider struct{}
@@ -174,7 +175,7 @@ func (j *JwtProvider) getJwtConfig(auth Auth) *jwtAuth.JwtAuthentication {
 					RemoteJwks: &jwtAuth.RemoteJwks{
 						HttpUri: &core.HttpUri{
 							Uri:     auth.RemoteJwks,
-							Timeout: ptypes.DurationProto(30 * time.Second),
+							Timeout: durationpb.New(30 * time.Second),
 							HttpUpstreamType: &core.HttpUri_Cluster{
 								Cluster: "jwtProvider_" + auth.JwtProvider,
 							},
@@ -208,14 +209,14 @@ func (j *JwtProvider) updateListenerWithJwtProvider(cache *WorkQueueCache, param
 			jwtConfig.Providers[params.Auth.JwtProvider] = jwtNewConfig.Providers[params.Auth.JwtProvider]
 			logger.Debugf("Adding/updating %s to jwt config (listener: %s)", params.Auth.JwtProvider, ll.GetName())
 
-			jwtConfigEncoded, err := ptypes.MarshalAny(jwtConfig)
+			jwtConfigEncoded, err := anypb.New(jwtConfig)
 			if err != nil {
 				panic(err)
 			}
 
 			updateHTTPFilterWithConfig(&manager.HttpFilters, "envoy.filters.http.jwt_authn", jwtConfigEncoded)
 
-			pbst, err := ptypes.MarshalAny(manager)
+			pbst, err := anypb.New(manager)
 			if err != nil {
 				panic(err)
 			}
@@ -297,14 +298,14 @@ func (j *JwtProvider) UpdateJwtRule(cache *WorkQueueCache, params ListenerParams
 			jwtConfig.Rules = append(jwtConfig.Rules, newJwtRule)
 		}
 	}
-	jwtConfigEncoded, err := ptypes.MarshalAny(jwtConfig)
+	jwtConfigEncoded, err := anypb.New(jwtConfig)
 	if err != nil {
 		panic(err)
 	}
 
 	updateHTTPFilterWithConfig(&manager.HttpFilters, "envoy.filters.http.jwt_authn", jwtConfigEncoded)
 
-	pbst, err := ptypes.MarshalAny(manager)
+	pbst, err := anypb.New(manager)
 	if err != nil {
 		panic(err)
 	}
@@ -374,7 +375,7 @@ func (j *JwtProvider) DeleteJwtRule(cache *WorkQueueCache, params ListenerParams
 			index := j.requirementRuleIndex(jwtConfig.Rules, rule)
 			jwtConfig.Rules = append(jwtConfig.Rules[:index], jwtConfig.Rules[index+1:]...)
 		}
-		jwtConfigEncoded, err := ptypes.MarshalAny(jwtConfig)
+		jwtConfigEncoded, err := anypb.New(jwtConfig)
 		if err != nil {
 			panic(err)
 		}
@@ -384,7 +385,7 @@ func (j *JwtProvider) DeleteJwtRule(cache *WorkQueueCache, params ListenerParams
 		logger.Debugf("Couldn't find jwt provider %s during deleteRoute", params.Auth.JwtProvider)
 	}
 
-	pbst, err := ptypes.MarshalAny(manager)
+	pbst, err := anypb.New(manager)
 	if err != nil {
 		panic(err)
 	}
