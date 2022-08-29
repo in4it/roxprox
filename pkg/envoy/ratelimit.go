@@ -8,7 +8,6 @@ import (
 	rlc "github.com/envoyproxy/go-control-plane/envoy/config/ratelimit/v3"
 	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	rl "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/ratelimit/v3"
-	ssl "github.com/envoyproxy/go-control-plane/envoy/extensions/matching/common_inputs/ssl/v3"
 	any "github.com/golang/protobuf/ptypes/any"
 	"google.golang.org/protobuf/types/known/anypb"
 )
@@ -145,20 +144,6 @@ func (r *RateLimit) getRateLimitVirtualHostConfig(params RateLimitParams) (*rout
 			ActionSpecifier: &route.RateLimit_Action_GenericKey_{
 				GenericKey: &route.RateLimit_Action_GenericKey{
 					DescriptorValue: "__identifier:" + params.Name,
-				},
-			},
-		})
-	}
-	if params.Listener.MTLS != "" {
-		extensionConfig, err := anypb.New(&ssl.SubjectInput{})
-		if err != nil {
-			return nil, err
-		}
-		actions = append(actions, &route.RateLimit_Action{
-			ActionSpecifier: &route.RateLimit_Action_Extension{
-				Extension: &core.TypedExtensionConfig{
-					Name:        "mtls_subject",
-					TypedConfig: extensionConfig,
 				},
 			},
 		})
