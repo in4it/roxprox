@@ -6,8 +6,9 @@ import (
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	extAuthz "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/ext_authz/v3"
-	"github.com/golang/protobuf/ptypes"
 	any "github.com/golang/protobuf/ptypes/any"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 type AuthzFilter struct{}
@@ -39,7 +40,7 @@ func (a *AuthzFilter) updateListenersWithAuthzFilter(cache *WorkQueueCache, para
 					updateHTTPFilterWithConfig(&manager.HttpFilters, "envoy.ext_authz", authzConfigEncoded)
 
 					// update manager in cache
-					pbst, err := ptypes.MarshalAny(manager)
+					pbst, err := anypb.New(manager)
 					if err != nil {
 						return err
 					}
@@ -60,7 +61,7 @@ func (a *AuthzFilter) getAuthzFilterEncoded(params ListenerParams) (*any.Any, er
 	if err != nil {
 		return nil, err
 	}
-	authzConfigEncoded, err := ptypes.MarshalAny(authzConfig)
+	authzConfigEncoded, err := anypb.New(authzConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +78,7 @@ func (a *AuthzFilter) getAuthzFilter(params ListenerParams) (*extAuthz.ExtAuthz,
 		FailureModeAllow:    params.Authz.FailureModeAllow,
 		Services: &extAuthz.ExtAuthz_GrpcService{
 			GrpcService: &core.GrpcService{
-				Timeout: ptypes.DurationProto(timeout),
+				Timeout: durationpb.New(timeout),
 				TargetSpecifier: &core.GrpcService_EnvoyGrpc_{
 					EnvoyGrpc: &core.GrpcService_EnvoyGrpc{
 						ClusterName: params.Name,

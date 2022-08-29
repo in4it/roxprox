@@ -5,7 +5,7 @@ import (
 	tracev3 "github.com/envoyproxy/go-control-plane/envoy/config/trace/v3"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	envoyType "github.com/envoyproxy/go-control-plane/envoy/type/v3"
-	"github.com/golang/protobuf/ptypes"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type Tracing struct{}
@@ -31,7 +31,7 @@ func (t *Tracing) updateListenersWithTracing(cache *WorkQueueCache, tracing Trac
 						CollectorCluster: tracing.CollectorCluster,
 						ServiceName:      "envoy",
 					}
-					tracingConfigEncoded, err := ptypes.MarshalAny(tracingConfig)
+					tracingConfigEncoded, err := anypb.New(tracingConfig)
 					if err != nil {
 						return err
 					}
@@ -49,7 +49,7 @@ func (t *Tracing) updateListenersWithTracing(cache *WorkQueueCache, tracing Trac
 					}
 
 					// update manager in cache
-					pbst, err := ptypes.MarshalAny(manager)
+					pbst, err := anypb.New(manager)
 					if err != nil {
 						return err
 					}

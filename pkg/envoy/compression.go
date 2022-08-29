@@ -5,8 +5,8 @@ import (
 	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	gzip "github.com/envoyproxy/go-control-plane/envoy/extensions/compression/gzip/compressor/v3"
 	compressor "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/compressor/v3"
-	"github.com/golang/protobuf/ptypes"
 	any "github.com/golang/protobuf/ptypes/any"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type Compression struct{}
@@ -38,7 +38,7 @@ func (c *Compression) updateListenersWithCompression(cache *WorkQueueCache, para
 					updateHTTPFilterWithConfig(&manager.HttpFilters, "envoy.filters.http.compressor", compressorConfigEncoded)
 
 					// update manager in cache
-					pbst, err := ptypes.MarshalAny(manager)
+					pbst, err := anypb.New(manager)
 					if err != nil {
 						return err
 					}
@@ -57,10 +57,13 @@ func (c *Compression) updateListenersWithCompression(cache *WorkQueueCache, para
 
 func (c *Compression) getCompressionFilterEncoded(params CompressionParams) (*any.Any, error) {
 	compressionFilter, err := c.getCompressionFilter(params)
+	if err != nil {
+		return nil, err
+	}
 	if compressionFilter == nil {
 		return nil, nil
 	}
-	compressionFilterEncoded, err := ptypes.MarshalAny(compressionFilter)
+	compressionFilterEncoded, err := anypb.New(compressionFilter)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +77,7 @@ func (c *Compression) getCompressionFilter(compression CompressionParams) (*comp
 			CompressionLevel:    gzip.Gzip_DEFAULT_COMPRESSION,
 			CompressionStrategy: gzip.Gzip_DEFAULT_STRATEGY,
 		}
-		gzipEncoded, err := ptypes.MarshalAny(&gzip)
+		gzipEncoded, err := anypb.New(&gzip)
 		if err != nil {
 			return nil, err
 		}
