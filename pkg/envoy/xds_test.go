@@ -578,7 +578,7 @@ func TestClusterWithWebsockets(t *testing.T) {
 			for _, virtualHostRoute := range virtualHost.Routes {
 				if virtualHostRoute.Action != nil {
 					switch reflect.TypeOf(virtualHostRoute.Action).String() {
-					case "*envoy_config_route_v3.Route_Route":
+					case "*routev3.Route_Route":
 						upgradeConfigs = virtualHostRoute.Action.(*route.Route_Route).Route.GetUpgradeConfigs()
 					}
 				}
@@ -638,7 +638,7 @@ func TestClusterWithPathRewrite(t *testing.T) {
 			for _, virtualHostRoute := range virtualHost.Routes {
 				if virtualHostRoute.Action != nil {
 					switch reflect.TypeOf(virtualHostRoute.Action).String() {
-					case "*envoy_config_route_v3.Route_Route":
+					case "*routev3.Route_Route":
 						prefixRewrite = virtualHostRoute.Action.(*route.Route_Route).Route.GetPrefixRewrite()
 					}
 				}
@@ -706,7 +706,7 @@ func TestClusterWithPathRewriteWithChange(t *testing.T) {
 				routeCount++
 				if virtualHostRoute.Action != nil {
 					switch reflect.TypeOf(virtualHostRoute.Action).String() {
-					case "*envoy_config_route_v3.Route_Route":
+					case "*routev3.Route_Route":
 						prefixRewrite = virtualHostRoute.Action.(*route.Route_Route).Route.GetPrefixRewrite()
 					}
 				}
@@ -763,7 +763,7 @@ func TestClusterWithRegexRewrite(t *testing.T) {
 			for _, virtualHostRoute := range virtualHost.Routes {
 				if virtualHostRoute.Action != nil {
 					switch reflect.TypeOf(virtualHostRoute.Action).String() {
-					case "*envoy_config_route_v3.Route_Route":
+					case "*routev3.Route_Route":
 						regexRewrite = virtualHostRoute.Action.(*route.Route_Route).Route.GetRegexRewrite()
 					}
 				}
@@ -972,7 +972,7 @@ func TestMTLSObject(t *testing.T) {
 				for _, virtualHostRoute := range virtualHost.Routes {
 					if virtualHostRoute.Action != nil {
 						switch reflect.TypeOf(virtualHostRoute.Action).String() {
-						case "*envoy_config_route_v3.Route_Route":
+						case "*routev3.Route_Route":
 							if virtualHostRoute.Action.(*route.Route_Route).Route.GetCluster() != "mtls-testrule" {
 								t.Errorf("Route for mtls not found: %s", err)
 								return

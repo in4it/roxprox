@@ -751,15 +751,15 @@ func validateAttributes(manager *hcm.HttpConnectionManager, params ListenerParam
 				domainFound = true
 				for _, r := range virtualhost.Routes {
 					switch reflect.TypeOf(r.Match.PathSpecifier).String() {
-					case "*envoy_config_route_v3.RouteMatch_Prefix":
+					case "*routev3.RouteMatch_Prefix":
 						if r.Match.PathSpecifier.(*route.RouteMatch_Prefix).Prefix == params.Conditions.Prefix {
 							prefixFound = true
 						}
-					case "*envoy_config_route_v3.RouteMatch_Path":
+					case "*routev3.RouteMatch_Path":
 						if r.Match.PathSpecifier.(*route.RouteMatch_Path).Path == params.Conditions.Path {
 							pathFound = true
 						}
-					case "*envoy_config_route_v3.RouteMatch_SafeRegex":
+					case "*routev3.RouteMatch_SafeRegex":
 						if r.Match.PathSpecifier.(*route.RouteMatch_SafeRegex).SafeRegex.GetRegex() == params.Conditions.Regex {
 							regexFound = true
 						}
@@ -776,9 +776,9 @@ func validateAttributes(manager *hcm.HttpConnectionManager, params ListenerParam
 						}
 					}
 					switch reflect.TypeOf(r.Action).String() {
-					case "*envoy_config_route_v3.Route_Route":
+					case "*routev3.Route_Route":
 						// do nothing here
-					case "*envoy_config_route_v3.Route_DirectResponse":
+					case "*routev3.Route_DirectResponse":
 						d := r.Action.(*route.Route_DirectResponse).DirectResponse
 						if params.DirectResponse.Status == d.GetStatus() && params.DirectResponse.Body == d.GetBody().GetInlineString() {
 							directResponseFound = true
@@ -937,15 +937,15 @@ func validateJWT(manager *hcm.HttpConnectionManager, params ListenerParams) erro
 		matchedEntries := 0
 		for _, rule := range jwtConfig.Rules {
 			switch reflect.TypeOf(rule.Match.PathSpecifier).String() {
-			case "*envoy_config_route_v3.RouteMatch_Prefix":
+			case "*routev3.RouteMatch_Prefix":
 				if rule.Match.PathSpecifier.(*route.RouteMatch_Prefix).Prefix == params.Conditions.Prefix {
 					prefixFound = true
 				}
-			case "*envoy_config_route_v3.RouteMatch_Path":
+			case "*routev3.RouteMatch_Path":
 				if rule.Match.PathSpecifier.(*route.RouteMatch_Path).Path == params.Conditions.Path {
 					pathFound = true
 				}
-			case "*envoy_config_route_v3.RouteMatch_SafeRegex":
+			case "*routev3.RouteMatch_SafeRegex":
 				if rule.Match.PathSpecifier.(*route.RouteMatch_SafeRegex).SafeRegex.GetRegex() == params.Conditions.Regex {
 					regexFound = true
 				}

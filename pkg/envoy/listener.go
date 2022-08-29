@@ -729,7 +729,7 @@ func (l *Listener) validateListeners(listeners []cacheTypes.Resource, clusterNam
 			for _, virtualHostRoute := range virtualHost.Routes {
 				if virtualHostRoute.Action != nil {
 					switch reflect.TypeOf(virtualHostRoute.Action).String() {
-					case "*envoy_config_route_v3.Route_Route":
+					case "*routev3.Route_Route":
 						clusterFound := false
 						virtualHostRouteClusterName := virtualHostRoute.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster
 						for _, clusterName := range clusterNames {
@@ -740,7 +740,7 @@ func (l *Listener) validateListeners(listeners []cacheTypes.Resource, clusterNam
 						if !clusterFound {
 							return false, fmt.Errorf("Cluster not found: %s", virtualHostRouteClusterName)
 						}
-					case "*envoy_config_route_v3.Route_DirectResponse":
+					case "*routev3.Route_DirectResponse":
 						logger.Debugf("Validation: DirectResponse, no cluster validation necessary")
 						// no validation necessary
 					default:
@@ -911,9 +911,9 @@ func (l *Listener) printListener(cache *WorkQueueCache) (string, error) {
 				}
 				if virtualHostRoute.Action != nil {
 					switch reflect.TypeOf(virtualHostRoute.Action).String() {
-					case "*envoy_config_route_v3.Route_Route":
+					case "*routev3.Route_Route":
 						res += "Route action (cluster): " + virtualHostRoute.Action.(*route.Route_Route).Route.ClusterSpecifier.(*route.RouteAction_Cluster).Cluster + "\n"
-					case "*envoy_config_route_v3.Route_DirectResponse":
+					case "*routev3.Route_DirectResponse":
 						res += "Route action (directResponse): "
 						res += fmt.Sprint(virtualHostRoute.Action.(*route.Route_DirectResponse).DirectResponse.GetStatus()) + " "
 						res += virtualHostRoute.Action.(*route.Route_DirectResponse).DirectResponse.Body.GetInlineString() + "\n"

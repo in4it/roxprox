@@ -32,7 +32,7 @@ type WorkQueue struct {
 	accessLogServer *AccessLogServer
 	cluster         *Cluster
 	acmeContact     string
-	latestSnapshot  cache.Snapshot
+	latestSnapshot  *cache.Snapshot
 }
 
 func NewWorkQueue(s storage.Storage, acmeContact string) (*WorkQueue, error) {
