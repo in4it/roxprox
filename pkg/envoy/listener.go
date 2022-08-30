@@ -213,7 +213,8 @@ func (l *Listener) getVirtualHost(listenerName, hostname, targetHostname, target
 		if regexRewrite.Regex != "" {
 			envoyRegexRewrite = &matcher.RegexMatchAndSubstitute{
 				Pattern: &matcher.RegexMatcher{
-					Regex: regexRewrite.Regex,
+					Regex:      regexRewrite.Regex,
+					EngineType: &matcher.RegexMatcher_GoogleRe2{GoogleRe2: &matcher.RegexMatcher_GoogleRE2{}},
 				},
 				Substitution: regexRewrite.Substitution,
 			}
@@ -302,7 +303,8 @@ func (l *Listener) getVirtualHost(listenerName, hostname, targetHostname, target
 				Match: &route.RouteMatch{
 					PathSpecifier: &route.RouteMatch_SafeRegex{
 						SafeRegex: &matcher.RegexMatcher{
-							Regex: targetPrefix,
+							EngineType: &matcher.RegexMatcher_GoogleRe2{GoogleRe2: &matcher.RegexMatcher_GoogleRE2{}},
+							Regex:      targetPrefix,
 						},
 					},
 				},
@@ -314,7 +316,8 @@ func (l *Listener) getVirtualHost(listenerName, hostname, targetHostname, target
 					Match: &route.RouteMatch{
 						PathSpecifier: &route.RouteMatch_SafeRegex{
 							SafeRegex: &matcher.RegexMatcher{
-								Regex: targetPrefix,
+								EngineType: &matcher.RegexMatcher_GoogleRe2{GoogleRe2: &matcher.RegexMatcher_GoogleRE2{}},
+								Regex:      targetPrefix,
 							},
 						},
 						Headers: []*route.HeaderMatcher{header},

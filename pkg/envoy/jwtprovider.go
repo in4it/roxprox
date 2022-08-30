@@ -125,7 +125,8 @@ func (j *JwtProvider) getJwtRule(conditions Conditions, clusterName string, jwtP
 				Match: &route.RouteMatch{
 					PathSpecifier: &route.RouteMatch_SafeRegex{
 						SafeRegex: &matcher.RegexMatcher{
-							Regex: conditions.Regex,
+							EngineType: &matcher.RegexMatcher_GoogleRe2{GoogleRe2: &matcher.RegexMatcher_GoogleRE2{}},
+							Regex:      conditions.Regex,
 						},
 					},
 					Headers: hostnameHeaders,
@@ -140,7 +141,8 @@ func (j *JwtProvider) getJwtRule(conditions Conditions, clusterName string, jwtP
 					Match: &route.RouteMatch{
 						PathSpecifier: &route.RouteMatch_SafeRegex{
 							SafeRegex: &matcher.RegexMatcher{
-								Regex: conditions.Regex,
+								EngineType: &matcher.RegexMatcher_GoogleRe2{GoogleRe2: &matcher.RegexMatcher_GoogleRE2{}},
+								Regex:      conditions.Regex,
 							},
 						},
 						Headers: append(hostnameHeaders, methodHeader),
