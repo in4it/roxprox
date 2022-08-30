@@ -769,7 +769,7 @@ func validateAttributes(manager *hcm.HttpConnectionManager, params ListenerParam
 					if len(params.Conditions.Methods) > 0 {
 						for _, v1 := range r.Match.Headers {
 							for _, v2 := range params.Conditions.Methods {
-								if v1.GetName() == ":method" && v1.GetExactMatch() == v2 {
+								if v1.GetName() == ":method" && v1.GetStringMatch().GetExact() == v2 {
 									methodsFound[v2] = true
 								}
 							}
@@ -836,7 +836,7 @@ func validateMethods(headers []*route.HeaderMatcher, methods []string) bool {
 	methodsInHeader := []string{}
 	for _, v := range headers {
 		if v.Name == ":method" {
-			methodsInHeader = append(methodsInHeader, v.GetExactMatch())
+			methodsInHeader = append(methodsInHeader, v.GetStringMatch().GetExact())
 		}
 	}
 	sort.Strings(methodsInHeader)
@@ -954,14 +954,14 @@ func validateJWT(manager *hcm.HttpConnectionManager, params ListenerParams) erro
 			}
 			if prefixFound || pathFound || regexFound {
 				for _, header := range rule.Match.Headers {
-					if header.Name == ":authority" && header.HeaderMatchSpecifier.(*route.HeaderMatcher_ExactMatch).ExactMatch == params.Conditions.Hostname {
+					if header.Name == ":authority" && header.HeaderMatchSpecifier.(*route.HeaderMatcher_StringMatch).StringMatch.GetExact() == params.Conditions.Hostname {
 						domainFound = true
 					}
 				}
 				if len(params.Conditions.Methods) > 0 {
 					for _, v1 := range rule.Match.Headers {
 						for _, v2 := range params.Conditions.Methods {
-							if v1.GetName() == ":method" && v1.GetExactMatch() == v2 {
+							if v1.GetName() == ":method" && v1.GetStringMatch().GetExact() == v2 {
 								methodsFound[v2] = true
 							}
 						}
