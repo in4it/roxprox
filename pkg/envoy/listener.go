@@ -11,6 +11,7 @@ import (
 	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	tracev3 "github.com/envoyproxy/go-control-plane/envoy/config/trace/v3"
+	router "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/router/v3"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
@@ -46,9 +47,16 @@ type Listener struct {
 
 func newListener() *Listener {
 	listener := &Listener{}
+	typedRouterConfig, err := anypb.New(&router.Router{})
+	if err != nil {
+		panic(err)
+	}
 	listener.httpFilter = []*hcm.HttpFilter{
 		{
 			Name: "envoy.filters.http.router",
+			ConfigType: &hcm.HttpFilter_TypedConfig{
+				TypedConfig: typedRouterConfig,
+			},
 		},
 	}
 	listener.accessLoggerConfig = []*alf.AccessLog{}
@@ -205,8 +213,7 @@ func (l *Listener) getVirtualHost(listenerName, hostname, targetHostname, target
 		if regexRewrite.Regex != "" {
 			envoyRegexRewrite = &matcher.RegexMatchAndSubstitute{
 				Pattern: &matcher.RegexMatcher{
-					EngineType: &matcher.RegexMatcher_GoogleRe2{},
-					Regex:      regexRewrite.Regex,
+					Regex: regexRewrite.Regex,
 				},
 				Substitution: regexRewrite.Substitution,
 			}
@@ -232,8 +239,12 @@ func (l *Listener) getVirtualHost(listenerName, hostname, targetHostname, target
 		for _, method := range methods {
 			headers = append(headers, &route.HeaderMatcher{
 				Name: ":method",
-				HeaderMatchSpecifier: &route.HeaderMatcher_ExactMatch{
-					ExactMatch: method,
+				HeaderMatchSpecifier: &route.HeaderMatcher_StringMatch{
+					StringMatch: &matcher.StringMatcher{
+						MatchPattern: &matcher.StringMatcher_Exact{
+							Exact: method,
+						},
+					},
 				},
 			})
 		}
@@ -291,8 +302,7 @@ func (l *Listener) getVirtualHost(listenerName, hostname, targetHostname, target
 				Match: &route.RouteMatch{
 					PathSpecifier: &route.RouteMatch_SafeRegex{
 						SafeRegex: &matcher.RegexMatcher{
-							Regex:      targetPrefix,
-							EngineType: &matcher.RegexMatcher_GoogleRe2{GoogleRe2: &matcher.RegexMatcher_GoogleRE2{}},
+							Regex: targetPrefix,
 						},
 					},
 				},
@@ -304,8 +314,7 @@ func (l *Listener) getVirtualHost(listenerName, hostname, targetHostname, target
 					Match: &route.RouteMatch{
 						PathSpecifier: &route.RouteMatch_SafeRegex{
 							SafeRegex: &matcher.RegexMatcher{
-								Regex:      targetPrefix,
-								EngineType: &matcher.RegexMatcher_GoogleRe2{GoogleRe2: &matcher.RegexMatcher_GoogleRE2{}},
+								Regex: targetPrefix,
 							},
 						},
 						Headers: []*route.HeaderMatcher{header},
