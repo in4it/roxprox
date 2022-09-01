@@ -39,8 +39,12 @@ func (j *JwtProvider) getJwtRule(conditions Conditions, clusterName string, jwtP
 	if conditions.Hostname != "" {
 		hostnameHeaders = append(hostnameHeaders, &route.HeaderMatcher{
 			Name: ":authority",
-			HeaderMatchSpecifier: &route.HeaderMatcher_ExactMatch{
-				ExactMatch: conditions.Hostname,
+			HeaderMatchSpecifier: &route.HeaderMatcher_StringMatch{
+				StringMatch: &matcher.StringMatcher{
+					MatchPattern: &matcher.StringMatcher_Exact{
+						Exact: conditions.Hostname,
+					},
+				},
 			},
 		})
 	}
@@ -49,8 +53,12 @@ func (j *JwtProvider) getJwtRule(conditions Conditions, clusterName string, jwtP
 		for _, method := range conditions.Methods {
 			methodHeaders = append(methodHeaders, &route.HeaderMatcher{
 				Name: ":method",
-				HeaderMatchSpecifier: &route.HeaderMatcher_ExactMatch{
-					ExactMatch: method,
+				HeaderMatchSpecifier: &route.HeaderMatcher_StringMatch{
+					StringMatch: &matcher.StringMatcher{
+						MatchPattern: &matcher.StringMatcher_Exact{
+							Exact: method,
+						},
+					},
 				},
 			})
 		}
@@ -117,8 +125,8 @@ func (j *JwtProvider) getJwtRule(conditions Conditions, clusterName string, jwtP
 				Match: &route.RouteMatch{
 					PathSpecifier: &route.RouteMatch_SafeRegex{
 						SafeRegex: &matcher.RegexMatcher{
-							Regex:      conditions.Regex,
 							EngineType: &matcher.RegexMatcher_GoogleRe2{GoogleRe2: &matcher.RegexMatcher_GoogleRE2{}},
+							Regex:      conditions.Regex,
 						},
 					},
 					Headers: hostnameHeaders,
@@ -133,8 +141,8 @@ func (j *JwtProvider) getJwtRule(conditions Conditions, clusterName string, jwtP
 					Match: &route.RouteMatch{
 						PathSpecifier: &route.RouteMatch_SafeRegex{
 							SafeRegex: &matcher.RegexMatcher{
-								Regex:      conditions.Regex,
 								EngineType: &matcher.RegexMatcher_GoogleRe2{GoogleRe2: &matcher.RegexMatcher_GoogleRE2{}},
+								Regex:      conditions.Regex,
 							},
 						},
 						Headers: append(hostnameHeaders, methodHeader),

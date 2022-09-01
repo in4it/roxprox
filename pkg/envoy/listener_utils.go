@@ -230,7 +230,7 @@ func cmpMatch(a *route.RouteMatch, b *route.RouteMatch) bool {
 			return false
 		}
 
-		if aa.HeaderMatchSpecifier.(*route.HeaderMatcher_ExactMatch).ExactMatch != bb.HeaderMatchSpecifier.(*route.HeaderMatcher_ExactMatch).ExactMatch {
+		if aa.HeaderMatchSpecifier.(*route.HeaderMatcher_StringMatch).StringMatch.GetExact() != bb.HeaderMatchSpecifier.(*route.HeaderMatcher_StringMatch).StringMatch.GetExact() {
 			logger.Tracef("cmpMatch: mismatch in header value ")
 			return false
 		}
@@ -247,28 +247,24 @@ func headerMatchEqual(a, b *route.HeaderMatcher) bool {
 	if a.GetName() != b.GetName() {
 		return false
 	}
-	if a.GetExactMatch() != b.GetExactMatch() {
+	aStringMatch := a.GetStringMatch()
+	bStringMatch := b.GetStringMatch()
+	if aStringMatch.GetExact() != bStringMatch.GetExact() {
 		return false
 	}
-	if a.GetInvertMatch() != b.GetInvertMatch() {
+	if aStringMatch.IgnoreCase != bStringMatch.IgnoreCase {
 		return false
 	}
-	if a.GetPrefixMatch() != b.GetPrefixMatch() {
+	if aStringMatch.GetPrefix() != bStringMatch.GetPrefix() {
 		return false
 	}
-	if a.GetRangeMatch() != b.GetRangeMatch() {
+	if aStringMatch.GetSuffix() != bStringMatch.GetSuffix() {
 		return false
 	}
-	if a.GetSafeRegexMatch().GetRegex() != b.GetSafeRegexMatch().GetRegex() {
+	if aStringMatch.GetContains() != bStringMatch.GetContains() {
 		return false
 	}
-	if a.GetPresentMatch() != b.GetPresentMatch() {
-		return false
-	}
-	if a.GetSafeRegexMatch() != b.GetSafeRegexMatch() {
-		return false
-	}
-	if a.GetSuffixMatch() != b.GetSuffixMatch() {
+	if aStringMatch.GetSafeRegex().GetRegex() != bStringMatch.GetSafeRegex().GetRegex() {
 		return false
 	}
 	return true
