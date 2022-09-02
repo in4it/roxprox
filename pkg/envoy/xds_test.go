@@ -1168,6 +1168,108 @@ func TestRateLimitObjectWithMTLS3(t *testing.T) {
 		}
 	}
 }
+func TestRateLimitObjectWithMTLS4(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test1.yaml", "test-mtls.yaml", "test-ratelimit-mtls-disableondefault.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+	httpDefaultFound := false
+	for listenerKey := range x.workQueue.cache.listeners {
+		ll := x.workQueue.cache.listeners[listenerKey].(*api.Listener)
+		if ll.GetName() == "l_http" {
+			httpDefaultFound = true
+			manager, err := getListenerHTTPConnectionManager(ll)
+			if err != nil {
+				t.Errorf("getListenerHTTPConnectionManager error: %s", err)
+				return
+			}
+			if getListenerHTTPFilterIndex("envoy.filters.http.ratelimit", manager.HttpFilters) != -1 {
+				t.Errorf("envoy.filters.http.ratelimit found in httprouter filter - should be found")
+				return
+			}
+		} else {
+			manager, err := getListenerHTTPConnectionManager(ll)
+			if err != nil {
+				t.Errorf("getListenerHTTPConnectionManager error: %s", err)
+				return
+			}
+			if getListenerHTTPFilterIndex("envoy.filters.http.ratelimit", manager.HttpFilters) == -1 {
+				t.Errorf("envoy.filters.http.ratelimit not found in httprouter filter - should be found")
+				return
+			}
+		}
+	}
+	if !httpDefaultFound {
+		t.Fatalf("default listener not found")
+	}
+}
+func TestRateLimitObjectWithMTLS5(t *testing.T) {
+	logger.SetLogLevel(loggo.DEBUG)
+	s, err := initStorage()
+	if err != nil {
+		t.Errorf("Couldn't initialize storage: %s", err)
+		return
+	}
+	x := NewXDS(s, "", "")
+	ObjectFileNames := []string{"test1.yaml", "test-mtls.yaml", "test-ratelimit.yaml", "test-ratelimit-mtls-disableondefault.yaml"}
+	for _, filename := range ObjectFileNames {
+		newItems, err := x.putObject(filename)
+		if err != nil {
+			t.Errorf("PutObject failed: %s", err)
+			return
+		}
+		_, err = x.workQueue.Submit(newItems)
+		if err != nil {
+			t.Errorf("WorkQueue error: %s", err)
+			return
+		}
+	}
+	httpDefaultFound := false
+	for listenerKey := range x.workQueue.cache.listeners {
+		ll := x.workQueue.cache.listeners[listenerKey].(*api.Listener)
+		if ll.GetName() == "l_http" {
+			httpDefaultFound = true
+			manager, err := getListenerHTTPConnectionManager(ll)
+			if err != nil {
+				t.Errorf("getListenerHTTPConnectionManager error: %s", err)
+				return
+			}
+			if getListenerHTTPFilterIndex("envoy.filters.http.ratelimit", manager.HttpFilters) == -1 {
+				t.Errorf("envoy.filters.http.ratelimit not found in httprouter filter - should be found")
+				return
+			}
+		} else {
+			manager, err := getListenerHTTPConnectionManager(ll)
+			if err != nil {
+				t.Errorf("getListenerHTTPConnectionManager error: %s", err)
+				return
+			}
+			if getListenerHTTPFilterIndex("envoy.filters.http.ratelimit", manager.HttpFilters) == -1 {
+				t.Errorf("envoy.filters.http.ratelimit not found in mtls httprouter filter - should be found")
+				return
+			}
+		}
+	}
+	if !httpDefaultFound {
+		t.Fatalf("default listener not found")
+	}
+}
 func TestAuthzObjectWithMTLS2(t *testing.T) {
 	logger.SetLogLevel(loggo.DEBUG)
 	s, err := initStorage()

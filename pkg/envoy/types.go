@@ -69,6 +69,7 @@ type ListenerParamsListener struct {
 	MTLS             string
 	Port             int64
 	StripAnyHostPort bool
+	DisableOnDefault bool
 }
 
 type ChallengeParams struct {
@@ -187,6 +188,7 @@ type RateLimitDescriptor struct {
 	SourceCluster      bool
 	RemoteAddress      bool
 	RequestHeader      string
+	MTLSSubject        bool
 }
 
 type MTLSParams struct {

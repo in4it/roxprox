@@ -1,0 +1,12 @@
+api: proxy.in4it.io/v1
+kind: rateLimit
+metadata:
+  name: ratelimit-disable-on-default
+spec:
+  listener:
+    mTLS: test-mtls
+    disableOnDefault: true
+  descriptors:
+    - mTLSSubject: true
+  requestPerUnit: 1
+  Unit: hour
