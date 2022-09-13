@@ -8,6 +8,7 @@ import (
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	rbacConfig "github.com/envoyproxy/go-control-plane/envoy/config/rbac/v3"
+	proxyProtocol "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/listener/proxy_protocol/v3"
 	rbac "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/rbac/v3"
 	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
@@ -49,8 +50,16 @@ func (l *MTLS) updateMTLSListener(cache *WorkQueueCache, params ListenerParams, 
 	// set proxy protocol filter
 	ll.ListenerFilters = []*api.ListenerFilter{}
 	if mTLSParams.EnableProxyProtocol {
+		proxyProtocol := &proxyProtocol.ProxyProtocol{}
+		proxyProtocolPbst, err := anypb.New(proxyProtocol)
+		if err != nil {
+			return fmt.Errorf("anypb.New error: %s", err)
+		}
 		ll.ListenerFilters = append(ll.ListenerFilters, &api.ListenerFilter{
 			Name: "envoy.filters.listener.proxy_protocol",
+			ConfigType: &api.ListenerFilter_TypedConfig{
+				TypedConfig: proxyProtocolPbst,
+			},
 		})
 	}
 	// set AllowedIPRanges
