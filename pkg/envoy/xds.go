@@ -425,6 +425,7 @@ func (x *XDS) importRateLimit(rateLimit pkgApi.RateLimit) ([]WorkQueueItem, erro
 			SourceCluster:      descriptor.SourceCluster,
 			RemoteAddress:      descriptor.RemoteAddress,
 			RequestHeader:      descriptor.RequestHeader,
+			MTLSSubject:        descriptor.MTLSSubject,
 		})
 	}
 	return []WorkQueueItem{
@@ -434,7 +435,8 @@ func (x *XDS) importRateLimit(rateLimit pkgApi.RateLimit) ([]WorkQueueItem, erro
 				Name:        rateLimit.Metadata.Name,
 				Descriptors: descriptors,
 				Listener: ListenerParamsListener{
-					MTLS: rateLimit.Spec.Listener.MTLS,
+					MTLS:             rateLimit.Spec.Listener.MTLS,
+					DisableOnDefault: rateLimit.Spec.Listener.DisableOnDefault,
 				},
 			},
 		},
@@ -857,7 +859,7 @@ func (x *XDS) launchCreateCert(name string, domains []string) WorkQueueItem {
 	return workQueueItem
 }
 
-//ReceiveNotification receives notification items and will process them
+// ReceiveNotification receives notification items and will process them
 func (x *XDS) ReceiveNotification(notifications []*notification.NotificationRequest_NotificationItem) error {
 	var (
 		workQueueItems []WorkQueueItem

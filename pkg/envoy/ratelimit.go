@@ -8,23 +8,26 @@ import (
 	rlc "github.com/envoyproxy/go-control-plane/envoy/config/ratelimit/v3"
 	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	rl "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/ratelimit/v3"
+	ssl "github.com/envoyproxy/go-control-plane/envoy/extensions/matching/common_inputs/ssl/v3"
 	any "github.com/golang/protobuf/ptypes/any"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type RateLimit struct {
-	enabled bool
+	enabled map[string]bool
 }
 
 func newRateLimit() *RateLimit {
-	return &RateLimit{}
+	return &RateLimit{
+		enabled: make(map[string]bool),
+	}
 }
 
-func (r *RateLimit) updateListenersWithRateLimit(cache *WorkQueueCache, params RateLimitParams, rateLimits []*route.RateLimit) error {
+func (r *RateLimit) updateListenersWithRateLimit(cache *WorkQueueCache, params RateLimitParams, rateLimits map[string][]*route.RateLimit) error {
 	// update listener
 	for listenerKey := range cache.listeners {
 		ll := cache.listeners[listenerKey].(*api.Listener)
-		if isDefaultListener(ll.GetName()) || "l_mtls_"+params.Listener.MTLS == ll.GetName() { // only update listener if it is default listener / mTLS listener is selected
+		if (isDefaultListener(ll.GetName()) && !params.Listener.DisableOnDefault) || "l_mtls_"+params.Listener.MTLS == ll.GetName() { // only update listener if it is default listener (and disableOnDefault is not true) / mTLS listener is selected
 			for filterchainID := range ll.FilterChains {
 				for filterID := range ll.FilterChains[filterchainID].Filters {
 					// get manager
@@ -39,9 +42,10 @@ func (r *RateLimit) updateListenersWithRateLimit(cache *WorkQueueCache, params R
 						return err
 					}
 
-					if !r.enabled {
+					if _, enabled := r.enabled[ll.GetName()]; !enabled {
 						// update http filter
 						updateHTTPFilterWithConfig(&manager.HttpFilters, "envoy.filters.http.ratelimit", rateLimitConfigEncoded)
+						r.enabled[ll.GetName()] = true
 					}
 
 					// update virtualhosts
@@ -51,7 +55,9 @@ func (r *RateLimit) updateListenersWithRateLimit(cache *WorkQueueCache, params R
 					}
 
 					for k := range routeSpecifier.RouteConfig.VirtualHosts {
-						routeSpecifier.RouteConfig.VirtualHosts[k].RateLimits = rateLimits
+						if _, ok := rateLimits[ll.GetName()]; ok {
+							routeSpecifier.RouteConfig.VirtualHosts[k].RateLimits = rateLimits[ll.GetName()]
+						}
 					}
 
 					manager.RouteSpecifier = routeSpecifier
@@ -68,8 +74,6 @@ func (r *RateLimit) updateListenersWithRateLimit(cache *WorkQueueCache, params R
 			}
 		}
 	}
-
-	r.enabled = true
 
 	return nil
 }
@@ -136,6 +140,20 @@ func (r *RateLimit) getRateLimitVirtualHostConfig(params RateLimitParams) (*rout
 					RequestHeaders: &route.RateLimit_Action_RequestHeaders{
 						HeaderName:    descriptor.RequestHeader,
 						DescriptorKey: "header_" + strings.ToLower(descriptor.RequestHeader),
+					},
+				},
+			})
+		}
+		if params.Listener.MTLS != "" && descriptor.MTLSSubject {
+			extensionConfig, err := anypb.New(&ssl.SubjectInput{})
+			if err != nil {
+				return nil, err
+			}
+			actions = append(actions, &route.RateLimit_Action{
+				ActionSpecifier: &route.RateLimit_Action_Extension{
+					Extension: &core.TypedExtensionConfig{
+						Name:        "mtls_subject",
+						TypedConfig: extensionConfig,
 					},
 				},
 			})

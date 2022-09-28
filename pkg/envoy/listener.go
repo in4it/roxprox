@@ -40,7 +40,7 @@ type Listener struct {
 	httpFilter                  []*hcm.HttpFilter
 	tracing                     *hcm.HttpConnectionManager_Tracing
 	accessLoggerConfig          []*alf.AccessLog
-	rateLimits                  []*route.RateLimit
+	rateLimits                  map[string][]*route.RateLimit
 	rateLimitsMapping           map[string]uint
 	mTLSListenerDefaultsMapping map[string]listenerDefaultsMapping
 }
@@ -60,7 +60,7 @@ func newListener() *Listener {
 		},
 	}
 	listener.accessLoggerConfig = []*alf.AccessLog{}
-	listener.rateLimits = []*route.RateLimit{}
+	listener.rateLimits = make(map[string][]*route.RateLimit)
 	listener.rateLimitsMapping = make(map[string]uint)
 	listener.mTLSListenerDefaultsMapping = make(map[string]listenerDefaultsMapping)
 
@@ -213,8 +213,7 @@ func (l *Listener) getVirtualHost(listenerName, hostname, targetHostname, target
 		if regexRewrite.Regex != "" {
 			envoyRegexRewrite = &matcher.RegexMatchAndSubstitute{
 				Pattern: &matcher.RegexMatcher{
-					Regex:      regexRewrite.Regex,
-					EngineType: &matcher.RegexMatcher_GoogleRe2{GoogleRe2: &matcher.RegexMatcher_GoogleRE2{}},
+					Regex: regexRewrite.Regex,
 				},
 				Substitution: regexRewrite.Substitution,
 			}
@@ -303,8 +302,7 @@ func (l *Listener) getVirtualHost(listenerName, hostname, targetHostname, target
 				Match: &route.RouteMatch{
 					PathSpecifier: &route.RouteMatch_SafeRegex{
 						SafeRegex: &matcher.RegexMatcher{
-							EngineType: &matcher.RegexMatcher_GoogleRe2{GoogleRe2: &matcher.RegexMatcher_GoogleRE2{}},
-							Regex:      targetPrefix,
+							Regex: targetPrefix,
 						},
 					},
 				},
@@ -316,8 +314,7 @@ func (l *Listener) getVirtualHost(listenerName, hostname, targetHostname, target
 					Match: &route.RouteMatch{
 						PathSpecifier: &route.RouteMatch_SafeRegex{
 							SafeRegex: &matcher.RegexMatcher{
-								EngineType: &matcher.RegexMatcher_GoogleRe2{GoogleRe2: &matcher.RegexMatcher_GoogleRE2{}},
-								Regex:      targetPrefix,
+								Regex: targetPrefix,
 							},
 						},
 						Headers: []*route.HeaderMatcher{header},
@@ -351,7 +348,9 @@ func (l *Listener) getVirtualHost(listenerName, hostname, targetHostname, target
 	}
 	// set ratelimits
 	if isDefaultListener(listenerName) || l.HasMTLSDefault(listenerName, "envoy.filters.http.ratelimit") {
-		newVirtualhost.RateLimits = l.rateLimits
+		if _, ok := l.rateLimits[listenerName]; ok {
+			newVirtualhost.RateLimits = l.rateLimits[listenerName]
+		}
 	}
 	return newVirtualhost
 }
@@ -837,17 +836,19 @@ func (l *Listener) updateDefaultAuthzSetting(listenerParams ListenerParams, auth
 func (l *Listener) updateDefaultRateLimit(rateLimitParams RateLimitParams) {
 	r := newRateLimit()
 
-	if getListenerHTTPFilterIndex("envoy.filters.http.ratelimit", l.httpFilter) == -1 {
-		rateLimitConfigEncoded, err := r.getRateLimitConfigEncoded(rateLimitParams)
-		if err != nil {
-			logger.Errorf("Couldn't update default rateLimit filter: %s", err)
-			return
-		}
-		if rateLimitConfigEncoded == nil {
-			return
-		}
+	if !rateLimitParams.Listener.DisableOnDefault {
+		if getListenerHTTPFilterIndex("envoy.filters.http.ratelimit", l.httpFilter) == -1 {
+			rateLimitConfigEncoded, err := r.getRateLimitConfigEncoded(rateLimitParams)
+			if err != nil {
+				logger.Errorf("Couldn't update default rateLimit filter: %s", err)
+				return
+			}
+			if rateLimitConfigEncoded == nil {
+				return
+			}
 
-		updateHTTPFilterWithConfig(&l.httpFilter, "envoy.filters.http.ratelimit", rateLimitConfigEncoded)
+			updateHTTPFilterWithConfig(&l.httpFilter, "envoy.filters.http.ratelimit", rateLimitConfigEncoded)
+		}
 	}
 
 	rateLimitVirtualHostConfig, err := r.getRateLimitVirtualHostConfig(rateLimitParams)
@@ -855,14 +856,27 @@ func (l *Listener) updateDefaultRateLimit(rateLimitParams RateLimitParams) {
 		logger.Errorf("Couldn't update ratelimit: %s", err)
 		return
 	}
-	if val, ok := l.rateLimitsMapping[rateLimitParams.Name]; ok {
-		l.rateLimits[val] = rateLimitVirtualHostConfig
-	} else {
-		l.rateLimits = append(l.rateLimits, rateLimitVirtualHostConfig)
-		l.rateLimitsMapping[rateLimitParams.Name] = uint(len(l.rateLimits) - 1)
+	if !rateLimitParams.Listener.DisableOnDefault {
+		l.updateDefaultRateLimitByListener("l_http", rateLimitParams, rateLimitVirtualHostConfig)
 	}
+	if rateLimitParams.Listener.MTLS != "" {
+		l.updateDefaultRateLimitByListener("l_mtls_"+rateLimitParams.Listener.MTLS, rateLimitParams, rateLimitVirtualHostConfig)
+	}
+
 	// set mTLS listeners defaults
 	l.setMTLSDefault(rateLimitParams.Listener.MTLS, "envoy.filters.http.ratelimit")
+}
+
+func (l *Listener) updateDefaultRateLimitByListener(listenerName string, rateLimitParams RateLimitParams, rateLimitVirtualHostConfig *route.RateLimit) {
+	if l.rateLimits[listenerName] == nil {
+		l.rateLimits[listenerName] = []*route.RateLimit{}
+	}
+	if val, ok := l.rateLimitsMapping[listenerName+"#"+rateLimitParams.Name]; ok {
+		l.rateLimits[listenerName][val] = rateLimitVirtualHostConfig
+	} else {
+		l.rateLimits[listenerName] = append(l.rateLimits[listenerName], rateLimitVirtualHostConfig)
+	}
+	l.rateLimitsMapping[listenerName+"#"+rateLimitParams.Name] = uint(len(l.rateLimits[listenerName]) - 1)
 }
 
 func (l *Listener) updateDefaultLuaFilter(luaFilterParams LuaFilterParams) {

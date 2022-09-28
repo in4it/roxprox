@@ -17,4 +17,5 @@ type RateLimitDescriptor struct {
 	SourceCluster      bool   `json:"sourceCluster" yaml:"sourceCluster"`
 	RemoteAddress      bool   `json:"remoteAddress" yaml:"remoteAddress"`
 	RequestHeader      string `json:"requestHeader" yaml:"requestHeader"`
+	MTLSSubject        bool   `json:"mTLSSubject" yaml:"mTLSSubject"`
 }

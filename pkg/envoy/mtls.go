@@ -74,11 +74,14 @@ func (l *MTLS) updateMTLSListener(cache *WorkQueueCache, params ListenerParams, 
 		}
 		ll.FilterChains[0].Filters = append(rbacFilter, ll.FilterChains[0].Filters...)
 	}
-	matchSubjectAltNames := make([]*matcher.StringMatcher, len(mTLSParams.AllowedSubjectAltNames))
+	matchSubjectAltNames := make([]*tls.SubjectAltNameMatcher, len(mTLSParams.AllowedSubjectAltNames))
 	for k, name := range mTLSParams.AllowedSubjectAltNames {
-		matchSubjectAltNames[k] = &matcher.StringMatcher{
-			MatchPattern: &matcher.StringMatcher_Exact{
-				Exact: name,
+		matchSubjectAltNames[k] = &tls.SubjectAltNameMatcher{
+			SanType: tls.SubjectAltNameMatcher_DNS,
+			Matcher: &matcher.StringMatcher{
+				MatchPattern: &matcher.StringMatcher_Exact{
+					Exact: name,
+				},
 			},
 		}
 	}
@@ -110,7 +113,7 @@ func (l *MTLS) updateMTLSListener(cache *WorkQueueCache, params ListenerParams, 
 			},
 			ValidationContextType: &tls.CommonTlsContext_ValidationContext{
 				ValidationContext: &tls.CertificateValidationContext{
-					MatchSubjectAltNames: matchSubjectAltNames,
+					MatchTypedSubjectAltNames: matchSubjectAltNames,
 					TrustedCa: &core.DataSource{
 						Specifier: &core.DataSource_InlineString{
 							InlineString: mTLSParams.CACertificate,

@@ -61,5 +61,6 @@ type RuleActionsDirectResponse struct {
 }
 
 type Listener struct {
-	MTLS string `json:"mTLS" yaml:"mTLS"`
+	MTLS             string `json:"mTLS" yaml:"mTLS"`
+	DisableOnDefault bool   `json:"disableOnDefault" yaml:"disableOnDefault"`
 }
