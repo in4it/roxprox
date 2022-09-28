@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	pbN "github.com/in4it/roxprox/proto/notification"
+	pbN "github.com/in4it/roxprox/proto/notification/github.com/in4it/roxprox/proto/notification"
 )
 
 func TestLookupPeers(t *testing.T) {

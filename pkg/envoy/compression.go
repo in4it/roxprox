@@ -5,8 +5,8 @@ import (
 	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	gzip "github.com/envoyproxy/go-control-plane/envoy/extensions/compression/gzip/compressor/v3"
 	compressor "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/compressor/v3"
-	any "github.com/golang/protobuf/ptypes/any"
 	"google.golang.org/protobuf/types/known/anypb"
+	any "google.golang.org/protobuf/types/known/anypb"
 )
 
 type Compression struct{}

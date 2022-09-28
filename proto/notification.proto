@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+option go_package = "github.com/in4it/roxprox/proto/notification";
+
 service Notification {
    rpc SendNotification(NotificationRequest) returns (NotificationReply) {}
 }

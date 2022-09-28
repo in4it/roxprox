@@ -11,7 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
-	pbN "github.com/in4it/roxprox/proto/notification"
+	pbN "github.com/in4it/roxprox/proto/notification/github.com/in4it/roxprox/proto/notification"
 	"github.com/juju/loggo"
 	"google.golang.org/grpc"
 )

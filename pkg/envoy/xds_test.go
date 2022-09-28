@@ -13,11 +13,12 @@ import (
 	als "github.com/envoyproxy/go-control-plane/envoy/extensions/access_loggers/grpc/v3"
 	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
 	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
-	"github.com/golang/protobuf/ptypes"
 	"github.com/in4it/roxprox/pkg/storage"
 	localStorage "github.com/in4it/roxprox/pkg/storage/local"
-	"github.com/in4it/roxprox/proto/notification"
+	"github.com/in4it/roxprox/proto/notification/github.com/in4it/roxprox/proto/notification"
 	"github.com/juju/loggo"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 func initStorage() (storage.Storage, error) {
@@ -853,7 +854,7 @@ func TestAccessLogServer(t *testing.T) {
 			return
 		}
 		var alsConfig als.HttpGrpcAccessLogConfig
-		err = ptypes.UnmarshalAny(manager.AccessLog[0].GetTypedConfig(), &alsConfig)
+		err = anypb.UnmarshalTo(manager.AccessLog[0].GetTypedConfig(), &alsConfig, proto.UnmarshalOptions{})
 		if err != nil {
 			t.Errorf("Cannot unmarshal HttpGrpcAccessLogConfig typed config")
 			return

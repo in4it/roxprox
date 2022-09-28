@@ -20,7 +20,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	pkgApi "github.com/in4it/roxprox/pkg/api"
 	storage "github.com/in4it/roxprox/pkg/storage"
-	"github.com/in4it/roxprox/proto/notification"
+	"github.com/in4it/roxprox/proto/notification/github.com/in4it/roxprox/proto/notification"
 	"github.com/juju/loggo"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"

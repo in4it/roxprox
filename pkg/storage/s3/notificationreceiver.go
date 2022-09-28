@@ -3,7 +3,7 @@ package s3
 import (
 	"context"
 
-	n "github.com/in4it/roxprox/proto/notification"
+	n "github.com/in4it/roxprox/proto/notification/github.com/in4it/roxprox/proto/notification"
 )
 
 const (

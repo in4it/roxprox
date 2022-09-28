@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net"
 
-	n "github.com/in4it/roxprox/proto/notification"
+	n "github.com/in4it/roxprox/proto/notification/github.com/in4it/roxprox/proto/notification"
 	"github.com/juju/loggo"
 	"google.golang.org/grpc"
 )

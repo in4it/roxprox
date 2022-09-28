@@ -16,7 +16,6 @@ import (
 	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
 	cacheTypes "github.com/envoyproxy/go-control-plane/pkg/cache/types"
-	"github.com/gogo/protobuf/types"
 	"github.com/juju/loggo"
 )
 
@@ -1081,7 +1080,7 @@ func validateAuthzConfig(authzConfig *extAuthz.ExtAuthz, params ListenerParams, 
 	if err != nil {
 		return fmt.Errorf("Could not parse timeout %s for listener %s", params.Authz.Timeout, listenerName)
 	}
-	if !types.DurationProto(timeout).Equal(authzConfig.GetGrpcService().GetTimeout()) {
+	if authzConfig.GetGrpcService().GetTimeout().AsDuration() != timeout {
 		return fmt.Errorf("authz has wrong timeout for listener %s", listenerName)
 	}
 

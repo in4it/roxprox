@@ -12,9 +12,9 @@ import (
 	rbac "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/rbac/v3"
 	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+	wrappers "google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type MTLS struct {

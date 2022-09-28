@@ -310,7 +310,7 @@ You'll still need to upload the configuration to the s3 bucket
 # Manual build 
 
 ```
-protoc -I proto/ proto/notification.proto --go_out=plugins=grpc:proto/notification
+protoc -I proto/ proto/notification.proto --go_out=proto/notification
 protoc -I proto/ proto/config.proto --go_out=plugins=grpc:proto/config
 make build-linux  # linux
 make build-darwin # darwin

@@ -10,9 +10,9 @@ import (
 	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	upstreams "github.com/envoyproxy/go-control-plane/envoy/extensions/upstreams/http/v3"
 	cacheTypes "github.com/envoyproxy/go-control-plane/pkg/cache/types"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
+	wrappers "google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 const PRESET_CONNECT_TIMEOUT_SECONDS = 2

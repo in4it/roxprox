@@ -18,9 +18,9 @@ import (
 	envoyType "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 	cacheTypes "github.com/envoyproxy/go-control-plane/pkg/cache/types"
 	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
-	any "github.com/golang/protobuf/ptypes/any"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"google.golang.org/protobuf/types/known/anypb"
+	any "google.golang.org/protobuf/types/known/anypb"
+	wrappers "google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 const Error_NoFilterChainFound = "NoFilterChainFound"

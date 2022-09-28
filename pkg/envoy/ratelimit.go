@@ -9,7 +9,6 @@ import (
 	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	rl "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/ratelimit/v3"
 	ssl "github.com/envoyproxy/go-control-plane/envoy/extensions/matching/common_inputs/ssl/v3"
-	any "github.com/golang/protobuf/ptypes/any"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -78,7 +77,7 @@ func (r *RateLimit) updateListenersWithRateLimit(cache *WorkQueueCache, params R
 	return nil
 }
 
-func (r *RateLimit) getRateLimitConfigEncoded(params RateLimitParams) (*any.Any, error) {
+func (r *RateLimit) getRateLimitConfigEncoded(params RateLimitParams) (*anypb.Any, error) {
 	rateLimitFilter, err := r.getRateLimitConfig(params)
 	if err != nil {
 		return nil, err

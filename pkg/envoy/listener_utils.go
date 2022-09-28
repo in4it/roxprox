@@ -13,8 +13,9 @@ import (
 	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
 	cacheTypes "github.com/envoyproxy/go-control-plane/pkg/cache/types"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/any"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
+	any "google.golang.org/protobuf/types/known/anypb"
 )
 
 // static listener functions
@@ -36,7 +37,7 @@ func getListenerHTTPConnectionManager(ll *api.Listener) (*hcm.HttpConnectionMana
 func getManager(typedConfig *api.Filter_TypedConfig) (*hcm.HttpConnectionManager, error) {
 	var manager hcm.HttpConnectionManager
 
-	err := ptypes.UnmarshalAny(typedConfig.TypedConfig, &manager)
+	err := anypb.UnmarshalTo(typedConfig.TypedConfig, &manager, proto.UnmarshalOptions{})
 	if err != nil {
 		return &manager, err
 	}
@@ -47,7 +48,7 @@ func getManager(typedConfig *api.Filter_TypedConfig) (*hcm.HttpConnectionManager
 func getTransportSocketDownStreamTlsSocket(typedConfig *core.TransportSocket_TypedConfig) (*tls.DownstreamTlsContext, error) {
 	var tlsContext tls.DownstreamTlsContext
 
-	err := ptypes.UnmarshalAny(typedConfig.TypedConfig, &tlsContext)
+	err := anypb.UnmarshalTo(typedConfig.TypedConfig, &tlsContext, proto.UnmarshalOptions{})
 	if err != nil {
 		return &tlsContext, err
 	}
@@ -109,7 +110,7 @@ func getListenerHTTPFilterJwtAuth(httpFilter []*hcm.HttpFilter) (*jwtAuth.JwtAut
 	if httpFilterPos == -1 {
 		return &jwtConfig, fmt.Errorf("HttpFilter for jwt missing")
 	}
-	err := ptypes.UnmarshalAny(httpFilter[httpFilterPos].GetTypedConfig(), &jwtConfig)
+	err := anypb.UnmarshalTo(httpFilter[httpFilterPos].GetTypedConfig(), &jwtConfig, proto.UnmarshalOptions{})
 	if err != nil {
 		return &jwtConfig, err
 	}
@@ -121,7 +122,7 @@ func getListenerHTTPFilterAuthz(httpFilter []*hcm.HttpFilter) (*extAuthz.ExtAuth
 	if httpFilterPos == -1 {
 		return &authzConfig, fmt.Errorf("HttpFilter for authz missing")
 	}
-	err := ptypes.UnmarshalAny(httpFilter[httpFilterPos].GetTypedConfig(), &authzConfig)
+	err := anypb.UnmarshalTo(httpFilter[httpFilterPos].GetTypedConfig(), &authzConfig, proto.UnmarshalOptions{})
 	if err != nil {
 		return &authzConfig, err
 	}
@@ -182,7 +183,7 @@ func getListenerAttributes(params ListenerParams, paramsTLS TLSParams) (bool, st
 	}
 	return tls, targetPrefix, virtualHostName, listenerName, listenerPort, matchType
 }
-func updateHTTPFilterWithConfig(httpFilter *[]*hcm.HttpFilter, filterName string, filterConfig *any.Any) {
+func updateHTTPFilterWithConfig(httpFilter *[]*hcm.HttpFilter, filterName string, filterConfig *anypb.Any) {
 	// check whether filter exists
 	httpFilterPos := getListenerHTTPFilterIndex(filterName, *httpFilter)
 

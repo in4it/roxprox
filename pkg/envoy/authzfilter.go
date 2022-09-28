@@ -6,8 +6,8 @@ import (
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	extAuthz "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/ext_authz/v3"
-	any "github.com/golang/protobuf/ptypes/any"
 	"google.golang.org/protobuf/types/known/anypb"
+	any "google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 

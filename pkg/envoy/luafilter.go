@@ -3,8 +3,8 @@ package envoy
 import (
 	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	lua "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/lua/v3"
-	any "github.com/golang/protobuf/ptypes/any"
 	"google.golang.org/protobuf/types/known/anypb"
+	any "google.golang.org/protobuf/types/known/anypb"
 )
 
 type LuaFilter struct{}
