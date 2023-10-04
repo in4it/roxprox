@@ -46,6 +46,16 @@ data "aws_iam_policy_document" "roxprox" {
       values   = ["false"]
     }
   }
+  statement {
+    sid = "S3DenyDeletePolicy"
+    principals {
+      type = "AWS"
+      identifiers = ["*"]
+    }
+    effect = "Deny"
+    actions = ["s3:DeleteBucket"]
+    resources = [aws_s3_bucket.roxprox.arn]
+  }
 }
 
 resource "aws_s3_bucket_public_access_block" "roxprox" {
