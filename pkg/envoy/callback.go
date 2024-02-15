@@ -34,10 +34,10 @@ func (c *Callback) OnDeltaStreamOpen(ctx context.Context, id int64, typ string) 
 	return nil
 }
 
-func (c *Callback) OnStreamClosed(id int64) {
+func (c *Callback) OnStreamClosed(id int64, n *core.Node) {
 	logger.Tracef("OnStreamClosed %d closed", id)
 }
-func (c *Callback) OnDeltaStreamClosed(id int64) {
+func (c *Callback) OnDeltaStreamClosed(id int64, n *core.Node) {
 	logger.Tracef("OnDeltaStreamClosed %d closed", id)
 
 }
