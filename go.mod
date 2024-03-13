@@ -12,7 +12,7 @@ require (
 	github.com/juju/loggo v0.0.0-20200526014432-9ce3a2e09b5e
 	golang.org/x/crypto v0.17.0
 	google.golang.org/grpc v1.58.3
-	google.golang.org/protobuf v1.32.0
+	google.golang.org/protobuf v1.33.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
