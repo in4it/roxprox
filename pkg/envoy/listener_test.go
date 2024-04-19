@@ -253,7 +253,7 @@ func TestUpdateListener(t *testing.T) {
 	}
 	params6 := ListenerParams{
 		Auth: Auth{
-			JwtProvider: "testJwt2",
+			JwtProvider: "testJwt2a",
 			Issuer:      "http://issuer3.example.com",
 			Forward:     true,
 			RemoteJwks:  "https://remotejwks3.example.com",
@@ -864,20 +864,24 @@ func validateJWTProvider(listeners []cacheTypes.Resource, auth Auth) error {
 				return err
 			}
 			err = validateJWTProviderWithJWTConfig(jwtConfig, auth, cachedListener.Name)
+			if err != nil {
+				return err
+			}
 		} else if cachedListener.Name == "l_tls" {
-			for _, filterChain := range cachedListener.FilterChains {
-				if len(filterChain.Filters) == 0 {
-					return fmt.Errorf("No filters found in listener %s", cachedListener.Name)
-				}
-				manager, err := getManager((filterChain.Filters[getFilterIndexByName(filterChain.Filters, Envoy_HTTP_Filter)].ConfigType).(*api.Filter_TypedConfig))
-				if err != nil {
-					return fmt.Errorf("Could not extract manager from listener %s", cachedListener.Name)
-				}
-				jwtConfig, err := getListenerHTTPFilterJwtAuth(manager.HttpFilters)
-				if err != nil {
-					return err
-				}
-				err = validateJWTProviderWithJWTConfig(jwtConfig, auth, cachedListener.Name)
+			if len(cachedListener.FilterChains) == 0 {
+				return fmt.Errorf("No filters found in listener %s", cachedListener.Name)
+			}
+			manager, err := getManager((cachedListener.FilterChains[0].Filters[getFilterIndexByName(cachedListener.FilterChains[0].Filters, Envoy_HTTP_Filter)].ConfigType).(*api.Filter_TypedConfig))
+			if err != nil {
+				return fmt.Errorf("Could not extract manager from listener %s", cachedListener.Name)
+			}
+			jwtConfig, err := getListenerHTTPFilterJwtAuth(manager.HttpFilters)
+			if err != nil {
+				return err
+			}
+			err = validateJWTProviderWithJWTConfig(jwtConfig, auth, cachedListener.Name)
+			if err != nil {
+				return err
 			}
 		} else {
 			return fmt.Errorf("Unknown listener %s", cachedListener.Name)
