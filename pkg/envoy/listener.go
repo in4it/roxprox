@@ -11,6 +11,7 @@ import (
 	api "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	tracev3 "github.com/envoyproxy/go-control-plane/envoy/config/trace/v3"
+	corsv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/cors/v3"
 	router "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/router/v3"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
@@ -51,9 +52,16 @@ func newListener() *Listener {
 	if err != nil {
 		panic(err)
 	}
+	typedCorsConfig, err := anypb.New(&corsv3.Cors{})
+	if err != nil {
+		panic(err)
+	}
 	listener.httpFilter = []*hcm.HttpFilter{
 		{
 			Name: "envoy.filters.http.cors",
+			ConfigType: &hcm.HttpFilter_TypedConfig{
+				TypedConfig: typedCorsConfig,
+			},
 		},
 		{
 			Name: "envoy.filters.http.router",
