@@ -197,13 +197,24 @@ func updateHTTPFilterWithConfig(httpFilter *[]*hcm.HttpFilter, filterName string
 
 func prependHTTPFilterWithConfig(httpFilter *[]*hcm.HttpFilter, filterName string, filterConfig *any.Any) {
 	// prepend new httpFilter if the filter is not added yet
-	*httpFilter = append(
-		[]*hcm.HttpFilter{{
+	corsIndex := getListenerHTTPFilterIndex("envoy.filters.http.cors", *httpFilter)
+	if corsIndex >= 0 {
+		*httpFilter = append((*httpFilter)[:corsIndex+1], (*httpFilter)[corsIndex:]...)
+		(*httpFilter)[corsIndex] = &hcm.HttpFilter{
 			Name: filterName,
 			ConfigType: &hcm.HttpFilter_TypedConfig{
 				TypedConfig: filterConfig,
-			}},
-		}, *httpFilter...)
+			},
+		}
+	} else {
+		*httpFilter = append(
+			[]*hcm.HttpFilter{{
+				Name: filterName,
+				ConfigType: &hcm.HttpFilter_TypedConfig{
+					TypedConfig: filterConfig,
+				}},
+			}, *httpFilter...)
+	}
 }
 
 func cmpMatch(a *route.RouteMatch, b *route.RouteMatch) bool {

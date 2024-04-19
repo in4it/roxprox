@@ -53,6 +53,9 @@ func newListener() *Listener {
 	}
 	listener.httpFilter = []*hcm.HttpFilter{
 		{
+			Name: "envoy.filters.http.cors",
+		},
+		{
 			Name: "envoy.filters.http.router",
 			ConfigType: &hcm.HttpFilter_TypedConfig{
 				TypedConfig: typedRouterConfig,

@@ -867,6 +867,17 @@ func validateJWTProvider(listeners []cacheTypes.Resource, auth Auth) error {
 			if err != nil {
 				return err
 			}
+			corsFilterIndex := getListenerHTTPFilterIndex("envoy.filters.http.cors", manager.HttpFilters)
+			if corsFilterIndex == -1 {
+				return fmt.Errorf("Cors filter not found")
+			}
+			jwtAuthFilterIndex := getListenerHTTPFilterIndex("envoy.filters.http.jwt_authn", manager.HttpFilters)
+			if jwtAuthFilterIndex == -1 {
+				return fmt.Errorf("jwt auth filter not found")
+			}
+			if jwtAuthFilterIndex > corsFilterIndex {
+				return fmt.Errorf("Cors filter should be before jwt auth filter")
+			}
 		} else if cachedListener.Name == "l_tls" {
 			if len(cachedListener.FilterChains) == 0 {
 				return fmt.Errorf("No filters found in listener %s", cachedListener.Name)
@@ -882,6 +893,18 @@ func validateJWTProvider(listeners []cacheTypes.Resource, auth Auth) error {
 			err = validateJWTProviderWithJWTConfig(jwtConfig, auth, cachedListener.Name)
 			if err != nil {
 				return err
+			}
+
+			corsFilterIndex := getListenerHTTPFilterIndex("envoy.filters.http.cors", manager.HttpFilters)
+			if corsFilterIndex == -1 {
+				return fmt.Errorf("Cors filter not found")
+			}
+			jwtAuthFilterIndex := getListenerHTTPFilterIndex("envoy.filters.http.jwt_authn", manager.HttpFilters)
+			if jwtAuthFilterIndex == -1 {
+				return fmt.Errorf("jwt auth filter not found")
+			}
+			if jwtAuthFilterIndex > corsFilterIndex {
+				return fmt.Errorf("Cors filter should be before jwt auth filter")
 			}
 		} else {
 			return fmt.Errorf("Unknown listener %s", cachedListener.Name)
