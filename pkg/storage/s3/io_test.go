@@ -8,7 +8,7 @@ import (
 )
 
 func TestMultiLineYaml(t *testing.T) {
-	input := "spec:\n  inline_code: |\n    this is\n    Inline code."
+	input := "spec:\n  inlineCode: |\n    this is\n    Inline code."
 	var luaFilter api.LuaFilter
 	err := yaml.Unmarshal([]byte(input), &luaFilter)
 	if err != nil {

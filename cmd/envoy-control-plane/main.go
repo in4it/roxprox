@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/in4it/roxprox/pkg/awsmarketplace"
 	envoy "github.com/in4it/roxprox/pkg/envoy"
 	"github.com/in4it/roxprox/pkg/management"
 	storage "github.com/in4it/roxprox/pkg/storage"
@@ -15,15 +16,16 @@ var logger = loggo.GetLogger("envoy-control-plane")
 
 func main() {
 	var (
-		err                  error
-		loglevel             string
-		storageType          string
-		storagePath          string
-		storageBucket        string
-		storageNotifications string
-		awsRegion            string
-		acmeContact          string
-		s                    storage.Storage
+		err                     error
+		loglevel                string
+		storageType             string
+		storagePath             string
+		storageBucket           string
+		storageNotifications    string
+		awsRegion               string
+		acmeContact             string
+		skipRegisterMarketplace bool
+		s                       storage.Storage
 	)
 	flag.StringVar(&loglevel, "loglevel", "INFO", "log level")
 	flag.StringVar(&storageType, "storage-type", "local", "storage type")
@@ -32,6 +34,7 @@ func main() {
 	flag.StringVar(&storageNotifications, "storage-notifications", "", "s3 storage notifications")
 	flag.StringVar(&awsRegion, "aws-region", "", "AWS region")
 	flag.StringVar(&acmeContact, "acme-contact", "", "acme contact for TLS certs")
+	flag.BoolVar(&skipRegisterMarketplace, "skip-register-marketplace", false, "skip the registration to the AWS marketplace")
 
 	flag.Parse()
 
@@ -41,6 +44,14 @@ func main() {
 		loggo.ConfigureLoggers(`<root>=` + loglevel)
 	} else {
 		loggo.ConfigureLoggers(`<root>=INFO`)
+	}
+
+	if !skipRegisterMarketplace {
+		err := awsmarketplace.Register(awsRegion)
+		if err != nil {
+			logger.Errorf("AWS marketplace registration error: %s", err)
+			os.Exit(1)
+		}
 	}
 
 	if storageType == "local" {
