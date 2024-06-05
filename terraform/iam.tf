@@ -118,6 +118,13 @@ resource "aws_iam_role_policy" "roxprox-task-role" {
         "sqs:DeleteMessage"
       ],
       "Resource": "${aws_sqs_queue.roxprox-notifications.arn}"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "aws-marketplace:RegisterUsage"
+      ],
+      "Resource": "*"
     }
   ]
 }

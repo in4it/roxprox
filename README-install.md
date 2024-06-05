@@ -38,4 +38,16 @@ To change the configuration, upload a configuration yaml file to the s3 bucket (
 aws s3 cp resources/example-proxy/mocky.yaml s3://roxprox-examplecom/config/mocky.yaml
 ```
 
-To test the installation, hit the newly created loadbalancer endpoint with curl or a browser.
+To test the installation, hit the newly created loadbalancer endpoint with curl or a browser. If you used the example, you can use curl:
+```
+curl http://example.com -v -H "Host: test.example.com"
+```
+
+## Notes
+
+* No sensitive information is stored.
+* The configuration in your S3 bucket
+* The envoy config file is in the parameter store
+* TLS on the loadbalancer is enabled, encryption at rest of the configuration and s3 bucket can be configured
+* No cryptographic keys need to be rotated, you can use KMS as the key store
+* To verify container health, go to the ECS console and check whether the roxprox and envoy tasks are running. Use the logs in Cloudwatch Logs to see if no errors are present
