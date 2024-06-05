@@ -5,7 +5,7 @@ go 1.21
 replace github.com/golang/mock v1.4.3 => github.com/golang/mock v1.4.4
 
 require (
-	github.com/aws/aws-sdk-go v1.38.69
+	github.com/aws/aws-sdk-go v1.53.16
 	github.com/envoyproxy/go-control-plane v0.12.0
 	github.com/google/go-cmp v0.5.9
 	github.com/google/uuid v1.3.0
