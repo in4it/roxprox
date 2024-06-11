@@ -1,0 +1,36 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": [
+          "s3:Get*",
+          "s3:Put*"
+        ],
+        "Resource": "arn:aws:s3:::${S3_BUCKET}/*"
+      },
+      {
+        "Effect": "Allow",
+        "Action": [
+          "s3:ListBucket"
+        ],
+        "Resource": "arn:aws:s3:::${S3_BUCKET}"
+      },
+      {
+        "Effect": "Allow",
+        "Action": [
+          "sqs:Get*",
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage"
+        ],
+        "Resource": "arn:aws:sqs:${AWS_REGION}:${AWS_ACCOUNT_ID}:${S3_BUCKET}-notifications"
+      },
+      {
+        "Effect": "Allow",
+        "Action": [
+          "aws-marketplace:RegisterUsage"
+        ],
+        "Resource": "*"
+      }
+    ]
+  }
