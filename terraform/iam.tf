@@ -122,7 +122,8 @@ resource "aws_iam_role_policy" "roxprox-task-role" {
     {
       "Effect": "Allow",
       "Action": [
-        "aws-marketplace:RegisterUsage"
+        "aws-marketplace:RegisterUsage",
+        "aws-marketplace:MeterUsage"
       ],
       "Resource": "*"
     }

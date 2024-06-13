@@ -15,11 +15,13 @@ func Register(awsRegion string) error {
 		return fmt.Errorf("couldn't initialize S3: %s", err)
 	}
 
+	productCode := os.Getenv("PROD_CODE")
+
 	// Create a MarketplaceMetering client from just a session.
 	svc := marketplacemetering.New(sess)
 
-	out, err := svc.RegisterUsage(&marketplacemetering.RegisterUsageInput{
-		ProductCode:      aws.String(os.Getenv("PROD_CODE")),
+	_, err = svc.RegisterUsage(&marketplacemetering.RegisterUsageInput{
+		ProductCode:      aws.String(productCode),
 		PublicKeyVersion: aws.Int64(1),
 	})
 
@@ -27,7 +29,7 @@ func Register(awsRegion string) error {
 		return fmt.Errorf("RegisterUsage error: %s", err)
 	}
 
-	fmt.Printf("Response from RegisterUsage API call: %s\n", aws.StringValue(out.Signature))
+	go reportUsage(sess, productCode)
 
 	return nil
 }
