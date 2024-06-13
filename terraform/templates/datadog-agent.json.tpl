@@ -28,6 +28,10 @@
             {
                 "name": "DD_APM_ENV",
                 "value": "${DD_APM_ENV}"
+            },
+            {
+                "name": "DD_LOG_LEVEL",
+                "value": "${DD_LOG_LEVEL}"
             }
         ]
     }

@@ -12,12 +12,13 @@ resource "aws_ecs_task_definition" "datadog" {
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
   container_definitions    = templatefile("${path.module}/templates/datadog-agent.json.tpl", {
-    AWS_REGION = data.aws_region.current.name
-    DD_API_KEY = var.datadog_api_key
-    DD_APM_ENV = var.datadog_env
-    STATS_URL  = var.datadog_stats_url
-    IMAGE      = var.datadog_image
-    VERSION    = var.datadog_image_version
+    AWS_REGION   = data.aws_region.current.name
+    DD_API_KEY   = var.datadog_api_key
+    DD_APM_ENV   = var.datadog_env
+    STATS_URL    = var.datadog_stats_url
+    IMAGE        = var.datadog_image
+    VERSION      = var.datadog_image_version
+    DD_LOG_LEVEL = var.datadog_log_level
   })
 }
 
