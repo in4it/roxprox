@@ -29,7 +29,5 @@ func Register(awsRegion string) error {
 		return fmt.Errorf("RegisterUsage error: %s", err)
 	}
 
-	go reportUsage(sess, productCode)
-
 	return nil
 }
