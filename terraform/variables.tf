@@ -222,6 +222,10 @@ variable "datadog_image_version" {
   description = "datadog agent image version"
   default     = "latest"
 }
+variable "datadog_log_level" {
+  description = "datadog log level"
+  default     = "INFO"
+}
 variable "datadog_count" {
   description = "datadog service count"
   default     = "2"
