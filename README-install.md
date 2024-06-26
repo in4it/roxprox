@@ -30,7 +30,7 @@ Note: you can find more configuration file options in the [README](README.md)
 3. Run the following commands to create an ECS cluster with roxprox (control plane) and envoy (data plane):
 
 ```
-export S3_BUCKET="roxprox-configuration" change the value of S3_BUCKET to your s3 bucket
+export S3_BUCKET="roxprox-configuration" # change the value of S3_BUCKET to your s3 bucket
 # IAM Execution Roles
 aws iam create-role --role-name roxprox-execution-role --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ecs-tasks.amazonaws.com"},"Action":"sts:AssumeRole"}]}'
 aws iam attach-role-policy --role-name roxprox-execution-role --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
@@ -75,11 +75,15 @@ aws iam delete-role-policy --role-name roxprox-execution-role --policy-name roxp
 aws iam detach-role-policy --role-name roxprox-execution-role --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 aws iam delete-role --role-name roxprox-execution-role
 aws iam delete-role-policy --role-name roxprox-task-role --policy-name roxprox-policy
+aws iam delete-role-policy --role-name roxprox-task-role --policy-name roxprox-task-role
 aws iam delete-role --role-name roxprox-task-role
+aws iam delete-role --role-name roxprox-envoy-proxy-task-role
+aws iam delete-role-policy --role-name roxprox-ecs-task-execution-role --policy-name roxprox-ecs-task-execution-role
+aws iam delete-role --role-name roxprox-ecs-task-execution-role
 aws logs delete-log-group --log-group-name roxprox
 aws sqs delete-queue --queue-url "${S3_BUCKET}-notifications"
 aws s3 rm s3://${S3_BUCKET}/config/mocky.yaml
-aws s3api delete-bucket --name ${S3_BUCKET}
+aws s3api delete-bucket --bucket ${S3_BUCKET}
 ```
 
 ## Roxprox install (using Terraform)
