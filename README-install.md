@@ -22,6 +22,7 @@ spec:
         port: 443
 ```
 To copy the example configuration file, to the s3 bucket, use the following command:
+```
 aws s3 cp resources/example-proxy/mocky.yaml s3://roxprox-configuration/config/mocky.yaml
 ```
 Note: you can find more configuration file options in the [README](README.md) 
