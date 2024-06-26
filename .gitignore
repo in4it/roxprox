@@ -5,3 +5,4 @@ resources/pki/
 resources/*/pki/
 resources/*/challenges/
 /*.sh
+/*.json

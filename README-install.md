@@ -1,33 +1,57 @@
 # Install
 
 ## Instructions for ECS deploy without terraform (see terraform instructions below)
-* git clone this repository or download the files from [resources/ecs/](resources/ecs/)
-* Create an S3 bucket. You can copy [resources/mocky.yaml](resources/mocky.yaml) into config/mocky.yaml to proxy an example website
-* Run the following commands to create an ECS cluster with roxprox (control plane) and envoy (data plane):
+1. git clone this repository using `git clone https://github.com/in4it/roxprox.git` or download the files from [resources/ecs/](resources/ecs/)
+2. Create an S3 bucket and upload the configuration files. You can copy the example configuration file to proxy test.example.com:
+```
+aws s3 create-bucket --bucket roxprox-configuration --region us-east-1 # add your organization name or a random string to make the s3 bucket unique
+```
+Example Configuration File ([mocky.yaml](resources/example-proxy/mocky.yaml)):
+```
+api: proxy.in4it.io/v1
+kind: rule
+metadata:
+  name: simple-reverse-proxy
+spec:
+  conditions:
+    - hostname: test.example.com
+      prefix: /
+  actions:
+    - proxy:
+        hostname: www.mocky.io
+        port: 443
+```
+To copy the example configuration file, to the s3 bucket, use the following command:
+aws s3 cp resources/example-proxy/mocky.yaml s3://roxprox-configuration/config/mocky.yaml
+```
+Note: you can find more configuration file options in the [README](README.md) 
+
+3. Run the following commands to create an ECS cluster with roxprox (control plane) and envoy (data plane):
 
 ```
+export S3_BUCKET="roxprox-configuration" change the value of S3_BUCKET to your s3 bucket
 # IAM Execution Roles
 aws iam create-role --role-name roxprox-execution-role --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ecs-tasks.amazonaws.com"},"Action":"sts:AssumeRole"}]}'
 aws iam attach-role-policy --role-name roxprox-execution-role --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
-AWS_REGION=us-east-1 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query 'Account' --output text) envsubst < roxprox-executionrole.template.json > roxprox-executionrole.json
+AWS_REGION=us-east-1 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query 'Account' --output text) envsubst < resources/ecs/roxprox-executionrole.template.json > roxprox-executionrole.json
 aws iam put-role-policy --role-name roxprox-execution-role --policy-name roxprox-policy --policy-document file://roxprox-executionrole.json
 # IAM Task Roles
 aws iam create-role --role-name roxprox-task-role --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ecs-tasks.amazonaws.com"},"Action":"sts:AssumeRole"}]}'
-S3_BUCKET=your-s3-bucket AWS_REGION=us-east-1 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query 'Account' --output text) envsubst < roxprox-taskrole.template.json > roxprox-taskrole.json # change S3_BUCKET to your s3 bucket
+AWS_REGION=us-east-1 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query 'Account' --output text) envsubst < resources/ecs/roxprox-taskrole.template.json > roxprox-taskrole.json 
 aws iam put-role-policy --role-name roxprox-task-role --policy-name roxprox-policy --policy-document file://roxprox-taskrole.json
 # ECS Cluster
 aws ecs create-cluster --cluster-name roxprox-example
 # Create SQS notification queue
-aws sqs create-queue --queue-name "your-s3-bucket-notifications"
+aws sqs create-queue --queue-name "${S3_BUCKET}-notifications"
 ```
 
-* Register the ECS service. Make sure to change the S3 and AWS_REGION variables:
+4. Register the ECS service. Make sure to change the S3 and AWS_REGION variables:
 ```
-aws ssm put-parameter --name envoy-config --type String --value $(cat envoy-config.yaml |base64)
-S3_BUCKET=your-s3-bucket AWS_REGION=us-east-1 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query 'Account' --output text) envsubst < roxprox.template.json > roxprox.json
+aws ssm put-parameter --name envoy-config --type String --value $(cat resources/ecs/envoy-config.yaml |base64)
+S3_BUCKET=your-s3-bucket AWS_REGION=us-east-1 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query 'Account' --output text) envsubst < resources/ecs/roxprox.template.json > roxprox.json
 aws logs create-log-group --log-group-name roxprox
 ```
-* Deploy the ECS service. Make sure to specify a subnet and security group (http proxy port is tcp port 10000):
+5. Deploy the ECS service. Make sure to specify a subnet and security group (http proxy port is tcp port 10000):
 
 ```
 aws ecs register-task-definition --cli-input-json file://roxprox.json
@@ -41,6 +65,7 @@ aws ecs create-service --cluster roxprox-example --service-name roxprox --task-d
 
 ## Cleanup
 ```
+export S3_BUCKET="roxprox-configuration" change the value of S3_BUCKET to your s3 bucket
 aws ecs update-service --cluster roxprox-example --service roxprox --desired-count 0
 aws ecs delete-service --cluster roxprox-example --service roxprox
 aws ecs deregister-task-definition --task-definition roxprox:1
@@ -51,7 +76,9 @@ aws iam delete-role --role-name roxprox-execution-role
 aws iam delete-role-policy --role-name roxprox-task-role --policy-name roxprox-policy
 aws iam delete-role --role-name roxprox-task-role
 aws logs delete-log-group --log-group-name roxprox
-aws sqs delete-queue --queue-url "your-s3-bucket-notifications"
+aws sqs delete-queue --queue-url "${S3_BUCKET}-notifications"
+aws s3 rm s3://${S3_BUCKET}/config/mocky.yaml
+aws s3api delete-bucket --name ${S3_BUCKET}
 ```
 
 ## Roxprox install (using Terraform)
