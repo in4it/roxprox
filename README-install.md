@@ -4,7 +4,7 @@
 1. git clone this repository using `git clone https://github.com/in4it/roxprox.git` or download the files from [resources/ecs/](resources/ecs/)
 2. Create an S3 bucket and upload the configuration files. You can copy the example configuration file to proxy test.example.com:
 ```
-aws s3 create-bucket --bucket roxprox-configuration --region us-east-1 # add your organization name or a random string to make the s3 bucket unique
+aws s3api create-bucket --bucket roxprox-configuration --region us-east-1 # add your organization name or a random string to make the s3 bucket unique
 ```
 Example Configuration File ([mocky.yaml](resources/example-proxy/mocky.yaml)):
 ```
@@ -75,15 +75,12 @@ aws iam delete-role-policy --role-name roxprox-execution-role --policy-name roxp
 aws iam detach-role-policy --role-name roxprox-execution-role --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 aws iam delete-role --role-name roxprox-execution-role
 aws iam delete-role-policy --role-name roxprox-task-role --policy-name roxprox-policy
-aws iam delete-role-policy --role-name roxprox-task-role --policy-name roxprox-task-role
 aws iam delete-role --role-name roxprox-task-role
-aws iam delete-role --role-name roxprox-envoy-proxy-task-role
-aws iam delete-role-policy --role-name roxprox-ecs-task-execution-role --policy-name roxprox-ecs-task-execution-role
-aws iam delete-role --role-name roxprox-ecs-task-execution-role
 aws logs delete-log-group --log-group-name roxprox
 aws sqs delete-queue --queue-url "${S3_BUCKET}-notifications"
 aws s3 rm s3://${S3_BUCKET}/config/mocky.yaml
 aws s3api delete-bucket --bucket ${S3_BUCKET}
+aws ssm delete-parameter --name envoy-config
 ```
 
 ## Roxprox install (using Terraform)
