@@ -58,7 +58,10 @@ resource "aws_iam_role_policy" "roxprox-ecs-task-execution-role" {
         "ecr:GetDownloadUrlForLayer",
         "ecr:BatchGetImage"
       ],
-      "Resource": "arn:aws:ecr:${data.aws_region.current.name}:111345817488:repository/aws-appmesh-envoy"
+      "Resource": [
+        "arn:aws:ecr:${data.aws_region.current.name}:111345817488:repository/aws-appmesh-envoy",
+        "arn:aws:ecr:us-east-1:709825985650:repository/in4it/roxprox"
+      ]
     }
   ]
 }
