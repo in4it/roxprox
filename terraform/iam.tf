@@ -47,13 +47,6 @@ resource "aws_iam_role_policy" "roxprox-ecs-task-execution-role" {
     {
       "Effect": "Allow",
       "Action": [
-        "ecr:GetAuthorizationToken"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Effect": "Allow",
-      "Action": [
         "ecr:BatchCheckLayerAvailability",
         "ecr:GetDownloadUrlForLayer",
         "ecr:BatchGetImage"
