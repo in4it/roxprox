@@ -35,16 +35,17 @@ resource "aws_ecs_task_definition" "envoy-proxy" {
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
   container_definitions    = templatefile("${path.module}/templates/envoy.json.tpl", {
-    mtls                  = var.mtls
-    AWS_REGION            = data.aws_region.current.name
-    ENVOY_RELEASE         = var.envoy_release
-    ENVOY_CONFIG          = aws_ssm_parameter.envoy-config-http.arn
-    APPMESH_NAME          = var.appmesh_name
-    APPMESH_ENVOY_RELEASE = var.appmesh_envoy_release
-    EXTRA_CONTAINERS      = var.extra_containers == "" ? "" : ",${var.extra_containers}"
-    EXTRA_DEPENDENCY      = var.extra_dependency == "" ? "" : var.enable_appmesh ? ",${var.extra_dependency}" : var.extra_dependency
-    ULIMIT_NOFILE_SOFT    = var.envoy_nofile_soft_limit
-    ULIMIT_NOFILE_HARD    = var.envoy_nofile_hard_limit
+    mtls                            = var.mtls
+    AWS_REGION                      = data.aws_region.current.name
+    ENVOY_RELEASE                   = var.envoy_release
+    ENVOY_CONFIG                    = aws_ssm_parameter.envoy-config-http.arn
+    APPMESH_NAME                    = var.appmesh_name
+    APPMESH_ENVOY_RELEASE           = var.appmesh_envoy_release
+    EXTRA_CONTAINERS                = var.extra_containers == "" ? "" : ",${var.extra_containers}"
+    EXTRA_DEPENDENCY                = var.extra_dependency == "" ? "" : var.enable_appmesh ? ",${var.extra_dependency}" : var.extra_dependency
+    ULIMIT_NOFILE_SOFT              = var.envoy_nofile_soft_limit
+    ULIMIT_NOFILE_HARD              = var.envoy_nofile_hard_limit
+    DD_REMOTE_CONFIGURATION_ENABLED = var.dd_remote_configuration_enabled
   })
 }
 
@@ -58,16 +59,17 @@ resource "aws_ecs_task_definition" "envoy-proxy-appmesh" {
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
   container_definitions    = templatefile("${path.module}/templates/envoy-appmesh.json.tpl", {
-    mtls                  = var.mtls
-    AWS_REGION            = data.aws_region.current.name
-    ENVOY_RELEASE         = var.envoy_release
-    ENVOY_CONFIG          = aws_ssm_parameter.envoy-config-http.arn
-    APPMESH_NAME          = var.appmesh_name
-    APPMESH_ENVOY_RELEASE = var.appmesh_envoy_release
-    EXTRA_CONTAINERS      = var.extra_containers == "" ? "" : ",${var.extra_containers}"
-    EXTRA_DEPENDENCY      = var.extra_dependency == "" ? "" : var.enable_appmesh ? ",${var.extra_dependency}" : var.extra_dependency
-    ULIMIT_NOFILE_SOFT    = var.envoy_nofile_soft_limit
-    ULIMIT_NOFILE_HARD    = var.envoy_nofile_hard_limit
+    mtls                            = var.mtls
+    AWS_REGION                      = data.aws_region.current.name
+    ENVOY_RELEASE                   = var.envoy_release
+    ENVOY_CONFIG                    = aws_ssm_parameter.envoy-config-http.arn
+    APPMESH_NAME                    = var.appmesh_name
+    APPMESH_ENVOY_RELEASE           = var.appmesh_envoy_release
+    EXTRA_CONTAINERS                = var.extra_containers == "" ? "" : ",${var.extra_containers}"
+    EXTRA_DEPENDENCY                = var.extra_dependency == "" ? "" : var.enable_appmesh ? ",${var.extra_dependency}" : var.extra_dependency
+    ULIMIT_NOFILE_SOFT              = var.envoy_nofile_soft_limit
+    ULIMIT_NOFILE_HARD              = var.envoy_nofile_hard_limit
+    DD_REMOTE_CONFIGURATION_ENABLED = var.dd_remote_configuration_enabled
   })
 
   proxy_configuration {
@@ -140,16 +142,17 @@ resource "aws_ecs_task_definition" "envoy-proxy-https" {
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
   container_definitions    = templatefile("${path.module}/templates/envoy.json.tpl", {
-    mtls                  = var.mtls
-    AWS_REGION            = data.aws_region.current.name
-    ENVOY_RELEASE         = var.envoy_release
-    ENVOY_CONFIG          = aws_ssm_parameter.envoy-config-http.arn
-    APPMESH_NAME          = var.appmesh_name
-    APPMESH_ENVOY_RELEASE = var.appmesh_envoy_release
-    EXTRA_CONTAINERS      = var.extra_containers == "" ? "" : ",${var.extra_containers}"
-    EXTRA_DEPENDENCY      = var.extra_dependency == "" ? "" : var.enable_appmesh ? ",${var.extra_dependency}" : var.extra_dependency
-    ULIMIT_NOFILE_SOFT    = var.envoy_nofile_soft_limit
-    ULIMIT_NOFILE_HARD    = var.envoy_nofile_hard_limit
+    mtls                            = var.mtls
+    AWS_REGION                      = data.aws_region.current.name
+    ENVOY_RELEASE                   = var.envoy_release
+    ENVOY_CONFIG                    = aws_ssm_parameter.envoy-config-http.arn
+    APPMESH_NAME                    = var.appmesh_name
+    APPMESH_ENVOY_RELEASE           = var.appmesh_envoy_release
+    EXTRA_CONTAINERS                = var.extra_containers == "" ? "" : ",${var.extra_containers}"
+    EXTRA_DEPENDENCY                = var.extra_dependency == "" ? "" : var.enable_appmesh ? ",${var.extra_dependency}" : var.extra_dependency
+    ULIMIT_NOFILE_SOFT              = var.envoy_nofile_soft_limit
+    ULIMIT_NOFILE_HARD              = var.envoy_nofile_hard_limit
+    DD_REMOTE_CONFIGURATION_ENABLED = var.dd_remote_configuration_enabled
   })
 }
 

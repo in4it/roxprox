@@ -206,6 +206,10 @@ variable "enable_datadog" {
   description = "flag to enable datadog integration"
   default     = false
 }
+variable "dd_remote_configuration_enabled" {
+  description = "flag to enable/disable datadog remote configuration"
+  default     = true
+}
 variable "datadog_api_key" {
   description = "datadog api key"
   default     = ""

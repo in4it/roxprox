@@ -20,6 +20,12 @@
             "hardLimit": ${ULIMIT_NOFILE_HARD}
          }
        ],
+       "environment": [
+         {
+            "name": "DD_REMOTE_CONFIGURATION_ENABLED",
+            "value": "${DD_REMOTE_CONFIGURATION_ENABLED}"
+         }
+       ],
        "secrets": [
          { 
            "name": "ENVOY_CONFIG", 
