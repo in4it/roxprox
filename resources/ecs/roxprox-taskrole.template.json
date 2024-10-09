@@ -28,7 +28,8 @@
       {
         "Effect": "Allow",
         "Action": [
-          "aws-marketplace:RegisterUsage"
+          "aws-marketplace:RegisterUsage",
+          "aws-marketplace:MeterUsage"
         ],
         "Resource": "*"
       }
