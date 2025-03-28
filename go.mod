@@ -1,7 +1,6 @@
 module github.com/in4it/roxprox
 
-go 1.21
-toolchain go1.24.1
+go 1.24.1
 
 replace github.com/golang/mock v1.4.3 => github.com/golang/mock v1.4.4
 

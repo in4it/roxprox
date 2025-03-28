@@ -1,7 +1,7 @@
 #
 # Build go project
 #
-FROM golang:1.19-alpine as go-builder
+FROM golang:1.24-alpine AS go-builder
 
 WORKDIR /roxprox
 
