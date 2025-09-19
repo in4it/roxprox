@@ -2,6 +2,7 @@ vendor/
 /*-darwin-amd64
 /*-linux-amd64
 resources/pki/
+resources/access-log-server/build/
 resources/*/pki/
 resources/*/challenges/
 /*.sh

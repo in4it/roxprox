@@ -27,6 +27,7 @@ resource "aws_lb" "lb" {
     enabled = var.enable_lb_logs
   }
 
+  drop_invalid_header_fields = var.drop_invalid_header_fields
   enable_deletion_protection = true
 }
 
