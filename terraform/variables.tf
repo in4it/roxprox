@@ -136,8 +136,14 @@ variable "loadbalancer_alb_cert_extra" {
 
 variable "loadbalancer_ssl_policy" {
   description = "ssl policy for the https listener to use"
-  default     = "ELBSecurityPolicy-2016-08"
+  default     = "ELBSecurityPolicy-TLS13-1-2-2021-06"
 }
+
+variable "drop_invalid_header_fields" {
+  description = "true if needs to drop invalid header fields"
+  default     = "false"
+}
+
 variable "loadbalancer_https_forwarding" {
   description = "if true, redirect all http traffic to https"
   default     = false
@@ -279,4 +285,9 @@ variable "envoy_nofile_hard_limit" {
 variable "envoy_extra_target_group_arns" {
   description = "extra target groups to add"
   default     = []
+}
+
+variable "sqs_kms_master_key_id" {
+  description = "KMS key arn to encrypt SQS queue"
+  default     = ""
 }

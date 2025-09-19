@@ -83,6 +83,7 @@ resource "aws_sqs_queue" "roxprox-notifications" {
   receive_wait_time_seconds  = 20
   visibility_timeout_seconds = 30
   message_retention_seconds  = 60
+  kms_master_key_id          = var.sqs_kms_master_key_id
 
   policy = <<POLICY
 {

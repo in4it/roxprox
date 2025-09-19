@@ -1,7 +1,7 @@
 #
 # Build go project
 #
-FROM golang:1.24-alpine AS go-builder
+FROM golang:1.24.7-alpine AS go-builder
 
 WORKDIR /roxprox
 
@@ -15,12 +15,19 @@ RUN apk add -u -t build-tools curl git && \
 #
 # Runtime container
 #
-FROM alpine:3.21.3
+FROM alpine:3.22.1
 
 WORKDIR /app
 
-RUN apk --no-cache add ca-certificates bash curl
+RUN apk --no-cache add ca-certificates bash curl shadow
 
 COPY --from=go-builder /roxprox/envoy-control-plane .
+
+# create a non-root user to run the application
+RUN useradd -u 1000 -U -m appuser \
+    && chown -R appuser:appuser /app
+
+# Switch to the non-root user
+USER appuser
 
 ENTRYPOINT ["./envoy-control-plane"]
