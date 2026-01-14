@@ -1,4 +1,4 @@
-FROM alpine:3.22.1
+FROM alpine:3.23.2
 ADD build/als /usr/local/bin/als
 EXPOSE 9001
 
